@@ -3,279 +3,182 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>🐰 Bunny Hop | Mini Arcade</title>
+  <title>🐰 Neon Bunny Hop</title>
   <style>
     :root {
-      --bg: #87CEEB;
-      --panel: #fff5f8;
-      --accent: #ff85a2;
-      --accent2: #6bc4ff;
+      --bg: #0d0d1a;
+      --panel: #16162e;
+      --accent: #00f2ff;
+      --accent2: #ff00aa;
       --gold: #ffd700;
-      --text: #4a4a68;
-      --ground: #7cb342;
+      --lime: #7CFC00;
+      --text: #f5f5f5;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; touch-action: none; }
 
-    html, body {
-      height: 100%;
-      overflow: hidden;
-      background: #1a1a2e;
-    }
-
     body {
       font-family: 'Segoe UI', Tahoma, sans-serif;
+      background: var(--bg);
       color: var(--text);
+      min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      height: 100vh;
-      width: 100vw;
-      position: relative;
+      padding: 20px;
+      overflow-x: hidden;
     }
 
-    #gameCanvas {
-      position: absolute;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 100%;
-      height: 100%;
-      max-width: 700px;
-      background: linear-gradient(180deg, #87CEEB 0%, #b3e0ff 60%, #e0f6ff 100%);
-      display: block;
-      z-index: 1;
-    }
+    header { text-align: center; margin-bottom: 12px; }
 
-    .ui-layer {
-      position: absolute;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 100%;
-      max-width: 700px;
-      height: 100%;
-      z-index: 10;
-      pointer-events: none;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .hud {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      padding: 12px 16px;
-      gap: 10px;
-      pointer-events: auto;
-      flex-shrink: 0;
-    }
-
-    .hud-panel {
-      background: rgba(255, 255, 255, 0.9);
-      border: 2px solid var(--accent);
-      border-radius: 14px;
-      padding: 8px 14px;
-      font-size: 0.85rem;
-      min-width: 80px;
-      text-align: center;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    }
-
-    .hud-panel span {
-      display: block;
-      font-size: 0.65rem;
-      color: #888;
-      margin-bottom: 2px;
-    }
-
-    .hud-panel strong {
+    h1 {
+      font-size: clamp(1.5rem, 5vw, 2rem);
       color: var(--accent);
-      font-size: 1.1rem;
+      text-shadow: 0 0 20px rgba(0,242,255,0.5);
     }
 
-    .controls-bar {
-      position: absolute;
-      bottom: calc(10px + env(safe-area-inset-bottom));
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 20;
+    .stats {
       display: flex;
-      gap: 8px;
-      pointer-events: auto;
-      background: rgba(255, 255, 255, 0.95);
-      border: 2px solid var(--accent);
-      border-radius: 14px;
-      padding: 8px 14px;
-      box-shadow: 0 -4px 20px rgba(0,0,0,0.12);
+      gap: 14px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+      justify-content: center;
     }
 
-    button {
-      background: var(--accent);
-      color: white;
-      border: none;
-      padding: 10px 18px;
-      border-radius: 10px;
-      font-size: 0.8rem;
-      font-weight: bold;
-      cursor: pointer;
-      transition: transform 0.15s, background 0.15s;
+    .stat {
+      background: var(--panel);
+      padding: 8px 16px;
+      border-radius: 50px;
+      font-size: 0.9rem;
       white-space: nowrap;
     }
 
-    button:hover, button:active {
-      background: #ff5c85;
-      transform: scale(1.05);
+    .stat span { color: var(--gold); font-weight: bold; }
+
+    .stat.combo span { color: var(--accent2); }
+    .stat.combo { opacity: 0.4; transition: opacity 0.2s, transform 0.2s; }
+    .stat.combo.active { opacity: 1; transform: scale(1.08); }
+
+    .game-wrapper {
+      position: relative;
+      border: 2px solid var(--accent);
+      border-radius: 12px;
+      box-shadow: 0 0 30px rgba(0,242,255,0.2);
+      background: #050510;
+      max-width: 100%;
+      transition: transform 0.05s linear;
+    }
+
+    .game-wrapper.shake { animation: shake 0.35s ease; }
+    .game-wrapper.turbo { box-shadow: 0 0 40px rgba(255,215,0,0.5); }
+
+    @keyframes shake {
+      0%, 100% { transform: translate(0,0); }
+      20% { transform: translate(-6px, 4px); }
+      40% { transform: translate(6px, -4px); }
+      60% { transform: translate(-4px, -3px); }
+      80% { transform: translate(4px, 3px); }
+    }
+
+    canvas {
+      display: block;
+      border-radius: 10px;
+      max-width: 100%;
+      height: auto;
+      cursor: pointer;
     }
 
     .overlay {
       position: absolute;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 100%;
-      max-width: 700px;
-      height: 100%;
-      background: rgba(255, 255, 255, 0.95);
-      z-index: 30;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      background: rgba(13,13,26,0.92);
+      border-radius: 10px;
       text-align: center;
-      padding: 30px 20px;
-      pointer-events: auto;
+      padding: 20px;
+      z-index: 2;
     }
 
-    .overlay h1 {
-      font-size: clamp(2rem, 8vw, 3rem);
-      color: var(--accent);
-      text-shadow: 2px 2px 0px #ffd1dc;
+    .overlay h2 {
+      font-size: 1.7rem;
+      color: var(--accent2);
       margin-bottom: 10px;
     }
 
-    .overlay p {
-      color: #777;
-      font-size: 1rem;
-      margin-bottom: 8px;
-      max-width: 320px;
-    }
+    .overlay p { margin-bottom: 8px; color: #ccc; font-size: 0.92rem; }
 
-    .overlay .stats {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
+    .controls {
+      margin-top: 20px;
+      display: flex;
       gap: 12px;
-      margin: 20px 0;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      background: var(--accent2);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    button:hover { background: var(--accent); transform: scale(1.05); }
+
+    .jump-btn {
+      display: none;
+      margin-top: 18px;
       width: 100%;
-      max-width: 300px;
+      max-width: 400px;
+      padding: 18px;
+      font-size: 1.2rem;
+      letter-spacing: 2px;
+      background: var(--panel);
+      border: 2px solid var(--accent);
     }
 
-    .overlay .stat {
-      background: #fff0f5;
-      padding: 14px;
-      border-radius: 12px;
-      border: 1px solid #ffd1dc;
-    }
-
-    .overlay .stat .num { font-size: 1.4rem; color: var(--accent); font-weight: bold; }
-    .overlay .stat .lbl { font-size: 0.75rem; color: #888; }
-
-    .overlay button {
-      padding: 14px 32px;
-      font-size: 1.1rem;
-      margin-top: 10px;
-    }
-
-    .hidden { display: none !important; }
-
-    .mobile-hint {
-      position: absolute;
-      bottom: 75px;
-      left: 50%;
-      transform: translateX(-50%);
-      color: rgba(74, 74, 104, 0.7);
-      font-size: 0.75rem;
-      text-align: center;
-      z-index: 5;
-      pointer-events: none;
-      width: 100%;
-      max-width: 700px;
-    }
-
-    .jump-zone {
-      position: absolute;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 100%;
-      max-width: 700px;
-      height: calc(100% - 70px);
-      z-index: 4;
-      pointer-events: auto;
+    @media (max-width: 600px) {
+      h1 { font-size: 1.3rem; }
+      .jump-btn { display: block; }
     }
   </style>
 </head>
 <body>
-  <canvas id="gameCanvas"></canvas>
 
-  <div class="ui-layer">
-    <div class="hud" id="hud">
-      <div class="hud-panel">
-        <span>Score</span>
-        <strong id="scoreEl">0</strong>
-      </div>
-      <div class="hud-panel">
-        <span>Carrots</span>
-        <strong id="carrotEl">0</strong>
-      </div>
-      <div class="hud-panel">
-        <span>Best</span>
-        <strong id="bestEl">0</strong>
-      </div>
+  <header>
+    <h1>🐰 Neon Bunny Hop</h1>
+  </header>
+
+  <div class="stats">
+    <div class="stat">Score: <span id="score">0</span></div>
+    <div class="stat">High: <span id="highScore">0</span></div>
+    <div class="stat combo" id="comboStat">Combo: <span id="combo">x1</span></div>
+    <div class="stat">Speed: <span id="speedMult">1.0x</span></div>
+  </div>
+
+  <div class="game-wrapper" id="gameWrapper">
+    <canvas id="gameCanvas" width="640" height="320"></canvas>
+    <div class="overlay" id="overlay">
+      <h2 id="overlayTitle">🐰 Neon Bunny Hop</h2>
+      <p id="overlayText">Tap, click, or press Space to jump — tap again mid-air for a double jump.<br>Chain carrots fast for combo multipliers. Grab the gold carrot for Turbo mode.</p>
+      <p id="overlayScore"></p>
+      <button id="startBtn" onclick="handleOverlayAction()">Start Run</button>
     </div>
   </div>
 
-  <div class="mobile-hint" id="mobileHint">Tap anywhere to jump • Collect carrots 🥕</div>
+  <button class="jump-btn" id="mobileJumpBtn" onclick="queueJump()">⇧ JUMP</button>
 
-  <div class="jump-zone" id="jumpZone"></div>
-
-  <div class="controls-bar" id="controlsBar">
-    <button id="startBtn" onclick="startGame()">Start</button>
-    <button id="pauseBtn" onclick="togglePause()">Pause</button>
-    <a href="../../index.html" style="text-decoration:none;">
-      <button type="button">🏠 Home</button>
-    </a>
-  </div>
-
-  <div class="overlay" id="startOverlay">
-    <h1>🐰 Bunny Hop</h1>
-    <p>Help the cute bunny run and collect carrots!</p>
-    <p>Tap, click, Space, or Up arrow to jump. Down arrow to fast-fall.</p>
-    <button onclick="startGame()">Start Running</button>
-  </div>
-
-  <div class="overlay hidden" id="gameOverOverlay">
-    <h1>🥕 Oops!</h1>
-    <p>The bunny bumped into something.</p>
-    <div class="stats">
-      <div class="stat">
-        <div class="num" id="finalScore">0</div>
-        <div class="lbl">Score</div>
-      </div>
-      <div class="stat">
-        <div class="num" id="finalCarrots">0</div>
-        <div class="lbl">Carrots</div>
-      </div>
-      <div class="stat">
-        <div class="num" id="finalBest">0</div>
-        <div class="lbl">Best</div>
-      </div>
-      <div class="stat">
-        <div class="num" id="finalDistance">0</div>
-        <div class="lbl">Meters</div>
-      </div>
-    </div>
-    <button onclick="startGame()">Hop Again</button>
+  <div class="controls">
+    <button onclick="restartGame()">Restart</button>
+    <button onclick="togglePause()">Pause</button>
     <a href="../../index.html" style="text-decoration:none;">
       <button type="button">🏠 Arcade Home</button>
     </a>
@@ -284,705 +187,519 @@
   <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    const scoreEl = document.getElementById('scoreEl');
-    const carrotEl = document.getElementById('carrotEl');
-    const bestEl = document.getElementById('bestEl');
-    const startOverlay = document.getElementById('startOverlay');
-    const gameOverOverlay = document.getElementById('gameOverOverlay');
-    const finalScore = document.getElementById('finalScore');
-    const finalCarrots = document.getElementById('finalCarrots');
-    const finalBest = document.getElementById('finalBest');
-    const finalDistance = document.getElementById('finalDistance');
-    const mobileHint = document.getElementById('mobileHint');
-    const jumpZone = document.getElementById('jumpZone');
+    const gameWrapper = document.getElementById('gameWrapper');
+    const overlay = document.getElementById('overlay');
+    const overlayTitle = document.getElementById('overlayTitle');
+    const overlayText = document.getElementById('overlayText');
+    const overlayScore = document.getElementById('overlayScore');
+    const startBtn = document.getElementById('startBtn');
+    const scoreEl = document.getElementById('score');
+    const highScoreEl = document.getElementById('highScore');
+    const comboEl = document.getElementById('combo');
+    const comboStat = document.getElementById('comboStat');
+    const speedMultEl = document.getElementById('speedMult');
 
-    // Game state
-    let gameRunning = false;
-    let gamePaused = false;
+    const W = canvas.width, H = canvas.height;
+    const GROUND_Y = H - 40;
+    const RABBIT_X = 100;
+    const RABBIT_W = 34, RABBIT_H = 40;
+    const GRAVITY = 0.85;
+    const JUMP_V = -13.5;
+    const DOUBLE_JUMP_V = -11;
+    const FASTFALL_MULT = 2.1;
+    const BASE_SPEED = 4.6;
+    const MAX_SPEED = 11.5;
+    const SPEED_RAMP_MS = 3500;
+    const SPEED_RAMP_FACTOR = 1.06;
+    const BASE_SPAWN_MS = 1250;
+    const MIN_SPAWN_MS = 650;
+    const CARROT_SPAWN_MS = 900;
+    const COMBO_WINDOW_MS = 1700;
+    const TURBO_DURATION_MS = 3200;
+    const MAX_COMBO = 8;
+
+    let rabbit, obstacles, carrots, trail, particles;
+    let scrollSpeed, obsTimer, carrotTimer, rampTimer, distance, score;
+    let combo = 0, comboTimer = 0;
+    let turboLeft = 0;
+    let downHeld = false;
+    let highScore = parseInt(localStorage.getItem('neonBunnyHighScore') || '0', 10);
+    let running = false, paused = false;
     let lastTime = 0;
-    let score = 0;
-    let carrots = 0;
-    let distance = 0;
-    let bestScore = parseInt(localStorage.getItem('bunnyBest') || '0', 10);
-    let gameSpeed = 220;
-    let speedTimer = 0;
-    let animationId;
 
-    bestEl.textContent = bestScore;
+    highScoreEl.textContent = highScore;
 
-    // Audio
+    // ---- Audio ----
     let audioCtx = null;
     function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       if (audioCtx.state === 'suspended') audioCtx.resume();
     }
-
-    function playTone(freq, type, duration, vol = 0.08) {
+    function playTone(freq, type, duration, delay = 0, vol = 0.09) {
       if (!audioCtx) return;
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = type;
-      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-      gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
+      gain.gain.setValueAtTime(vol, audioCtx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
       osc.connect(gain);
       gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + duration);
+      osc.start(audioCtx.currentTime + delay);
+      osc.stop(audioCtx.currentTime + delay + duration);
     }
-
-    function playJumpSound() {
-      playTone(500, 'sine', 0.08);
-      playTone(700, 'sine', 0.1, 0.06);
-    }
-    function playCarrotSound() {
-      playTone(900, 'sine', 0.06);
-      playTone(1100, 'sine', 0.08, 0.05);
-    }
-    function playHitSound() {
-      playTone(180, 'sawtooth', 0.2, 0.1);
-      playTone(120, 'sawtooth', 0.25, 0.08);
-    }
-    function playGameOverSound() {
-      playTone(400, 'sawtooth', 0.15);
-      playTone(300, 'sawtooth', 0.2, 0.08);
-      playTone(200, 'sawtooth', 0.3, 0.08);
-    }
-
-    // World
-    const groundY = 0;
-    let groundOffset = 0;
-    const clouds = [];
-    const bushes = [];
-    const obstacles = [];
-    const carrotItems = [];
-    const particles = [];
-
-    // Rabbit
-    const rabbit = {
-      x: 80,
-      y: 0,
-      width: 50,
-      height: 50,
-      vy: 0,
-      gravity: 1400,
-      jumpForce: -520,
-      grounded: true,
-      fastFall: false,
-      blinkTimer: 0,
-      earWiggle: 0
+    const sfx = {
+      jump: () => playTone(480, 'square', 0.07, 0, 0.06),
+      doubleJump: () => { playTone(560, 'square', 0.06, 0, 0.06); playTone(760, 'square', 0.07, 0.05, 0.05); },
+      carrot: (c) => playTone(700 + c * 60, 'sine', 0.09, 0, 0.06),
+      turbo: () => { [500, 700, 900, 1200].forEach((f, i) => playTone(f, 'sine', 0.12, i * 0.06, 0.07)); },
+      crash: () => { playTone(160, 'sawtooth', 0.3); playTone(90, 'sawtooth', 0.4, 0.12); }
     };
 
-    // Input
-    let jumpQueued = false;
-    let downPressed = false;
-
-    function resizeCanvas() {
-      const dpr = window.devicePixelRatio || 1;
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = Math.floor(rect.width * dpr);
-      canvas.height = Math.floor(rect.height * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      rabbit.y = rect.height - 110;
-    }
-    window.addEventListener('resize', resizeCanvas);
-
-    // Input handlers
-    function queueJump() {
-      jumpQueued = true;
-      initAudio();
-    }
-    function setDown(active) {
-      downPressed = active;
-    }
-
-    document.addEventListener('keydown', e => {
-      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
-        e.preventDefault();
-        if (gameRunning && !gamePaused) queueJump();
-        else if (!gameRunning) startGame();
-      }
-      if (e.code === 'ArrowDown' || e.code === 'KeyS') {
-        e.preventDefault();
-        setDown(true);
-      }
-      if (e.code === 'Escape') {
-        e.preventDefault();
-        if (gameRunning) togglePause();
-      }
-    });
-
-    document.addEventListener('keyup', e => {
-      if (e.code === 'ArrowDown' || e.code === 'KeyS') setDown(false);
-    });
-
-    jumpZone.addEventListener('touchstart', e => {
-      e.preventDefault();
-      queueJump();
-    }, { passive: false });
-
-    jumpZone.addEventListener('mousedown', e => {
-      e.preventDefault();
-      queueJump();
-    });
-
-    canvas.addEventListener('touchstart', e => {
-      e.preventDefault();
-      queueJump();
-    }, { passive: false });
-
-    canvas.addEventListener('mousedown', e => {
-      e.preventDefault();
-      queueJump();
-    });
-
-    // Entity spawners
-    function spawnCloud() {
-      const rect = canvas.getBoundingClientRect();
-      clouds.push({
-        x: rect.width + 50,
-        y: Math.random() * (rect.height * 0.45) + 20,
-        speed: 20 + Math.random() * 30,
-        size: 0.6 + Math.random() * 0.8,
-        alpha: 0.5 + Math.random() * 0.4
-      });
-    }
-
-    function spawnBush() {
-      const rect = canvas.getBoundingClientRect();
-      bushes.push({
-        x: rect.width + 60,
-        y: rect.height - 85,
-        width: 40 + Math.random() * 30,
-        speed: gameSpeed
-      });
-    }
-
-    function spawnObstacle() {
-      const rect = canvas.getBoundingClientRect();
-      const type = Math.random();
-      let obs;
-      if (type < 0.35) {
-        // Rock
-        obs = { x: rect.width + 50, y: rect.height - 95, width: 38, height: 38, type: 'rock', color: '#888' };
-      } else if (type < 0.7) {
-        // Fox (needs jump)
-        obs = { x: rect.width + 50, y: rect.height - 105, width: 46, height: 46, type: 'fox', color: '#ff8c42' };
-      } else {
-        // Log (low, can jump or run under? but rabbit can't duck under log because it's low? Actually log is on ground tall)
-        obs = { x: rect.width + 50, y: rect.height - 100, width: 42, height: 42, type: 'log', color: '#8b5a2b' };
-      }
-      obstacles.push(obs);
-    }
-
-    function spawnCarrot() {
-      const rect = canvas.getBoundingClientRect();
-      carrotItems.push({
-        x: rect.width + 50,
-        y: rect.height - 160 - Math.random() * 80,
-        width: 28,
-        height: 28,
-        collected: false
-      });
-    }
-
-    function spawnParticles(x, y, color, count) {
-      for (let i = 0; i < count; i++) {
-        particles.push({
-          x, y,
-          vx: (Math.random() - 0.5) * 180,
-          vy: (Math.random() - 1) * 180,
-          life: 0.5 + Math.random() * 0.5,
-          size: 3 + Math.random() * 4,
-          color
-        });
-      }
-    }
-
-    // Update functions
-    function updateRabbit(dt) {
-      const rect = canvas.getBoundingClientRect();
-      const floorY = rect.height - 60;
-
-      if (jumpQueued && rabbit.grounded) {
-        rabbit.vy = rabbit.jumpForce;
-        rabbit.grounded = false;
-        rabbit.earWiggle = 1;
-        playJumpSound();
-        jumpQueued = false;
-      }
-      jumpQueued = false;
-
-      // Fast fall
-      if (downPressed && !rabbit.grounded) {
-        rabbit.vy += rabbit.gravity * 1.8 * dt;
-      } else {
-        rabbit.vy += rabbit.gravity * dt;
-      }
-
-      rabbit.y += rabbit.vy * dt;
-
-      // Land
-      if (rabbit.y >= floorY - rabbit.height) {
-        rabbit.y = floorY - rabbit.height;
-        rabbit.vy = 0;
-        rabbit.grounded = true;
-      } else {
-        rabbit.grounded = false;
-      }
-
-      rabbit.blinkTimer += dt;
-      rabbit.earWiggle = Math.max(0, rabbit.earWiggle - dt * 3);
-    }
-
-    function updateBackground(dt) {
-      const rect = canvas.getBoundingClientRect();
-      groundOffset = (groundOffset - gameSpeed * dt) % 40;
-
-      // Clouds
-      if (Math.random() < 0.015) spawnCloud();
-      for (let i = clouds.length - 1; i >= 0; i--) {
-        const c = clouds[i];
-        c.x -= c.speed * dt;
-        if (c.x < -100) clouds.splice(i, 1);
-      }
-
-      // Bushes
-      if (Math.random() < 0.03) spawnBush();
-      for (let i = bushes.length - 1; i >= 0; i--) {
-        const b = bushes[i];
-        b.x -= gameSpeed * dt;
-        if (b.x < -80) bushes.splice(i, 1);
-      }
-    }
-
-    function updateObstacles(dt) {
-      for (let i = obstacles.length - 1; i >= 0; i--) {
-        const obs = obstacles[i];
-        obs.x -= gameSpeed * dt;
-
-        if (obs.x < -60) {
-          obstacles.splice(i, 1);
-          score += 5;
-          continue;
-        }
-
-        if (rectIntersect(
-          rabbit.x - rabbit.width/2 + 8, rabbit.y + 8, rabbit.width - 16, rabbit.height - 16,
-          obs.x - obs.width/2 + 4, obs.y - obs.height/2 + 4, obs.width - 8, obs.height - 8
-        )) {
-          gameOver();
-          return;
-        }
-      }
-    }
-
-    function updateCarrots(dt) {
-      for (let i = carrotItems.length - 1; i >= 0; i--) {
-        const c = carrotItems[i];
-        c.x -= gameSpeed * dt;
-
-        if (c.x < -40) {
-          carrotItems.splice(i, 1);
-          continue;
-        }
-
-        if (!c.collected && rectIntersect(
-          rabbit.x - rabbit.width/2, rabbit.y, rabbit.width, rabbit.height,
-          c.x - c.width/2, c.y - c.height/2, c.width, c.height
-        )) {
-          c.collected = true;
-          carrots++;
-          score += 25;
-          spawnParticles(c.x, c.y, '#ff8c00', 8);
-          playCarrotSound();
-          carrotItems.splice(i, 1);
-        }
-      }
-    }
-
-    function updateParticles(dt) {
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.x += p.vx * dt;
-        p.y += p.vy * dt;
-        p.vy += 300 * dt;
-        p.life -= dt;
-        if (p.life <= 0) particles.splice(i, 1);
-      }
-    }
-
-    function rectIntersect(x1, y1, w1, h1, x2, y2, w2, h2) {
-      return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
-    }
-
-    // Drawing
-    function drawRabbit() {
-      ctx.save();
-      ctx.translate(rabbit.x, rabbit.y + rabbit.height/2);
-
-      const earAngle = Math.sin(Date.now() / 120) * 0.1 + rabbit.earWiggle * 0.3;
-
-      // Shadow
-      ctx.fillStyle = 'rgba(0,0,0,0.15)';
-      ctx.beginPath();
-      ctx.ellipse(0, rabbit.height/2 - 4, rabbit.width/2, 8, 0, 0, Math.PI*2);
-      ctx.fill();
-
-      // Ears
-      ctx.fillStyle = '#fff';
-      ctx.strokeStyle = '#ffd1dc';
-      ctx.lineWidth = 2;
-
-      // Left ear
-      ctx.beginPath();
-      ctx.ellipse(-10, -30 - earAngle*10, 8, 22, -0.15 + earAngle, 0, Math.PI*2);
-      ctx.fill();
-      ctx.stroke();
-      // Inner ear
-      ctx.fillStyle = '#ffb7c5';
-      ctx.beginPath();
-      ctx.ellipse(-10, -30 - earAngle*10, 4, 14, -0.15 + earAngle, 0, Math.PI*2);
-      ctx.fill();
-
-      // Right ear
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.ellipse(10, -30 + earAngle*10, 8, 22, 0.15 - earAngle, 0, Math.PI*2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#ffb7c5';
-      ctx.beginPath();
-      ctx.ellipse(10, -30 + earAngle*10, 4, 14, 0.15 - earAngle, 0, Math.PI*2);
-      ctx.fill();
-
-      // Body
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.ellipse(0, 0, rabbit.width/2, rabbit.height/2.2, 0, 0, Math.PI*2);
-      ctx.fill();
-      ctx.strokeStyle = '#ffd1dc';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // Tail
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(-rabbit.width/2 + 4, 5, 8, 0, Math.PI*2);
-      ctx.fill();
-      ctx.stroke();
-
-      // Face
-      ctx.fillStyle = '#333';
-      const blink = rabbit.blinkTimer % 4 < 0.15;
-      if (blink) {
-        // Closed eyes
-        ctx.beginPath();
-        ctx.moveTo(-12, -8); ctx.lineTo(-6, -8);
-        ctx.moveTo(6, -8); ctx.lineTo(12, -8);
-        ctx.strokeStyle = '#333';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      } else {
-        // Open eyes
-        ctx.beginPath();
-        ctx.arc(-9, -8, 4, 0, Math.PI*2);
-        ctx.arc(9, -8, 4, 0, Math.PI*2);
-        ctx.fill();
-        // Shine
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(-10, -10, 1.5, 0, Math.PI*2);
-        ctx.arc(8, -10, 1.5, 0, Math.PI*2);
-        ctx.fill();
-      }
-
-      // Nose
-      ctx.fillStyle = '#ff85a2';
-      ctx.beginPath();
-      ctx.arc(0, -2, 4, 0, Math.PI*2);
-      ctx.fill();
-
-      // Mouth
-      ctx.strokeStyle = '#333';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(0, 2, 4, 0.2, Math.PI - 0.2);
-      ctx.stroke();
-
-      ctx.restore();
-    }
-
-    function drawClouds() {
-      ctx.save();
-      for (const c of clouds) {
-        ctx.globalAlpha = c.alpha;
-        ctx.fillStyle = '#fff';
-        ctx.translate(c.x, c.y);
-        ctx.scale(c.size, c.size);
-        ctx.beginPath();
-        ctx.arc(0, 0, 20, 0, Math.PI*2);
-        ctx.arc(25, -5, 25, 0, Math.PI*2);
-        ctx.arc(50, 0, 20, 0, Math.PI*2);
-        ctx.fill();
-        ctx.setTransform(1,0,0,1,0,0);
-      }
-      ctx.globalAlpha = 1;
-      ctx.restore();
-    }
-
-    function drawGround() {
-      const rect = canvas.getBoundingClientRect();
-      const groundTop = rect.height - 60;
-
-      // Ground fill
-      ctx.fillStyle = '#8bc34a';
-      ctx.fillRect(0, groundTop, rect.width, rect.height - groundTop);
-
-      // Top grass line
-      ctx.fillStyle = '#7cb342';
-      ctx.fillRect(0, groundTop, rect.width, 12);
-
-      // Moving ground pattern
-      ctx.fillStyle = '#9ccc65';
-      const patternW = 40;
-      for (let x = groundOffset; x < rect.width; x += patternW) {
-        ctx.beginPath();
-        ctx.arc(x, groundTop + 18, 8, Math.PI, 0);
-        ctx.fill();
-      }
-    }
-
-    function drawBushes() {
-      ctx.save();
-      ctx.fillStyle = '#66bb6a';
-      for (const b of bushes) {
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.width/2, Math.PI, 0);
-        ctx.arc(b.x + b.width/3, b.y - 10, b.width/3, Math.PI, 0);
-        ctx.arc(b.x - b.width/3, b.y - 8, b.width/3.5, Math.PI, 0);
-        ctx.fill();
-      }
-      ctx.restore();
-    }
-
-    function drawObstacles() {
-      ctx.save();
-      for (const obs of obstacles) {
-        ctx.translate(obs.x, obs.y);
-
-        if (obs.type === 'rock') {
-          ctx.fillStyle = '#9e9e9e';
-          ctx.beginPath();
-          ctx.arc(0, 0, obs.width/2, Math.PI, 0);
-          ctx.lineTo(obs.width/2, obs.height/2);
-          ctx.lineTo(-obs.width/2, obs.height/2);
-          ctx.closePath();
-          ctx.fill();
-          ctx.fillStyle = '#bdbdbd';
-          ctx.beginPath();
-          ctx.arc(-5, -5, 6, 0, Math.PI*2);
-          ctx.fill();
-        } else if (obs.type === 'fox') {
-          // Simple fox face
-          ctx.fillStyle = '#ff8c42';
-          ctx.beginPath();
-          ctx.ellipse(0, 0, obs.width/2, obs.height/2.5, 0, 0, Math.PI*2);
-          ctx.fill();
-          // Ears
-          ctx.beginPath();
-          ctx.moveTo(-14, -14); ctx.lineTo(-18, -28); ctx.lineTo(-6, -18);
-          ctx.moveTo(14, -14); ctx.lineTo(18, -28); ctx.lineTo(6, -18);
-          ctx.fill();
-          // Eyes
-          ctx.fillStyle = '#333';
-          ctx.beginPath();
-          ctx.arc(-8, -4, 3, 0, Math.PI*2);
-          ctx.arc(8, -4, 3, 0, Math.PI*2);
-          ctx.fill();
-          // Nose
-          ctx.fillStyle = '#333';
-          ctx.beginPath();
-          ctx.arc(0, 2, 4, 0, Math.PI*2);
-          ctx.fill();
-        } else {
-          // Log
-          ctx.fillStyle = '#8d6e63';
-          ctx.fillRect(-obs.width/2, -obs.height/2, obs.width, obs.height);
-          ctx.fillStyle = '#6d4c41';
-          ctx.beginPath();
-          ctx.arc(-obs.width/2 + 4, 0, 5, 0, Math.PI*2);
-          ctx.fill();
-        }
-        ctx.setTransform(1,0,0,1,0,0);
-      }
-      ctx.restore();
-    }
-
-    function drawCarrots() {
-      ctx.save();
-      for (const c of carrotItems) {
-        ctx.translate(c.x, c.y);
-        // Carrot body
-        ctx.fillStyle = '#ff8c00';
-        ctx.beginPath();
-        ctx.moveTo(0, 12);
-        ctx.quadraticCurveTo(8, -4, 0, -14);
-        ctx.quadraticCurveTo(-8, -4, 0, 12);
-        ctx.fill();
-        // Lines
-        ctx.strokeStyle = '#e65100';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, 8); ctx.lineTo(0, -8);
-        ctx.stroke();
-        // Leaves
-        ctx.fillStyle = '#4caf50';
-        ctx.beginPath();
-        ctx.ellipse(-6, -14, 4, 8, -0.5, 0, Math.PI*2);
-        ctx.ellipse(6, -14, 4, 8, 0.5, 0, Math.PI*2);
-        ctx.fill();
-        ctx.setTransform(1,0,0,1,0,0);
-      }
-      ctx.restore();
-    }
-
-    function drawParticles() {
-      ctx.save();
-      for (const p of particles) {
-        ctx.globalAlpha = Math.max(0, p.life);
-        ctx.fillStyle = p.color;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-      ctx.restore();
-    }
-
-    function drawHUD() {
-      scoreEl.textContent = Math.floor(score);
-      carrotEl.textContent = carrots;
-    }
-
-    // Main loop
-    function gameLoop(timestamp) {
-      if (!gameRunning) return;
-      if (!lastTime) lastTime = timestamp;
-      const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
-      lastTime = timestamp;
-
-      if (!gamePaused) {
-        updateRabbit(dt);
-        updateBackground(dt);
-        updateObstacles(dt);
-        updateCarrots(dt);
-        updateParticles(dt);
-
-        distance += gameSpeed * dt / 50;
-        score += gameSpeed * dt / 20;
-
-        // Gradually increase speed
-        speedTimer += dt;
-        if (speedTimer > 8) {
-          gameSpeed += 12;
-          speedTimer = 0;
-        }
-
-        // Spawn obstacles and carrots
-        if (Math.random() < 0.012 * (gameSpeed / 220)) spawnObstacle();
-        if (Math.random() < 0.008) spawnCarrot();
-      }
-
-      const rect = canvas.getBoundingClientRect();
-      ctx.clearRect(0, 0, rect.width, rect.height);
-      drawClouds();
-      drawBushes();
-      drawGround();
-      drawCarrots();
-      drawObstacles();
-      drawRabbit();
-      drawParticles();
-      drawHUD();
-
-      animationId = requestAnimationFrame(gameLoop);
+    function resetGame() {
+      rabbit = { y: GROUND_Y - RABBIT_H, vy: 0, jumpsUsed: 0, grounded: true, squash: 0, earFlick: 0 };
+      obstacles = [];
+      carrots = [];
+      trail = [];
+      particles = [];
+      scrollSpeed = BASE_SPEED;
+      obsTimer = BASE_SPAWN_MS;
+      carrotTimer = CARROT_SPAWN_MS * 0.6;
+      rampTimer = 0;
+      distance = 0;
+      score = 0;
+      combo = 0;
+      comboTimer = 0;
+      turboLeft = 0;
+      downHeld = false;
+      scoreEl.textContent = 0;
+      comboEl.textContent = 'x1';
+      comboStat.classList.remove('active');
+      speedMultEl.textContent = '1.0x';
+      gameWrapper.classList.remove('turbo');
     }
 
     function startGame() {
       initAudio();
-      resizeCanvas();
-
-      score = 0;
-      carrots = 0;
-      distance = 0;
-      gameSpeed = 220;
-      speedTimer = 0;
-      groundOffset = 0;
-      clouds.length = 0;
-      bushes.length = 0;
-      obstacles.length = 0;
-      carrotItems.length = 0;
-      particles.length = 0;
-
-      rabbit.y = canvas.getBoundingClientRect().height - 110;
-      rabbit.vy = 0;
-      rabbit.grounded = true;
-      rabbit.blinkTimer = 0;
-
-      scoreEl.textContent = '0';
-      carrotEl.textContent = '0';
-      bestEl.textContent = bestScore;
-
-      startOverlay.classList.add('hidden');
-      gameOverOverlay.classList.add('hidden');
-      document.getElementById('startBtn').textContent = 'Restart';
-
-      // Pre-populate clouds
-      for (let i = 0; i < 5; i++) {
-        clouds.push({
-          x: Math.random() * canvas.getBoundingClientRect().width,
-          y: Math.random() * (canvas.getBoundingClientRect().height * 0.4) + 20,
-          speed: 20 + Math.random() * 30,
-          size: 0.6 + Math.random() * 0.8,
-          alpha: 0.5 + Math.random() * 0.4
-        });
-      }
-
-      gameRunning = true;
-      gamePaused = false;
-      lastTime = 0;
-      animationId = requestAnimationFrame(gameLoop);
+      resetGame();
+      overlay.style.display = 'none';
+      running = true;
+      paused = false;
     }
 
+    function restartGame() { startGame(); }
+
+    let overlayAction = () => startGame();
+    function handleOverlayAction() { overlayAction(); }
+
     function togglePause() {
-      if (!gameRunning) return;
-      gamePaused = !gamePaused;
-      document.getElementById('pauseBtn').textContent = gamePaused ? 'Resume' : 'Pause';
-      if (!gamePaused) lastTime = 0;
+      if (!running) { overlayAction(); return; }
+      paused = !paused;
+      if (paused) {
+        overlayTitle.textContent = '⏸ Paused';
+        overlayText.textContent = 'Press Resume to continue.';
+        overlayScore.textContent = '';
+        startBtn.textContent = 'Resume';
+        overlayAction = () => { paused = false; overlay.style.display = 'none'; };
+        overlay.style.display = 'flex';
+      } else {
+        overlay.style.display = 'none';
+      }
+    }
+
+    function queueJump() {
+      if (!running) { startGame(); return; }
+      if (paused) return;
+      if (rabbit.jumpsUsed === 0) {
+        rabbit.vy = JUMP_V;
+        rabbit.jumpsUsed = 1;
+        rabbit.grounded = false;
+        rabbit.squash = 6;
+        sfx.jump();
+        burst(RABBIT_X, GROUND_Y, '#00f2ff', 6);
+      } else if (rabbit.jumpsUsed === 1) {
+        rabbit.vy = DOUBLE_JUMP_V;
+        rabbit.jumpsUsed = 2;
+        rabbit.earFlick = 1;
+        sfx.doubleJump();
+        burst(RABBIT_X, rabbit.y + RABBIT_H / 2, '#ff00aa', 10);
+      }
+    }
+
+    function burst(x, y, color, count) {
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x, y,
+          vx: (Math.random() - 0.5) * 4,
+          vy: (Math.random() - 0.8) * 4,
+          life: 22, color
+        });
+      }
+    }
+
+    // ---- Input ----
+    document.addEventListener('keydown', e => {
+      initAudio();
+      if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+        e.preventDefault();
+        queueJump();
+      } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+        downHeld = true;
+      } else if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+        togglePause();
+      }
+    });
+    document.addEventListener('keyup', e => {
+      if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') downHeld = false;
+    });
+
+    canvas.addEventListener('pointerdown', () => { initAudio(); queueJump(); });
+
+    function spawnObstacle() {
+      const r = Math.random();
+      if (r < 0.4) {
+        obstacles.push({ x: W + 10, w: 30, h: 34, type: 'rock' });
+      } else if (r < 0.75) {
+        obstacles.push({ x: W + 10, w: 34, h: 48, type: 'fox' });
+      } else {
+        obstacles.push({ x: W + 10, w: 26, h: 34, type: 'rock' });
+        obstacles.push({ x: W + 10 + 70 + Math.random() * 20, w: 30, h: 46, type: 'fox' });
+      }
+    }
+
+    function spawnCarrot() {
+      const turbo = score > 150 && Math.random() < 0.1;
+      const groundLevel = Math.random() < 0.4;
+      const y = turbo
+        ? GROUND_Y - 90 - Math.random() * 30
+        : (groundLevel ? GROUND_Y - 22 : GROUND_Y - 70 - Math.random() * 60);
+      carrots.push({ x: W + 10, y, w: turbo ? 26 : 20, h: turbo ? 26 : 20, turbo, collected: false });
+    }
+
+    function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
+      return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+    }
+
+    function update(dt) {
+      const dtF = Math.min(dt / 16.67, 3);
+
+      // rabbit physics
+      const g = downHeld && !rabbit.grounded ? GRAVITY * FASTFALL_MULT : GRAVITY;
+      rabbit.vy += g * dtF;
+      rabbit.y += rabbit.vy * dtF;
+      const restY = GROUND_Y - RABBIT_H;
+      if (rabbit.y >= restY) {
+        if (!rabbit.grounded && rabbit.vy > 4) { rabbit.squash = 8; burst(RABBIT_X, GROUND_Y, 'rgba(255,255,255,0.5)', 4); }
+        rabbit.y = restY; rabbit.vy = 0; rabbit.grounded = true; rabbit.jumpsUsed = 0;
+      } else {
+        rabbit.grounded = false;
+      }
+      rabbit.squash = Math.max(0, rabbit.squash - dtF);
+      rabbit.earFlick = Math.max(0, rabbit.earFlick - dtF * 0.05);
+
+      trail.push({ x: RABBIT_X, y: rabbit.y + RABBIT_H / 2, turbo: turboLeft > 0 });
+      if (trail.length > 12) trail.shift();
+
+      // turbo timer
+      if (turboLeft > 0) {
+        turboLeft -= dt;
+        if (turboLeft <= 0) { turboLeft = 0; gameWrapper.classList.remove('turbo'); }
+      }
+
+      // combo decay
+      if (comboTimer > 0) {
+        comboTimer -= dt;
+        if (comboTimer <= 0) { combo = 0; comboEl.textContent = 'x1'; comboStat.classList.remove('active'); }
+      }
+
+      // speed ramp
+      rampTimer += dt;
+      if (rampTimer >= SPEED_RAMP_MS) {
+        rampTimer = 0;
+        scrollSpeed = Math.min(scrollSpeed * SPEED_RAMP_FACTOR, MAX_SPEED);
+        speedMultEl.textContent = (scrollSpeed / BASE_SPEED).toFixed(1) + 'x';
+      }
+      const effSpeed = scrollSpeed * (turboLeft > 0 ? 1.35 : 1);
+
+      distance += effSpeed * dtF;
+      score = Math.floor(distance / 8);
+      scoreEl.textContent = score;
+      if (score > highScore) {
+        highScore = score;
+        highScoreEl.textContent = highScore;
+        localStorage.setItem('neonBunnyHighScore', highScore);
+      }
+
+      // spawn obstacles
+      obsTimer -= dt;
+      if (obsTimer <= 0) {
+        spawnObstacle();
+        const interval = Math.max(MIN_SPAWN_MS, BASE_SPAWN_MS - score * 1.2);
+        obsTimer = interval + Math.random() * interval * 0.3;
+      }
+      carrotTimer -= dt;
+      if (carrotTimer <= 0) {
+        spawnCarrot();
+        carrotTimer = CARROT_SPAWN_MS + Math.random() * 400;
+      }
+
+      // move + collide obstacles
+      for (const o of obstacles) {
+        o.x -= effSpeed * dtF;
+        const oy = GROUND_Y - o.h;
+        if (rectsOverlap(RABBIT_X - RABBIT_W / 2 + 5, rabbit.y + 4, RABBIT_W - 10, RABBIT_H - 8, o.x, oy, o.w, o.h)) {
+          if (turboLeft > 0) {
+            burst(o.x + o.w / 2, oy + o.h / 2, '#ffd700', 10);
+            o.x = -9999;
+            score += 15;
+          } else {
+            gameOver();
+            return;
+          }
+        }
+      }
+      obstacles = obstacles.filter(o => o.x + o.w > -10);
+
+      // move + collide carrots
+      for (const c of carrots) {
+        if (c.collected) continue;
+        c.x -= effSpeed * dtF;
+        if (rectsOverlap(RABBIT_X - RABBIT_W / 2, rabbit.y, RABBIT_W, RABBIT_H, c.x, c.y, c.w, c.h)) {
+          c.collected = true;
+          if (c.turbo) {
+            turboLeft = TURBO_DURATION_MS;
+            gameWrapper.classList.add('turbo');
+            score += 60;
+            sfx.turbo();
+            burst(c.x, c.y, '#ffd700', 16);
+          } else {
+            combo = Math.min(combo + 1, MAX_COMBO);
+            comboTimer = COMBO_WINDOW_MS;
+            comboEl.textContent = 'x' + (1 + combo);
+            comboStat.classList.add('active');
+            score += 10 * (1 + combo);
+            sfx.carrot(combo);
+            burst(c.x, c.y, '#ff8c00', 6);
+          }
+        }
+      }
+      carrots = carrots.filter(c => !c.collected && c.x + c.w > -10);
+
+      particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life--; });
+      particles = particles.filter(p => p.life > 0);
     }
 
     function gameOver() {
-      gameRunning = false;
-      cancelAnimationFrame(animationId);
-      playHitSound();
-      playGameOverSound();
-      if (Math.floor(score) > bestScore) {
-        bestScore = Math.floor(score);
-        localStorage.setItem('bunnyBest', bestScore);
+      running = false;
+      sfx.crash();
+      gameWrapper.classList.add('shake');
+      gameWrapper.classList.remove('turbo');
+      setTimeout(() => gameWrapper.classList.remove('shake'), 350);
+      const isHigh = score >= highScore && score > 0;
+      overlayTitle.textContent = '🥕 Oops!';
+      overlayText.textContent = `Final Score: ${score} — Best Combo: x${1 + combo}`;
+      overlayScore.textContent = isHigh ? '🎉 New High Score!' : `High Score: ${highScore}`;
+      startBtn.textContent = 'Hop Again';
+      overlayAction = () => startGame();
+      overlay.style.display = 'flex';
+    }
+
+    // ---- Rendering ----
+    function render() {
+      ctx.fillStyle = '#050510';
+      ctx.fillRect(0, 0, W, H);
+
+      // synthwave sun
+      const sunY = 70;
+      const grad = ctx.createLinearGradient(0, sunY - 45, 0, sunY + 45);
+      grad.addColorStop(0, '#ff00aa');
+      grad.addColorStop(1, '#00f2ff');
+      ctx.fillStyle = grad;
+      ctx.globalAlpha = 0.25;
+      ctx.beginPath();
+      ctx.arc(W - 110, sunY, 45, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // scrolling parallax grid (sky)
+      ctx.strokeStyle = 'rgba(0,242,255,0.05)';
+      ctx.lineWidth = 1;
+      const gridSize = 40;
+      const offset = running ? -(distance % gridSize) : 0;
+      for (let x = offset; x < W; x += gridSize) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GROUND_Y); ctx.stroke();
       }
-      finalScore.textContent = Math.floor(score);
-      finalCarrots.textContent = carrots;
-      finalBest.textContent = bestScore;
-      finalDistance.textContent = Math.floor(distance);
-      gameOverOverlay.classList.remove('hidden');
+
+      // ground
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = '#00f2ff';
+      ctx.strokeStyle = '#00f2ff';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(W, GROUND_Y); ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(0,242,255,0.06)';
+      ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+      const groundOffset2 = running ? -(distance % 30) : 0;
+      ctx.strokeStyle = 'rgba(0,242,255,0.15)';
+      ctx.lineWidth = 1;
+      for (let x = groundOffset2; x < W; x += 30) {
+        ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x - 10, H); ctx.stroke();
+      }
+
+      drawCarrots();
+      drawObstacles();
+      drawTrail();
+      drawParticles();
+      drawRabbit();
     }
 
-    // Hint for non-touch
-    if (!('ontouchstart' in window)) {
-      mobileHint.textContent = 'Space/Up to jump • Down to fast-fall';
+    function drawObstacles() {
+      obstacles.forEach(o => {
+        const oy = GROUND_Y - o.h;
+        ctx.shadowBlur = 10;
+        if (o.type === 'rock') {
+          ctx.shadowColor = '#9b30ff';
+          ctx.fillStyle = '#9b30ff';
+          ctx.beginPath();
+          ctx.moveTo(o.x, GROUND_Y);
+          ctx.lineTo(o.x + o.w * 0.2, oy + o.h * 0.3);
+          ctx.lineTo(o.x + o.w * 0.5, oy);
+          ctx.lineTo(o.x + o.w * 0.8, oy + o.h * 0.35);
+          ctx.lineTo(o.x + o.w, GROUND_Y);
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          ctx.shadowColor = '#ff00aa';
+          ctx.fillStyle = '#ff00aa';
+          ctx.beginPath();
+          ctx.ellipse(o.x + o.w / 2, oy + o.h / 2, o.w / 2, o.h / 2, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#050510';
+          ctx.beginPath();
+          ctx.moveTo(o.x + o.w * 0.15, oy + o.h * 0.1);
+          ctx.lineTo(o.x + o.w * 0.05, oy - o.h * 0.25);
+          ctx.lineTo(o.x + o.w * 0.4, oy + o.h * 0.15);
+          ctx.moveTo(o.x + o.w * 0.85, oy + o.h * 0.1);
+          ctx.lineTo(o.x + o.w * 0.95, oy - o.h * 0.25);
+          ctx.lineTo(o.x + o.w * 0.6, oy + o.h * 0.15);
+          ctx.fill();
+          ctx.fillStyle = '#ffd700';
+          ctx.beginPath();
+          ctx.arc(o.x + o.w * 0.35, oy + o.h * 0.45, 2.5, 0, Math.PI * 2);
+          ctx.arc(o.x + o.w * 0.65, oy + o.h * 0.45, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.shadowBlur = 0;
+      });
     }
 
-    resizeCanvas();
+    function drawCarrots() {
+      carrots.forEach(c => {
+        if (c.collected) return;
+        const cx = c.x + c.w / 2, cy = c.y + c.h / 2;
+        ctx.save();
+        ctx.translate(cx, cy);
+        const pulse = c.turbo ? 1 + Math.sin(distance * 0.05) * 0.15 : 1;
+        ctx.scale(pulse, pulse);
+        ctx.shadowBlur = c.turbo ? 18 : 8;
+        ctx.shadowColor = c.turbo ? '#ffd700' : '#ff8c00';
+        ctx.fillStyle = c.turbo ? '#ffd700' : '#ff8c00';
+        ctx.beginPath();
+        ctx.moveTo(0, c.h / 2);
+        ctx.quadraticCurveTo(c.w / 2.5, -c.h * 0.1, 0, -c.h / 2);
+        ctx.quadraticCurveTo(-c.w / 2.5, -c.h * 0.1, 0, c.h / 2);
+        ctx.fill();
+        ctx.fillStyle = '#7CFC00';
+        ctx.beginPath();
+        ctx.ellipse(-c.w * 0.15, -c.h / 2, c.w * 0.14, c.h * 0.22, -0.5, 0, Math.PI * 2);
+        ctx.ellipse(c.w * 0.15, -c.h / 2, c.w * 0.14, c.h * 0.22, 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.restore();
+      });
+    }
+
+    function drawTrail() {
+      trail.forEach((t, i) => {
+        const alpha = (i / trail.length) * 0.3;
+        ctx.fillStyle = t.turbo ? `rgba(255,215,0,${alpha})` : `rgba(255,255,255,${alpha * 0.6})`;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, (RABBIT_H / 2) * (i / trail.length) * 0.7, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    function drawParticles() {
+      particles.forEach(p => {
+        ctx.globalAlpha = Math.max(0, p.life / 22);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      });
+    }
+
+    function drawRabbit() {
+      const cx = RABBIT_X, cy = rabbit.y + RABBIT_H / 2;
+      const squashY = 1 - Math.min(rabbit.squash / 20, 0.35);
+      const squashX = 1 + Math.min(rabbit.squash / 20, 0.35) * 0.6;
+      const color = turboLeft > 0 ? '#ffd700' : '#f5f5f5';
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(squashX, squashY);
+      ctx.shadowBlur = turboLeft > 0 ? 20 : 12;
+      ctx.shadowColor = color;
+
+      // ears
+      const earLean = rabbit.earFlick * 0.4 + (!rabbit.grounded ? -0.15 : 0);
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.ellipse(-8, -RABBIT_H / 2 - 6, 5, 16, -0.2 - earLean, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(8, -RABBIT_H / 2 - 6, 5, 16, 0.2 + earLean, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ff00aa';
+      ctx.beginPath();
+      ctx.ellipse(-8, -RABBIT_H / 2 - 6, 2.2, 10, -0.2 - earLean, 0, Math.PI * 2);
+      ctx.ellipse(8, -RABBIT_H / 2 - 6, 2.2, 10, 0.2 + earLean, 0, Math.PI * 2);
+      ctx.fill();
+
+      // body
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, RABBIT_W / 2, RABBIT_H / 2.3, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // eye
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#0d0d1a';
+      ctx.beginPath();
+      ctx.arc(6, -4, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // nose
+      ctx.fillStyle = '#ff00aa';
+      ctx.beginPath();
+      ctx.arc(RABBIT_W / 2 - 2, 0, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    function loop(timestamp) {
+      const dt = lastTime ? timestamp - lastTime : 16.67;
+      lastTime = timestamp;
+      if (running && !paused) update(Math.min(dt, 40));
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    // ---- Init ----
+    resetGame();
+    render();
+    requestAnimationFrame(loop);
   </script>
 </body>
 </html>
