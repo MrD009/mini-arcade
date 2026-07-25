@@ -84,7 +84,6 @@
       display: block;
       border-radius: 10px;
       max-width: 100%;
-      height: auto;
     }
 
     .overlay {
@@ -179,6 +178,20 @@
     @media (max-width: 600px) {
       h1 { font-size: 1.5rem; }
       .d-pad { display: grid; }
+      body { padding: 10px; }
+      header { margin-bottom: 6px; }
+      .stats { gap: 8px; margin-bottom: 8px; }
+      .stat { padding: 5px 12px; font-size: 0.8rem; }
+      .controls { margin-top: 10px; gap: 8px; }
+      .controls button { padding: 9px 14px; font-size: 0.85rem; }
+      .d-pad { grid-template-columns: repeat(3, 52px); gap: 6px; margin-top: 10px; }
+      .d-pad button { width: 52px; height: 52px; font-size: 1.3rem; }
+    }
+
+    @media (max-height: 700px) {
+      .mode-badge { font-size: 0.75rem; padding: 3px 10px; }
+      .d-pad { grid-template-columns: repeat(3, 46px); gap: 5px; }
+      .d-pad button { width: 46px; height: 46px; font-size: 1.15rem; }
     }
   </style>
 </head>
@@ -401,6 +414,17 @@
     let chromaGraceLeft = 0;
 
     let highScores = JSON.parse(localStorage.getItem('neonMazeHighScores') || '{}');
+    let runStartBest = 0;
+    let runCommitted = true;
+
+    // Distance maps for targets that never move (scatter corners, enemy homes)
+    // are solved once per maze instead of re-flooded for every enemy every tick.
+    let staticDistCache = new Map();
+
+    // The player trail is only needed by Echo mode, and only a bounded window of
+    // it. It used to be appended to every tick in every mode and never trimmed.
+    const HISTORY_MAX = 600;
+    let historyBase = 0;
 
     // ---------------------------------------------------------------
     // Audio
@@ -466,6 +490,16 @@
       return dist;
     }
 
+    function staticDistMap(x, y) {
+      const key = `${x},${y}`;
+      let map = staticDistCache.get(key);
+      if (!map) {
+        map = bfsFrom(x, y);
+        staticDistCache.set(key, map);
+      }
+      return map;
+    }
+
     // ---------------------------------------------------------------
     // Level setup
     // ---------------------------------------------------------------
@@ -473,6 +507,8 @@
       const gen = generateMaze(seed);
       grid = gen.grid;
       tunnelRow = gen.tunnelRow;
+      // Cached distance maps belong to the old walls.
+      staticDistCache = new Map();
     }
 
     function layoutPellets() {
@@ -520,6 +556,7 @@
         }
       }
       history = [];
+      historyBase = 0;
       tick = 0;
       frightTicksLeft = 0;
       roleSwapTicksLeft = 0;
@@ -546,16 +583,19 @@
     // ---------------------------------------------------------------
     function startGame(selectedMode) {
       initAudio();
+      commitIfPending();
       mode = selectedMode;
       score = 0;
       lives = 3;
       level = 1;
       speed = 160;
       grid = null;
+      runStartBest = highScores[mode] || 0;
+      runCommitted = false;
       scoreEl.textContent = score;
       livesEl.textContent = lives;
       levelEl.textContent = level;
-      highScoreEl.textContent = highScores[mode] || 0;
+      highScoreEl.textContent = runStartBest;
       modeBadge.textContent = MODE_INFO[mode].label + ' Mode';
       resetLevel(true);
       overlay.style.display = 'none';
@@ -573,6 +613,7 @@
     function showModeSelect() {
       clearInterval(gameLoop);
       running = false;
+      commitIfPending();
       overlayTitle.textContent = '🌀 Neon Maze';
       overlayText.textContent = 'Four ways to play. Pick your poison.';
       overlayScore.textContent = '';
@@ -594,15 +635,25 @@
       player.nextDir = { dx, dy };
     }
 
+    const NAV_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '];
     document.addEventListener('keydown', e => {
+      // Without this the arrows scroll the page, and Space re-activates whichever
+      // control button has focus — toggling pause straight back off.
+      if (NAV_KEYS.includes(e.key)) e.preventDefault();
       initAudio();
       switch (e.key) {
         case 'ArrowUp': case 'w': case 'W': setNextDir(0, -1); break;
         case 'ArrowDown': case 's': case 'S': setNextDir(0, 1); break;
         case 'ArrowLeft': case 'a': case 'A': setNextDir(-1, 0); break;
         case 'ArrowRight': case 'd': case 'D': setNextDir(1, 0); break;
-        case ' ': case 'Escape': if (running) togglePause(); break;
+        case ' ': case 'Escape': case 'p': case 'P': if (running) togglePause(); break;
       }
+    });
+
+    // Commit an in-flight run if the tab is being closed or hidden.
+    window.addEventListener('pagehide', commitIfPending);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) commitIfPending();
     });
 
     let touchStartX = 0, touchStartY = 0;
@@ -656,7 +707,14 @@
           break;
         }
       }
-      history.push({ x: player.x, y: player.y });
+      // Only Echo mode replays the trail, and only a bounded window of it.
+      if (MODE_INFO[mode].echoes > 0) {
+        history.push({ x: player.x, y: player.y });
+        if (history.length > HISTORY_MAX) {
+          history.shift();
+          historyBase++;
+        }
+      }
     }
 
     function pickBestStep(x, y, lastDir, distMap, wantMax) {
@@ -684,7 +742,7 @@
       const distFromPlayer = bfsFrom(player.x, player.y);
       enemies.forEach(en => {
         if (en.state === 'returning') {
-          const distToHome = bfsFrom(en.home.x, en.home.y);
+          const distToHome = staticDistMap(en.home.x, en.home.y);
           const step = pickBestStep(en.x, en.y, en.dir, distToHome, false);
           if (step) { en.x = step.n.x; en.y = step.n.y; en.dir = step.d; }
           if (en.x === en.home.x && en.y === en.home.y) {
@@ -703,7 +761,7 @@
         if (fleeing) {
           target = distFromPlayer;
         } else if (globalState === 'scatter' && mode !== 'chroma') {
-          target = bfsFrom(en.scatter.x, en.scatter.y);
+          target = staticDistMap(en.scatter.x, en.scatter.y);
         } else {
           target = distFromPlayer;
         }
@@ -716,7 +774,7 @@
       echoes.forEach(ec => {
         if (ec.removed) return;
         if (ec.freezeLeft > 0) { ec.freezeLeft--; ec.pausedTicks++; return; }
-        const idx = tick - ec.delay - ec.pausedTicks;
+        const idx = tick - ec.delay - ec.pausedTicks - historyBase;
         if (idx < 0 || idx >= history.length) { ec.active = false; return; }
         ec.active = true;
         ec.pos = history[idx];
@@ -741,11 +799,28 @@
         onPowerPellet();
       }
       scoreEl.textContent = score;
-      if (score > (highScores[mode] || 0)) {
+      // The HUD tracks a provisional best live, but the write is deferred to the
+      // end of the run: this used to JSON.stringify and write the whole score
+      // map on every single pellet.
+      if (score > (highScores[mode] || 0)) highScoreEl.textContent = score;
+    }
+
+    function commitBestScore() {
+      runCommitted = true;
+      if (score > runStartBest) {
         highScores[mode] = score;
-        highScoreEl.textContent = score;
         localStorage.setItem('neonMazeHighScores', JSON.stringify(highScores));
+        highScoreEl.textContent = score;
+        return true;
       }
+      highScoreEl.textContent = runStartBest;
+      return false;
+    }
+
+    // Deferring the write means an abandoned run would otherwise lose its score,
+    // so commit whenever the player leaves a run rather than finishing it.
+    function commitIfPending() {
+      if (!runCommitted && mode) commitBestScore();
     }
 
     function onPowerPellet() {
@@ -838,7 +913,9 @@
 
     function gameOverFlow() {
       sfx.gameOver();
-      const isHigh = score >= (highScores[mode] || 0) && score > 0;
+      // Compared against the record as it stood when this run began. The old
+      // test used the live-updated record, so an exact tie claimed a new best.
+      const isHigh = commitBestScore();
       overlayTitle.textContent = '☠ Game Over';
       overlayText.textContent = `${MODE_INFO[mode].label} mode — Final Score: ${score}`;
       overlayScore.textContent = isHigh ? '🎉 New High Score!' : `High Score: ${highScores[mode] || 0}`;
@@ -879,6 +956,13 @@
       tick++;
 
       movePlayer();
+      checkPelletPickup();
+      // Collisions are tested both after the player moves and after the hunters
+      // move, so sharing a tile at any point in the tick counts. Previously only
+      // the end of the tick was checked, so walking head-on into an enemy let it
+      // step aside and slip past unharmed.
+      checkCollisions();
+      if (!running) return;
 
       if (frightTicksLeft > 0) frightTicksLeft--;
       if (roleSwapTicksLeft > 0) {
@@ -907,7 +991,6 @@
 
       moveEnemies();
       moveEchoes();
-      checkPelletPickup();
       checkCollisions();
 
       if (running && dotsRemaining <= 0) {
@@ -921,9 +1004,42 @@
     // ---------------------------------------------------------------
     // Rendering
     // ---------------------------------------------------------------
+    // The maze is drawn in fixed tile coordinates; the transform maps those onto
+    // a DPR-correct backing store. The canvas used to be a fixed 380x420 buffer
+    // that the browser rescaled, so it was soft on any hi-DPI screen.
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const logicalW = COLS * TILE, logicalH = ROWS * TILE;
+
+      // Size against the height that's actually free as well as the width.
+      // Sizing on width alone pushed the d-pad off the bottom of the screen on
+      // every common phone — up to 277px out of reach mid-game.
+      let overhead = 40 + 24;   // body padding, plus the wrapper's border/glow
+      [document.querySelector('header'),
+       document.querySelector('.stats'),
+       document.querySelector('.controls'),
+       document.getElementById('dPad')].forEach(el => {
+        if (!el || getComputedStyle(el).display === 'none') return;
+        const st = getComputedStyle(el);
+        overhead += el.offsetHeight + parseFloat(st.marginTop) + parseFloat(st.marginBottom);
+      });
+
+      const availW = Math.max(160, window.innerWidth - 44);
+      const availH = Math.max(160, window.innerHeight - overhead);
+      const scale = Math.min(availW / logicalW, availH / logicalH, 1);
+      const cssW = logicalW * scale, cssH = logicalH * scale;
+      canvas.style.width = `${cssW}px`;
+      canvas.style.height = `${cssH}px`;
+      canvas.width = Math.floor(cssW * dpr);
+      canvas.height = Math.floor(cssH * dpr);
+      ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+      if (grid) render();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
     function render() {
       ctx.fillStyle = '#050510';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, COLS * TILE, ROWS * TILE);
       drawMaze();
       drawPellets();
       if (mode === 'echo') drawEchoes();
@@ -1038,6 +1154,7 @@
     // ---------------------------------------------------------------
     // Init: show mode select
     // ---------------------------------------------------------------
+    resizeCanvas();
     showModeSelect();
   </script>
 </body>
