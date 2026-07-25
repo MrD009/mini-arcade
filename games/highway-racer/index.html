@@ -402,7 +402,9 @@
     let distance = 0;
     let nearMisses = 0;
     let nearMissCombo = 0;
-    let lastNearMissTime = 0;
+    // Counted down in the game loop rather than compared against
+    // performance.now(), so a pause doesn't silently break the chain.
+    let nearMissComboTimer = 0;
     let scrollSpeed = 210;
     let rampTimer = 0;
     let spawnTimer = 0;
@@ -474,12 +476,38 @@
     function resizeCanvas() {
       const dpr = window.devicePixelRatio || 1;
       const rect = canvas.getBoundingClientRect();
+      const prevLeft = roadLeft, prevWidth = roadWidth;
       canvas.width = Math.floor(rect.width * dpr);
       canvas.height = Math.floor(rect.height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       roadLeft = rect.width * 0.06;
       roadWidth = rect.width * 0.88;
-      player.y = rect.height - 90;
+      // Park the car clear of the hint line instead of a hardcoded 90px, which
+      // drew it straight over the text.
+      const hintTop = mobileHint.getBoundingClientRect().top - rect.top;
+      player.y = hintTop > 0
+        ? Math.min(rect.height - 90, hintTop - player.height / 2 - 8)
+        : rect.height - 90;
+
+      // Everything on the road is positioned in canvas pixels, so a width change
+      // has to carry it across. Without this, a rotate left half the traffic and
+      // the pickups sitting off the road entirely.
+      if (prevWidth > 0 && roadWidth > 0 && (prevLeft !== roadLeft || prevWidth !== roadWidth)) {
+        const remap = x => roadLeft + ((x - prevLeft) / prevWidth) * roadWidth;
+        // Remapping only moves centres, and widths don't scale with the road, so
+        // something sitting near the edge of a wide road would overhang a
+        // narrower one. Clamp each body fully back inside.
+        const fit = (x, w) => Math.max(roadLeft + w / 2,
+                                       Math.min(roadLeft + roadWidth - w / 2, x));
+        traffic.forEach(c => { c.x = fit(remap(c.x), c.width); });
+        pickups.forEach(p => { p.x = fit(remap(p.x), p.size); });
+        particles.forEach(p => { p.x = remap(p.x); });
+        player.x = remap(player.x);
+        if (touchX !== null) touchX = remap(touchX);
+      }
+      player.x = Math.max(roadLeft + player.width / 2,
+                          Math.min(roadLeft + roadWidth - player.width / 2, player.x));
+
       if (!gameRunning) player.x = rect.width / 2;
     }
     window.addEventListener('resize', resizeCanvas);
@@ -494,15 +522,21 @@
     });
     document.addEventListener('keyup', e => { keys[e.key] = false; });
 
+    // Touch positions have to be converted into canvas space the same way the
+    // mouse handlers do. Using raw clientX meant that on any screen wide enough
+    // for the canvas to be centred (tablets, touch laptops) the steering target
+    // was off by the canvas's left edge.
     canvas.addEventListener('touchstart', e => {
       e.preventDefault();
-      touchX = e.touches[0].clientX;
+      touchX = e.touches[0].clientX - canvas.getBoundingClientRect().left;
       initAudio();
     }, { passive: false });
 
     canvas.addEventListener('touchmove', e => {
       e.preventDefault();
-      if (e.touches.length > 0) touchX = e.touches[0].clientX;
+      if (e.touches.length > 0) {
+        touchX = e.touches[0].clientX - canvas.getBoundingClientRect().left;
+      }
     }, { passive: false });
 
     canvas.addEventListener('touchend', e => {
@@ -530,9 +564,14 @@
     }
 
     function saveBestScore() {
+      // score accumulates as a float. Storing it raw meant the record read back
+      // through parseInt while a later, genuinely lower run could still compare
+      // greater than the truncated value and overwrite it — 100.9 losing to
+      // 100.4. Compare and store whole points, matching what the HUD shows.
       const best = getBestScore();
-      if (score > best) {
-        localStorage.setItem(`racerBest_${currentDifficulty}`, score);
+      const final = Math.floor(score);
+      if (final > best) {
+        localStorage.setItem(`racerBest_${currentDifficulty}`, final);
         return true;
       }
       return false;
@@ -610,8 +649,12 @@
       player.velocityX = Math.max(-player.maxSpeed, Math.min(player.maxSpeed, player.velocityX));
 
       if (touchX !== null) {
-        const diff = touchX - player.x;
-        player.velocityX = diff * 10;
+        // Clamp the steering target to the drivable width. Letting it run onto
+        // the shoulder banked travel the player then had to undo before the car
+        // would respond at all.
+        const half = player.width / 2;
+        touchX = Math.max(roadLeft + half, Math.min(roadLeft + roadWidth - half, touchX));
+        player.velocityX = (touchX - player.x) * 10;
       }
 
       player.x += player.velocityX * dt;
@@ -698,9 +741,8 @@
     }
 
     function registerNearMiss() {
-      const now = performance.now();
-      if (now - lastNearMissTime > NEAR_MISS_COMBO_RESET_MS) nearMissCombo = 0;
-      lastNearMissTime = now;
+      if (nearMissComboTimer <= 0) nearMissCombo = 0;
+      nearMissComboTimer = NEAR_MISS_COMBO_RESET_MS;
       nearMissCombo++;
       nearMisses++;
       const bonus = 10 * Math.min(nearMissCombo, 5);
@@ -888,6 +930,13 @@
           nitroTimer -= dt * 1000;
           if (Math.random() < 0.6) spawnNitroTrail();
         }
+        if (nearMissComboTimer > 0) {
+          nearMissComboTimer -= dt * 1000;
+          if (nearMissComboTimer <= 0) {
+            nearMissComboTimer = 0;
+            nearMissCombo = 0;
+          }
+        }
 
         distance += effectiveSpeed * dt;
         score += effectiveSpeed * dt * 0.05;
@@ -935,6 +984,10 @@
 
     function startGame() {
       initAudio();
+      // Cancel any frame still in flight before starting a new one. Every other
+      // game in the arcade guards this; without it two overlapping loops would
+      // run the race at double speed.
+      cancelAnimationFrame(animationId);
       resizeCanvas();
 
       const cfg = DIFFICULTIES[currentDifficulty];
@@ -942,7 +995,7 @@
       distance = 0;
       nearMisses = 0;
       nearMissCombo = 0;
-      lastNearMissTime = 0;
+      nearMissComboTimer = 0;
       scrollSpeed = cfg.baseSpeed;
       rampTimer = 0;
       spawnTimer = cfg.spawnMs;
@@ -955,9 +1008,8 @@
 
       player.velocityX = 0;
       player.shield = false;
-      const rect = canvas.getBoundingClientRect();
+      // player.y comes from resizeCanvas(), which measures the hint line.
       player.x = roadLeft + roadWidth / 2;
-      player.y = rect.height - 90;
 
       scoreEl.textContent = '0';
       distanceEl.textContent = '0m';
@@ -996,6 +1048,11 @@
 
       gameOverOverlay.classList.remove('hidden');
     }
+
+    // Don't keep the race running while the tab is in the background.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && gameRunning && !gamePaused) togglePause();
+    });
 
     // Hide mobile hint if not touch device
     if (!('ontouchstart' in window)) {
