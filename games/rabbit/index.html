@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>🐰 Neon Bunny Hop</title>
+  <title>🐰 Neon Bunny Hop | Mini Arcade</title>
   <style>
     :root {
-      --bg: #0d0d1a;
-      --panel: #16162e;
+      --bg: #050510;
+      --panel: #0f0f24;
       --accent: #00f2ff;
       --accent2: #ff00aa;
       --gold: #ffd700;
@@ -17,219 +17,499 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; touch-action: none; }
 
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
     body {
       font-family: 'Segoe UI', Tahoma, sans-serif;
-      background: var(--bg);
       color: var(--text);
-      min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 20px;
-      overflow-x: hidden;
-    }
-
-    header { text-align: center; margin-bottom: 12px; }
-
-    h1 {
-      font-size: clamp(1.5rem, 5vw, 2rem);
-      color: var(--accent);
-      text-shadow: 0 0 20px rgba(0,242,255,0.5);
-    }
-
-    .stats {
-      display: flex;
-      gap: 14px;
-      margin-bottom: 15px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    .stat {
-      background: var(--panel);
-      padding: 8px 16px;
-      border-radius: 50px;
-      font-size: 0.9rem;
-      white-space: nowrap;
-    }
-
-    .stat span { color: var(--gold); font-weight: bold; }
-
-    .stat.combo span { color: var(--accent2); }
-    .stat.combo { opacity: 0.4; transition: opacity 0.2s, transform 0.2s; }
-    .stat.combo.active { opacity: 1; transform: scale(1.08); }
-
-    .game-wrapper {
+      height: 100vh;
+      width: 100vw;
       position: relative;
-      border: 2px solid var(--accent);
-      border-radius: 12px;
-      box-shadow: 0 0 30px rgba(0,242,255,0.2);
-      background: #050510;
-      max-width: 100%;
-      transition: transform 0.05s linear;
     }
 
-    .game-wrapper.shake { animation: shake 0.35s ease; }
-    .game-wrapper.turbo { box-shadow: 0 0 40px rgba(255,215,0,0.5); }
-
-    @keyframes shake {
-      0%, 100% { transform: translate(0,0); }
-      20% { transform: translate(-6px, 4px); }
-      40% { transform: translate(6px, -4px); }
-      60% { transform: translate(-4px, -3px); }
-      80% { transform: translate(4px, 3px); }
-    }
-
-    canvas {
+    #gameCanvas {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      height: 100%;
+      max-width: 760px;
+      background: radial-gradient(ellipse at top, #14142c 0%, #050510 100%);
       display: block;
-      border-radius: 10px;
-      max-width: 100%;
-      height: auto;
+      z-index: 1;
       cursor: pointer;
     }
 
-    .overlay {
+    .play-border {
       position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: rgba(13,13,26,0.92);
-      border-radius: 10px;
-      text-align: center;
-      padding: 20px;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      height: 100%;
+      max-width: 760px;
+      border-left: 1px solid rgba(0, 242, 255, 0.25);
+      border-right: 1px solid rgba(0, 242, 255, 0.25);
+      box-shadow: inset 0 0 30px rgba(0, 242, 255, 0.07);
+      pointer-events: none;
       z-index: 2;
     }
 
-    .overlay h2 {
-      font-size: 1.7rem;
-      color: var(--accent2);
-      margin-bottom: 10px;
+    .ui-layer {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 760px;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
     }
 
-    .overlay p { margin-bottom: 8px; color: #ccc; font-size: 0.92rem; }
-
-    .controls {
-      margin-top: 20px;
+    .hud {
       display: flex;
-      gap: 12px;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 10px 14px 4px;
+      gap: 8px;
+      pointer-events: auto;
+      flex-shrink: 0;
+    }
+
+    .hud-panel {
+      background: rgba(15, 15, 36, 0.75);
+      border: 1px solid rgba(0, 242, 255, 0.25);
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: 0.75rem;
+      min-width: 56px;
+      text-align: center;
+      backdrop-filter: blur(4px);
+    }
+
+    .hud-panel span {
+      display: block;
+      font-size: 0.6rem;
+      color: #888;
+      margin-bottom: 1px;
+    }
+
+    .hud-panel strong {
+      color: var(--accent);
+      font-size: 0.9rem;
+    }
+
+    .hud-panel.combo strong { color: var(--accent2); }
+    .hud-panel.combo { opacity: 0.5; transition: opacity 0.2s, transform 0.2s; }
+    .hud-panel.combo.active { opacity: 1; transform: scale(1.06); }
+
+    .controls-bar {
+      display: flex;
+      justify-content: flex-end;
       flex-wrap: wrap;
-      justify-content: center;
+      gap: 6px;
+      padding: 0 14px 8px;
+      pointer-events: auto;
+      flex-shrink: 0;
+    }
+
+    .controls-bar button {
+      padding: 6px 10px;
+      font-size: 0.68rem;
+      background: rgba(15, 15, 36, 0.8);
+      border: 1px solid rgba(0, 242, 255, 0.25);
+      backdrop-filter: blur(4px);
+    }
+
+    .controls-bar button:hover, .controls-bar button:active {
+      background: rgba(0, 242, 255, 0.2);
     }
 
     button {
       background: var(--accent2);
       color: white;
       border: none;
-      padding: 12px 24px;
-      border-radius: 8px;
-      font-size: 1rem;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 0.75rem;
       font-weight: bold;
       cursor: pointer;
-      transition: transform 0.2s, background 0.2s;
+      transition: transform 0.15s, background 0.15s;
+      white-space: nowrap;
     }
 
-    button:hover { background: var(--accent); transform: scale(1.05); }
+    button:hover, button:active {
+      background: var(--accent);
+      transform: scale(1.05);
+    }
+
+    .bottom-bar {
+      margin-top: auto;
+      padding: 6px 14px calc(10px + env(safe-area-inset-bottom));
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      width: 100%;
+    }
+
+    .hint-line {
+      font-size: 0.66rem;
+      color: rgba(255, 255, 255, 0.5);
+      text-align: center;
+    }
 
     .jump-btn {
-      display: none;
-      margin-top: 18px;
       width: 100%;
-      max-width: 400px;
-      padding: 18px;
-      font-size: 1.2rem;
+      max-width: 340px;
+      padding: 14px;
+      font-size: 1rem;
       letter-spacing: 2px;
-      background: var(--panel);
+      background: rgba(15, 15, 36, 0.85);
       border: 2px solid var(--accent);
+      backdrop-filter: blur(4px);
     }
 
-    @media (max-width: 600px) {
-      h1 { font-size: 1.3rem; }
-      .jump-btn { display: block; }
+    .jump-btn:active {
+      background: rgba(0, 242, 255, 0.25);
+    }
+
+    @media (pointer: fine) {
+      .jump-btn { display: none; }
+    }
+
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 760px;
+      height: 100%;
+      background: rgba(5, 5, 16, 0.92);
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 30px 20px;
+      pointer-events: auto;
+      overflow-y: auto;
+    }
+
+    .overlay h1 {
+      font-size: clamp(1.5rem, 6.5vw, 2.4rem);
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 0 30px rgba(0, 242, 255, 0.3);
+      margin-bottom: 10px;
+    }
+
+    .overlay p {
+      color: #aaa;
+      font-size: 0.9rem;
+      margin-bottom: 6px;
+      max-width: 340px;
+    }
+
+    .difficulty-bar {
+      display: flex;
+      gap: 6px;
+      margin: 14px 0 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .difficulty-bar button {
+      padding: 8px 16px;
+      font-size: 0.78rem;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .difficulty-bar button.active {
+      background: rgba(0, 242, 255, 0.15);
+      border-color: var(--accent);
+      box-shadow: 0 0 10px rgba(0,242,255,0.25);
+    }
+
+    .diff-note {
+      font-size: 0.7rem;
+      color: var(--accent);
+      min-height: 1.1em;
+      margin-bottom: 2px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      font-size: 0.7rem;
+      color: #999;
+      margin: 10px 0 4px;
+    }
+
+    .overlay .stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin: 18px 0;
+      width: 100%;
+      max-width: 280px;
+    }
+
+    .overlay .stat {
+      background: rgba(255,255,255,0.05);
+      padding: 12px;
+      border-radius: 10px;
+    }
+
+    .overlay .stat .num { font-size: 1.2rem; color: var(--accent); font-weight: bold; }
+    .overlay .stat .lbl { font-size: 0.68rem; color: #888; }
+
+    .new-best {
+      color: var(--gold);
+      font-weight: bold;
+      font-size: 0.85rem;
+      margin-top: -8px;
+      margin-bottom: 8px;
+      display: none;
+    }
+
+    .overlay button.primary {
+      padding: 12px 28px;
+      font-size: 1rem;
+      margin-top: 6px;
+    }
+
+    .overlay .secondary-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .hidden { display: none !important; }
+
+    .toast {
+      position: absolute;
+      top: 26%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0);
+      font-size: clamp(1.2rem, 5.5vw, 1.9rem);
+      font-weight: bold;
+      color: var(--gold);
+      text-shadow: 0 0 25px rgba(255,215,0,0.6);
+      z-index: 15;
+      pointer-events: none;
+      transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.35s;
+      opacity: 0;
+      white-space: nowrap;
+    }
+
+    .toast.show {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 1;
     }
   </style>
 </head>
 <body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
 
-  <header>
-    <h1>🐰 Neon Bunny Hop</h1>
-  </header>
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span>Score</span>
+        <strong id="scoreEl">0</strong>
+      </div>
+      <div class="hud-panel combo" id="comboPanel">
+        <span>Combo</span>
+        <strong id="comboEl">x1</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Speed</span>
+        <strong id="speedEl">1.0x</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
 
-  <div class="stats">
-    <div class="stat">Score: <span id="score">0</span></div>
-    <div class="stat">High: <span id="highScore">0</span></div>
-    <div class="stat combo" id="comboStat">Combo: <span id="combo">x1</span></div>
-    <div class="stat">Speed: <span id="speedMult">1.0x</span></div>
-  </div>
+    <div class="controls-bar" id="controlsBar">
+      <button id="startBtn" onclick="showStartOverlay()">Restart</button>
+      <button id="pauseBtn" onclick="togglePause()">Pause</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
 
-  <div class="game-wrapper" id="gameWrapper">
-    <canvas id="gameCanvas" width="640" height="320"></canvas>
-    <div class="overlay" id="overlay">
-      <h2 id="overlayTitle">🐰 Neon Bunny Hop</h2>
-      <p id="overlayText">Tap, click, or press Space to jump — tap again mid-air for a double jump.<br>Chain carrots fast for combo multipliers. Grab the gold carrot for Turbo mode.</p>
-      <p id="overlayScore"></p>
-      <button id="startBtn" onclick="handleOverlayAction()">Start Run</button>
+    <div class="bottom-bar" id="bottomBar">
+      <div class="hint-line" id="hintLine">Tap anywhere to jump • tap again mid-air to double jump</div>
+      <button type="button" class="jump-btn" id="jumpBtn">⇧ JUMP</button>
     </div>
   </div>
 
-  <button class="jump-btn" id="mobileJumpBtn" onclick="queueJump()">⇧ JUMP</button>
+  <div class="toast" id="toast">TURBO!</div>
 
-  <div class="controls">
-    <button onclick="restartGame()">Restart</button>
-    <button onclick="togglePause()">Pause</button>
-    <a href="../../index.html" style="text-decoration:none;">
-      <button type="button">🏠 Arcade Home</button>
-    </a>
+  <div class="overlay" id="startOverlay">
+    <h1>🐰 Neon Bunny Hop</h1>
+    <p>Hop the foxes and rocks. Chain carrots fast for combo multipliers, and grab a gold carrot to smash through everything in Turbo.</p>
+
+    <div class="difficulty-bar" id="difficultyBar">
+      <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+      <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+      <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+    </div>
+    <p class="diff-note" id="diffNote"></p>
+
+    <div class="legend">
+      <span>🥕 Carrot Combo</span>
+      <span>🌟 Gold = Turbo</span>
+      <span>⬇ Hold to Fast-Fall</span>
+    </div>
+
+    <button class="primary" onclick="startGame()">▶ Start Run</button>
+  </div>
+
+  <div class="overlay hidden" id="pauseOverlay">
+    <h1>⏸ Paused</h1>
+    <p>Your run is safe — the combo and turbo timers are frozen too.</p>
+    <button class="primary" onclick="togglePause()">▶ Resume</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Restart</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <h1>🥕 Oops!</h1>
+    <p class="new-best" id="newBestTag">🏆 New Best Score!</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalScore">0</div>
+        <div class="lbl">Score</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalCombo">x1</div>
+        <div class="lbl">Best Combo</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalCarrots">0</div>
+        <div class="lbl">Carrots</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBest">0</div>
+        <div class="lbl">Best</div>
+      </div>
+    </div>
+    <button class="primary" onclick="startGame()">Hop Again</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Difficulty</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
   </div>
 
   <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    const gameWrapper = document.getElementById('gameWrapper');
-    const overlay = document.getElementById('overlay');
-    const overlayTitle = document.getElementById('overlayTitle');
-    const overlayText = document.getElementById('overlayText');
-    const overlayScore = document.getElementById('overlayScore');
-    const startBtn = document.getElementById('startBtn');
-    const scoreEl = document.getElementById('score');
-    const highScoreEl = document.getElementById('highScore');
-    const comboEl = document.getElementById('combo');
-    const comboStat = document.getElementById('comboStat');
-    const speedMultEl = document.getElementById('speedMult');
+    const scoreEl = document.getElementById('scoreEl');
+    const comboEl = document.getElementById('comboEl');
+    const comboPanel = document.getElementById('comboPanel');
+    const speedEl = document.getElementById('speedEl');
+    const bestEl = document.getElementById('bestEl');
+    const startOverlay = document.getElementById('startOverlay');
+    const pauseOverlay = document.getElementById('pauseOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const finalScore = document.getElementById('finalScore');
+    const finalCombo = document.getElementById('finalCombo');
+    const finalCarrots = document.getElementById('finalCarrots');
+    const finalBest = document.getElementById('finalBest');
+    const newBestTag = document.getElementById('newBestTag');
+    const diffNote = document.getElementById('diffNote');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.getElementById('bottomBar');
+    const jumpBtn = document.getElementById('jumpBtn');
 
-    const W = canvas.width, H = canvas.height;
-    const GROUND_Y = H - 40;
+    // The world is a fixed 640x320 stage scaled to fit and centred in the
+    // canvas, the same way the other games centre a fixed board. That keeps the
+    // jump physics identical at every screen size instead of stretching them.
+    const STAGE_W = 640;
+    const STAGE_H = 320;
+    const GROUND_Y = STAGE_H - 40;
     const RABBIT_X = 100;
     const RABBIT_W = 34, RABBIT_H = 40;
     const GRAVITY = 0.85;
     const JUMP_V = -13.5;
     const DOUBLE_JUMP_V = -11;
     const FASTFALL_MULT = 2.1;
-    const BASE_SPEED = 4.6;
-    const MAX_SPEED = 11.5;
-    const SPEED_RAMP_MS = 3500;
     const SPEED_RAMP_FACTOR = 1.06;
-    const BASE_SPAWN_MS = 1250;
-    const MIN_SPAWN_MS = 650;
     const CARROT_SPAWN_MS = 900;
     const COMBO_WINDOW_MS = 1700;
     const TURBO_DURATION_MS = 3200;
     const MAX_COMBO = 8;
+    const DISTANCE_PER_POINT = 8;
+
+    const DIFFICULTIES = {
+      easy:   { baseSpeed: 4.0, maxSpeed: 9.5,  rampMs: 4200, spawnMs: 1400, minSpawnMs: 780,
+                turboChance: 0.14, note: '🌱 Gentler ramp, more gold carrots.' },
+      medium: { baseSpeed: 4.6, maxSpeed: 11.5, rampMs: 3500, spawnMs: 1250, minSpawnMs: 650,
+                turboChance: 0.10, note: '🐰 The classic hop.' },
+      hard:   { baseSpeed: 5.4, maxSpeed: 13.5, rampMs: 2900, spawnMs: 1100, minSpawnMs: 560,
+                turboChance: 0.07, note: '🔥 Fast from the first step.' }
+    };
+
+    let currentDifficulty = 'easy';
+    let gameRunning = false;
+    let gamePaused = false;
+    let lastTime = 0;
+    let animationId = null;
 
     let rabbit, obstacles, carrots, trail, particles;
-    let scrollSpeed, obsTimer, carrotTimer, rampTimer, distance, score;
-    let combo = 0, comboTimer = 0;
+    let scrollSpeed, obsTimer, carrotTimer, rampTimer, distance;
+    // Distance points and pickup bonuses are tracked separately. The old build
+    // assigned score from distance at the top of every frame, which wiped every
+    // carrot, turbo and combo bonus added later in that same frame — the whole
+    // combo system never actually affected the score.
+    let bonusPoints = 0;
+    let score = 0;
+    let combo = 0, comboTimer = 0, bestCombo = 0, carrotsEaten = 0;
     let turboLeft = 0;
     let downHeld = false;
-    let highScore = parseInt(localStorage.getItem('neonBunnyHighScore') || '0', 10);
-    let running = false, paused = false;
-    let lastTime = 0;
+    let runStartBest = 0;
+    let shakeLeft = 0;
 
-    highScoreEl.textContent = highScore;
+    let stageScale = 1, stageX = 0, stageY = 0;
 
-    // ---- Audio ----
+    // Audio
     let audioCtx = null;
     function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -252,64 +532,59 @@
       jump: () => playTone(480, 'square', 0.07, 0, 0.06),
       doubleJump: () => { playTone(560, 'square', 0.06, 0, 0.06); playTone(760, 'square', 0.07, 0.05, 0.05); },
       carrot: (c) => playTone(700 + c * 60, 'sine', 0.09, 0, 0.06),
+      smash: () => playTone(300, 'square', 0.08, 0, 0.07),
       turbo: () => { [500, 700, 900, 1200].forEach((f, i) => playTone(f, 'sine', 0.12, i * 0.06, 0.07)); },
-      crash: () => { playTone(160, 'sawtooth', 0.3); playTone(90, 'sawtooth', 0.4, 0.12); }
+      crash: () => { playTone(160, 'sawtooth', 0.3); playTone(90, 'sawtooth', 0.4, 0.12); },
+      best: () => { [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => playTone(f, 'sine', 0.3, i * 0.13)); }
     };
 
-    function resetGame() {
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const topOffset = Math.max(0, controlsBar.getBoundingClientRect().bottom - rect.top) + 8;
+      const bottomOffset = Math.max(0, rect.bottom - bottomBar.getBoundingClientRect().top) + 8;
+      const availWidth = rect.width * 0.96;
+      const availHeight = Math.max(80, rect.height - topOffset - bottomOffset);
+
+      stageScale = Math.min(availWidth / STAGE_W, availHeight / STAGE_H);
+      stageX = (rect.width - STAGE_W * stageScale) / 2;
+      stageY = topOffset + Math.max(0, (availHeight - STAGE_H * stageScale) / 2);
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function resetRun() {
+      const cfg = DIFFICULTIES[currentDifficulty];
       rabbit = { y: GROUND_Y - RABBIT_H, vy: 0, jumpsUsed: 0, grounded: true, squash: 0, earFlick: 0 };
       obstacles = [];
       carrots = [];
       trail = [];
       particles = [];
-      scrollSpeed = BASE_SPEED;
-      obsTimer = BASE_SPAWN_MS;
+      scrollSpeed = cfg.baseSpeed;
+      obsTimer = cfg.spawnMs;
       carrotTimer = CARROT_SPAWN_MS * 0.6;
       rampTimer = 0;
       distance = 0;
+      bonusPoints = 0;
       score = 0;
       combo = 0;
       comboTimer = 0;
+      bestCombo = 0;
+      carrotsEaten = 0;
       turboLeft = 0;
       downHeld = false;
-      scoreEl.textContent = 0;
+      shakeLeft = 0;
+      scoreEl.textContent = '0';
       comboEl.textContent = 'x1';
-      comboStat.classList.remove('active');
-      speedMultEl.textContent = '1.0x';
-      gameWrapper.classList.remove('turbo');
-    }
-
-    function startGame() {
-      initAudio();
-      resetGame();
-      overlay.style.display = 'none';
-      running = true;
-      paused = false;
-    }
-
-    function restartGame() { startGame(); }
-
-    let overlayAction = () => startGame();
-    function handleOverlayAction() { overlayAction(); }
-
-    function togglePause() {
-      if (!running) { overlayAction(); return; }
-      paused = !paused;
-      if (paused) {
-        overlayTitle.textContent = '⏸ Paused';
-        overlayText.textContent = 'Press Resume to continue.';
-        overlayScore.textContent = '';
-        startBtn.textContent = 'Resume';
-        overlayAction = () => { paused = false; overlay.style.display = 'none'; };
-        overlay.style.display = 'flex';
-      } else {
-        overlay.style.display = 'none';
-      }
+      comboPanel.classList.remove('active');
+      speedEl.textContent = '1.0x';
     }
 
     function queueJump() {
-      if (!running) { startGame(); return; }
-      if (paused) return;
+      if (!gameRunning || gamePaused) return;
       if (rabbit.jumpsUsed === 0) {
         rabbit.vy = JUMP_V;
         rabbit.jumpsUsed = 1;
@@ -337,43 +612,37 @@
       }
     }
 
-    // ---- Input ----
-    document.addEventListener('keydown', e => {
-      initAudio();
-      if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
-        e.preventDefault();
-        queueJump();
-      } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
-        downHeld = true;
-      } else if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
-        togglePause();
-      }
-    });
-    document.addEventListener('keyup', e => {
-      if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') downHeld = false;
-    });
-
-    canvas.addEventListener('pointerdown', () => { initAudio(); queueJump(); });
+    function showToast(text, color) {
+      toast.textContent = text;
+      toast.style.color = color;
+      toast.style.textShadow = `0 0 25px ${color}`;
+      toast.classList.remove('show');
+      void toast.offsetWidth;
+      toast.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => toast.classList.remove('show'), 1000);
+    }
 
     function spawnObstacle() {
       const r = Math.random();
       if (r < 0.4) {
-        obstacles.push({ x: W + 10, w: 30, h: 34, type: 'rock' });
+        obstacles.push({ x: STAGE_W + 10, w: 30, h: 34, type: 'rock' });
       } else if (r < 0.75) {
-        obstacles.push({ x: W + 10, w: 34, h: 48, type: 'fox' });
+        obstacles.push({ x: STAGE_W + 10, w: 34, h: 48, type: 'fox' });
       } else {
-        obstacles.push({ x: W + 10, w: 26, h: 34, type: 'rock' });
-        obstacles.push({ x: W + 10 + 70 + Math.random() * 20, w: 30, h: 46, type: 'fox' });
+        obstacles.push({ x: STAGE_W + 10, w: 26, h: 34, type: 'rock' });
+        obstacles.push({ x: STAGE_W + 10 + 70 + Math.random() * 20, w: 30, h: 46, type: 'fox' });
       }
     }
 
     function spawnCarrot() {
-      const turbo = score > 150 && Math.random() < 0.1;
+      const cfg = DIFFICULTIES[currentDifficulty];
+      const turbo = score > 150 && Math.random() < cfg.turboChance;
       const groundLevel = Math.random() < 0.4;
       const y = turbo
         ? GROUND_Y - 90 - Math.random() * 30
         : (groundLevel ? GROUND_Y - 22 : GROUND_Y - 70 - Math.random() * 60);
-      carrots.push({ x: W + 10, y, w: turbo ? 26 : 20, h: turbo ? 26 : 20, turbo, collected: false });
+      carrots.push({ x: STAGE_W + 10, y, w: turbo ? 26 : 20, h: turbo ? 26 : 20, turbo, collected: false });
     }
 
     function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
@@ -381,15 +650,18 @@
     }
 
     function update(dt) {
+      const cfg = DIFFICULTIES[currentDifficulty];
       const dtF = Math.min(dt / 16.67, 3);
 
-      // rabbit physics
       const g = downHeld && !rabbit.grounded ? GRAVITY * FASTFALL_MULT : GRAVITY;
       rabbit.vy += g * dtF;
       rabbit.y += rabbit.vy * dtF;
       const restY = GROUND_Y - RABBIT_H;
       if (rabbit.y >= restY) {
-        if (!rabbit.grounded && rabbit.vy > 4) { rabbit.squash = 8; burst(RABBIT_X, GROUND_Y, 'rgba(255,255,255,0.5)', 4); }
+        if (!rabbit.grounded && rabbit.vy > 4) {
+          rabbit.squash = 8;
+          burst(RABBIT_X, GROUND_Y, 'rgba(255,255,255,0.5)', 4);
+        }
         rabbit.y = restY; rabbit.vy = 0; rabbit.grounded = true; rabbit.jumpsUsed = 0;
       } else {
         rabbit.grounded = false;
@@ -400,41 +672,37 @@
       trail.push({ x: RABBIT_X, y: rabbit.y + RABBIT_H / 2, turbo: turboLeft > 0 });
       if (trail.length > 12) trail.shift();
 
-      // turbo timer
       if (turboLeft > 0) {
-        turboLeft -= dt;
-        if (turboLeft <= 0) { turboLeft = 0; gameWrapper.classList.remove('turbo'); }
+        turboLeft = Math.max(0, turboLeft - dt);
       }
 
-      // combo decay
       if (comboTimer > 0) {
         comboTimer -= dt;
-        if (comboTimer <= 0) { combo = 0; comboEl.textContent = 'x1'; comboStat.classList.remove('active'); }
+        if (comboTimer <= 0) {
+          comboTimer = 0;
+          combo = 0;
+          comboEl.textContent = 'x1';
+          comboPanel.classList.remove('active');
+        }
       }
 
-      // speed ramp
+      if (shakeLeft > 0) shakeLeft = Math.max(0, shakeLeft - dt);
+
       rampTimer += dt;
-      if (rampTimer >= SPEED_RAMP_MS) {
+      if (rampTimer >= cfg.rampMs) {
         rampTimer = 0;
-        scrollSpeed = Math.min(scrollSpeed * SPEED_RAMP_FACTOR, MAX_SPEED);
-        speedMultEl.textContent = (scrollSpeed / BASE_SPEED).toFixed(1) + 'x';
+        scrollSpeed = Math.min(scrollSpeed * SPEED_RAMP_FACTOR, cfg.maxSpeed);
+        speedEl.textContent = (scrollSpeed / cfg.baseSpeed).toFixed(1) + 'x';
       }
       const effSpeed = scrollSpeed * (turboLeft > 0 ? 1.35 : 1);
 
       distance += effSpeed * dtF;
-      score = Math.floor(distance / 8);
-      scoreEl.textContent = score;
-      if (score > highScore) {
-        highScore = score;
-        highScoreEl.textContent = highScore;
-        localStorage.setItem('neonBunnyHighScore', highScore);
-      }
+      score = Math.floor(distance / DISTANCE_PER_POINT) + bonusPoints;
 
-      // spawn obstacles
       obsTimer -= dt;
       if (obsTimer <= 0) {
         spawnObstacle();
-        const interval = Math.max(MIN_SPAWN_MS, BASE_SPAWN_MS - score * 1.2);
+        const interval = Math.max(cfg.minSpawnMs, cfg.spawnMs - score * 1.2);
         obsTimer = interval + Math.random() * interval * 0.3;
       }
       carrotTimer -= dt;
@@ -443,7 +711,6 @@
         carrotTimer = CARROT_SPAWN_MS + Math.random() * 400;
       }
 
-      // move + collide obstacles
       for (const o of obstacles) {
         o.x -= effSpeed * dtF;
         const oy = GROUND_Y - o.h;
@@ -451,7 +718,8 @@
           if (turboLeft > 0) {
             burst(o.x + o.w / 2, oy + o.h / 2, '#ffd700', 10);
             o.x = -9999;
-            score += 15;
+            bonusPoints += 15;
+            sfx.smash();
           } else {
             gameOver();
             return;
@@ -460,54 +728,64 @@
       }
       obstacles = obstacles.filter(o => o.x + o.w > -10);
 
-      // move + collide carrots
       for (const c of carrots) {
         if (c.collected) continue;
         c.x -= effSpeed * dtF;
         if (rectsOverlap(RABBIT_X - RABBIT_W / 2, rabbit.y, RABBIT_W, RABBIT_H, c.x, c.y, c.w, c.h)) {
           c.collected = true;
+          carrotsEaten++;
           if (c.turbo) {
             turboLeft = TURBO_DURATION_MS;
-            gameWrapper.classList.add('turbo');
-            score += 60;
+            bonusPoints += 60;
             sfx.turbo();
             burst(c.x, c.y, '#ffd700', 16);
+            showToast('🌟 TURBO!', '#ffd700');
           } else {
             combo = Math.min(combo + 1, MAX_COMBO);
             comboTimer = COMBO_WINDOW_MS;
+            bestCombo = Math.max(bestCombo, combo);
             comboEl.textContent = 'x' + (1 + combo);
-            comboStat.classList.add('active');
-            score += 10 * (1 + combo);
+            comboPanel.classList.add('active');
+            bonusPoints += 10 * (1 + combo);
             sfx.carrot(combo);
             burst(c.x, c.y, '#ff8c00', 6);
+            if (combo > 0 && combo % 4 === 0) showToast(`COMBO x${1 + combo}!`, '#ff00aa');
           }
+          // Fold the pickup in immediately so the HUD doesn't lag a frame.
+          score = Math.floor(distance / DISTANCE_PER_POINT) + bonusPoints;
         }
       }
       carrots = carrots.filter(c => !c.collected && c.x + c.w > -10);
 
-      particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life--; });
+      particles.forEach(p => { p.x += p.vx * dtF; p.y += p.vy * dtF; p.vy += 0.15 * dtF; p.life -= dtF; });
       particles = particles.filter(p => p.life > 0);
-    }
 
-    function gameOver() {
-      running = false;
-      sfx.crash();
-      gameWrapper.classList.add('shake');
-      gameWrapper.classList.remove('turbo');
-      setTimeout(() => gameWrapper.classList.remove('shake'), 350);
-      const isHigh = score >= highScore && score > 0;
-      overlayTitle.textContent = '🥕 Oops!';
-      overlayText.textContent = `Final Score: ${score} — Best Combo: x${1 + combo}`;
-      overlayScore.textContent = isHigh ? '🎉 New High Score!' : `High Score: ${highScore}`;
-      startBtn.textContent = 'Hop Again';
-      overlayAction = () => startGame();
-      overlay.style.display = 'flex';
+      scoreEl.textContent = score;
     }
 
     // ---- Rendering ----
     function render() {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      let shakeOffX = 0, shakeOffY = 0;
+      if (shakeLeft > 0) {
+        const mag = (shakeLeft / 350) * 6;
+        shakeOffX = (Math.random() - 0.5) * mag * 2;
+        shakeOffY = (Math.random() - 0.5) * mag * 2;
+      }
+
+      ctx.save();
+      ctx.translate(stageX + shakeOffX, stageY + shakeOffY);
+      ctx.scale(stageScale, stageScale);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, STAGE_W, STAGE_H);
+      ctx.clip();
+
       ctx.fillStyle = '#050510';
-      ctx.fillRect(0, 0, W, H);
+      ctx.fillRect(0, 0, STAGE_W, STAGE_H);
 
       // synthwave sun
       const sunY = 70;
@@ -517,33 +795,34 @@
       ctx.fillStyle = grad;
       ctx.globalAlpha = 0.25;
       ctx.beginPath();
-      ctx.arc(W - 110, sunY, 45, 0, Math.PI * 2);
+      ctx.arc(STAGE_W - 110, sunY, 45, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
 
-      // scrolling parallax grid (sky)
+      // scrolling parallax grid
       ctx.strokeStyle = 'rgba(0,242,255,0.05)';
       ctx.lineWidth = 1;
       const gridSize = 40;
-      const offset = running ? -(distance % gridSize) : 0;
-      for (let x = offset; x < W; x += gridSize) {
+      const offset = -(distance % gridSize);
+      for (let x = offset; x < STAGE_W; x += gridSize) {
         ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GROUND_Y); ctx.stroke();
       }
 
       // ground
+      const groundColor = turboLeft > 0 ? '#ffd700' : '#00f2ff';
       ctx.shadowBlur = 12;
-      ctx.shadowColor = '#00f2ff';
-      ctx.strokeStyle = '#00f2ff';
+      ctx.shadowColor = groundColor;
+      ctx.strokeStyle = groundColor;
       ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(W, GROUND_Y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(STAGE_W, GROUND_Y); ctx.stroke();
       ctx.shadowBlur = 0;
       ctx.fillStyle = 'rgba(0,242,255,0.06)';
-      ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
-      const groundOffset2 = running ? -(distance % 30) : 0;
+      ctx.fillRect(0, GROUND_Y, STAGE_W, STAGE_H - GROUND_Y);
+      const groundOffset = -(distance % 30);
       ctx.strokeStyle = 'rgba(0,242,255,0.15)';
       ctx.lineWidth = 1;
-      for (let x = groundOffset2; x < W; x += 30) {
-        ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x - 10, H); ctx.stroke();
+      for (let x = groundOffset; x < STAGE_W; x += 30) {
+        ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x - 10, STAGE_H); ctx.stroke();
       }
 
       drawCarrots();
@@ -551,6 +830,15 @@
       drawTrail();
       drawParticles();
       drawRabbit();
+
+      ctx.restore();
+
+      // stage frame, gold while turbo is active
+      ctx.strokeStyle = turboLeft > 0 ? 'rgba(255,215,0,0.65)' : 'rgba(0,242,255,0.4)';
+      ctx.lineWidth = 2 / stageScale;
+      ctx.strokeRect(0, 0, STAGE_W, STAGE_H);
+
+      ctx.restore();
     }
 
     function drawObstacles() {
@@ -651,7 +939,6 @@
       ctx.shadowBlur = turboLeft > 0 ? 20 : 12;
       ctx.shadowColor = color;
 
-      // ears
       const earLean = rabbit.earFlick * 0.4 + (!rabbit.grounded ? -0.15 : 0);
       ctx.fillStyle = color;
       ctx.beginPath();
@@ -666,20 +953,17 @@
       ctx.ellipse(8, -RABBIT_H / 2 - 6, 2.2, 10, 0.2 + earLean, 0, Math.PI * 2);
       ctx.fill();
 
-      // body
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.ellipse(0, 0, RABBIT_W / 2, RABBIT_H / 2.3, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // eye
       ctx.shadowBlur = 0;
       ctx.fillStyle = '#0d0d1a';
       ctx.beginPath();
       ctx.arc(6, -4, 3, 0, Math.PI * 2);
       ctx.fill();
 
-      // nose
       ctx.fillStyle = '#ff00aa';
       ctx.beginPath();
       ctx.arc(RABBIT_W / 2 - 2, 0, 3, 0, Math.PI * 2);
@@ -688,18 +972,175 @@
       ctx.restore();
     }
 
-    function loop(timestamp) {
+    function gameLoop(timestamp) {
+      if (!gameRunning) return;
       const dt = lastTime ? timestamp - lastTime : 16.67;
       lastTime = timestamp;
-      if (running && !paused) update(Math.min(dt, 40));
+
+      if (!gamePaused) update(Math.min(dt, 40));
+      if (!gameRunning) return;
+
       render();
-      requestAnimationFrame(loop);
+      animationId = requestAnimationFrame(gameLoop);
     }
 
-    // ---- Init ----
-    resetGame();
-    render();
-    requestAnimationFrame(loop);
+    // Best scores are per difficulty, matching the rest of the arcade, and are
+    // written once at the end of a run rather than on every scoring frame.
+    function getBestScore() {
+      return parseInt(localStorage.getItem(`bunnyBest_${currentDifficulty}`) || '0', 10);
+    }
+
+    function saveBestScore() {
+      if (score > runStartBest) {
+        localStorage.setItem(`bunnyBest_${currentDifficulty}`, score);
+        return true;
+      }
+      return false;
+    }
+
+    function migrateLegacyBest() {
+      const legacy = parseInt(localStorage.getItem('neonBunnyHighScore') || '0', 10);
+      if (legacy > 0 && !localStorage.getItem('bunnyBestMigrated')) {
+        const existing = parseInt(localStorage.getItem('bunnyBest_medium') || '0', 10);
+        if (legacy > existing) localStorage.setItem('bunnyBest_medium', String(legacy));
+      }
+      localStorage.setItem('bunnyBestMigrated', '1');
+    }
+
+    function setDifficulty(diff) {
+      currentDifficulty = diff;
+      document.querySelectorAll('#difficultyBar button').forEach(btn =>
+        btn.classList.toggle('active', btn.dataset.diff === diff));
+      diffNote.textContent = DIFFICULTIES[diff].note;
+      bestEl.textContent = getBestScore();
+    }
+
+    function showStartOverlay() {
+      gameRunning = false;
+      gamePaused = false;
+      cancelAnimationFrame(animationId);
+      gameOverOverlay.classList.add('hidden');
+      pauseOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+      pauseBtn.textContent = 'Pause';
+      resetRun();
+      render();
+    }
+
+    function startGame() {
+      initAudio();
+      cancelAnimationFrame(animationId);
+      resizeCanvas();
+      resetRun();
+      runStartBest = getBestScore();
+      bestEl.textContent = runStartBest;
+
+      startOverlay.classList.add('hidden');
+      pauseOverlay.classList.add('hidden');
+      gameOverOverlay.classList.add('hidden');
+      document.getElementById('startBtn').textContent = 'Restart';
+      pauseBtn.textContent = 'Pause';
+
+      gameRunning = true;
+      gamePaused = false;
+      lastTime = 0;
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function togglePause() {
+      if (!gameRunning) return;
+      gamePaused = !gamePaused;
+      pauseBtn.textContent = gamePaused ? 'Resume' : 'Pause';
+      pauseOverlay.classList.toggle('hidden', !gamePaused);
+      if (!gamePaused) lastTime = 0;
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+      } else {
+        document.exitFullscreen?.();
+      }
+    }
+
+    document.addEventListener('fullscreenchange', () => {
+      fullscreenBtn.textContent = document.fullscreenElement ? '⤢ Exit' : '⛶ Full';
+      resizeCanvas();
+    });
+
+    if (!document.documentElement.requestFullscreen) {
+      fullscreenBtn.style.display = 'none';
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && gameRunning && !gamePaused) togglePause();
+    });
+
+    function gameOver() {
+      gameRunning = false;
+      cancelAnimationFrame(animationId);
+      sfx.crash();
+      shakeLeft = 350;
+      const isNewBest = saveBestScore();
+
+      finalScore.textContent = score;
+      // The peak combo of the run, not whatever it had decayed to at the crash.
+      finalCombo.textContent = 'x' + (1 + bestCombo);
+      finalCarrots.textContent = carrotsEaten;
+      finalBest.textContent = getBestScore();
+      bestEl.textContent = getBestScore();
+      newBestTag.style.display = isNewBest ? 'block' : 'none';
+      if (isNewBest) setTimeout(() => sfx.best(), 300);
+
+      render();
+      pauseOverlay.classList.add('hidden');
+      gameOverOverlay.classList.remove('hidden');
+    }
+
+    // ---- Input ----
+    const NAV_KEYS = [' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+    document.addEventListener('keydown', e => {
+      // ArrowDown was left un-prevented, so holding it to fast-fall also
+      // scrolled the page.
+      if (NAV_KEYS.includes(e.key)) e.preventDefault();
+      initAudio();
+      if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+        queueJump();
+      } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
+        downHeld = true;
+      } else if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+        togglePause();
+      }
+    });
+    document.addEventListener('keyup', e => {
+      if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') downHeld = false;
+    });
+
+    canvas.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      initAudio();
+      queueJump();
+    });
+
+    jumpBtn.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      initAudio();
+      queueJump();
+    });
+
+    if (!('ontouchstart' in window)) {
+      hintLine.textContent = 'Space / ↑ to jump (twice for a double jump) • hold ↓ to fast-fall • Esc to pause';
+    }
+
+    try {
+      migrateLegacyBest();
+      setDifficulty('easy');
+      resizeCanvas();
+      resetRun();
+      render();
+    } catch (err) {
+      console.error('Neon Bunny Hop init failed:', err);
+    }
   </script>
 </body>
 </html>
