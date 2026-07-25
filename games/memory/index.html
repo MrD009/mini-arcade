@@ -185,10 +185,8 @@
       flex: 0 0 auto;
     }
 
-    .game-board.beginner { grid-template-columns: repeat(3, 1fr); }
-    .game-board.easy     { grid-template-columns: repeat(3, 1fr); }
-    .game-board.medium   { grid-template-columns: repeat(4, 1fr); }
-    .game-board.hard     { grid-template-columns: repeat(4, 1fr); }
+    /* Column count comes from DIFFICULTIES[].cols so the grid, the board
+       sizing maths and the keyboard cursor can't drift apart. */
 
     .card {
       aspect-ratio: 1;
@@ -356,6 +354,14 @@
     .win-stat .num { font-size: 1.2rem; color: var(--accent); font-weight: bold; }
     .win-stat .lbl { font-size: 0.7rem; color: #888; }
 
+    .new-best {
+      color: var(--gold);
+      font-weight: bold;
+      font-size: 0.85rem;
+      margin-bottom: 4px;
+      display: none;
+    }
+
     #confetti-canvas {
       position: fixed;
       top: 0; left: 0;
@@ -481,6 +487,7 @@
 
   <div class="win-message" id="winModal">
     <h2>🎉 Level Complete!</h2>
+    <p class="new-best" id="newBestTag">🏆 New Best Score!</p>
     <div class="win-stats">
       <div class="win-stat">
         <div class="num" id="finalMoves">0</div>
@@ -503,13 +510,19 @@
   </div>
 
   <script>
-    // Difficulty config
+    // Difficulty config. `cols` is the single source of truth for the grid
+    // shape: the old config carried rows/cols that nothing read, and disagreed
+    // with the CSS (beginner claimed a 3x3 grid for 8 cards, which rendered as
+    // three columns with a ragged two-card last row).
     const DIFFICULTIES = {
-      beginner: { rows: 3, cols: 3, pairs: 4,  cls: 'beginner' },
-      easy:     { rows: 3, cols: 4, pairs: 6,  cls: 'easy'     },
-      medium:   { rows: 4, cols: 4, pairs: 8,  cls: 'medium'   },
-      hard:     { rows: 5, cols: 4, pairs: 10, cls: 'hard'     }
+      beginner: { pairs: 4,  cols: 4, cls: 'beginner' },
+      easy:     { pairs: 6,  cols: 3, cls: 'easy'     },
+      medium:   { pairs: 8,  cols: 4, cls: 'medium'   },
+      hard:     { pairs: 10, cols: 4, cls: 'hard'     }
     };
+
+    const PEEK_COST = 50;
+    const FREE_PEEKS = 3;
 
     const ICON_POOL = ['🍎','🚀','🐱','🌟','🎵','⚽','🎁','🍕','🌈','🐶','🌺','🎈','🍦','🎸','🦄','🍔'];
 
@@ -530,6 +543,32 @@
     let musicOscillators = [];
     let cursorIndex = 0;
     let peeking = false;
+    let peeksUsed = 0;
+
+    // Every deferred callback is tagged with the game it belongs to and
+    // cancelled on restart. Without this, a pending mismatch timeout from the
+    // previous game would fire into the new one, clear flippedCards and leave a
+    // face-up card untracked — after which no match check could ever fire for
+    // it. The preview timeout had a milder version of the same problem,
+    // unlocking the board while every card was still showing.
+    let runToken = 0;
+    let pendingTimeouts = [];
+
+    function schedule(fn, ms) {
+      const token = runToken;
+      const id = setTimeout(() => {
+        pendingTimeouts = pendingTimeouts.filter(t => t !== id);
+        if (token !== runToken) return;
+        fn();
+      }, ms);
+      pendingTimeouts.push(id);
+      return id;
+    }
+
+    function clearPendingTimeouts() {
+      pendingTimeouts.forEach(clearTimeout);
+      pendingTimeouts = [];
+    }
 
     const board = document.getElementById('board');
     const movesDisplay = document.getElementById('moves');
@@ -644,7 +683,9 @@
       const best = getBestScore();
       if (score > best) {
         localStorage.setItem(`memoryBest_${currentDifficulty}`, score);
+        return true;
       }
+      return false;
     }
 
     // Timer
@@ -681,8 +722,14 @@
 
     // Game init
     function initGame() {
+      // Invalidate anything the previous game left in flight before touching
+      // any shared state.
+      runToken++;
+      clearPendingTimeouts();
+
       const cfg = DIFFICULTIES[currentDifficulty];
       board.className = `game-board ${cfg.cls}`;
+      board.style.gridTemplateColumns = `repeat(${cfg.cols}, 1fr)`;
       board.innerHTML = '';
       cards = createDeck();
       flippedCards = [];
@@ -692,7 +739,9 @@
       streak = 0;
       lockBoard = false;
       peeking = false;
+      peeksUsed = 0;
       cursorIndex = 0;
+      comboBanner.classList.remove('show');
       updateModeUI();
 
       movesDisplay.textContent = '0';
@@ -749,8 +798,7 @@
     }
     function resizeBoard() {
       const cfg = DIFFICULTIES[currentDifficulty];
-      // Actual CSS grid columns per difficulty
-      const cssCols = { beginner: 3, easy: 3, medium: 4, hard: 4 }[currentDifficulty];
+      const cssCols = cfg.cols;
       const cssRows = Math.ceil(cfg.pairs * 2 / cssCols);
       const gap = Math.min(Math.max(5, window.innerWidth * 0.012), 10);
 
@@ -789,7 +837,7 @@
       const cardEls = [...board.children];
       cardEls.forEach(c => c.classList.add('flipped'));
       playLevelUpSound();
-      setTimeout(() => {
+      schedule(() => {
         cardEls.forEach(c => {
           if (!c.classList.contains('matched')) c.classList.remove('flipped');
         });
@@ -809,6 +857,10 @@
       if (currentMode === 'peek') {
         standardBtn.style.display = 'none';
         modePeekBtn.style.display = 'inline-block';
+        const left = Math.max(0, FREE_PEEKS - peeksUsed);
+        modePeekBtn.textContent = `👁 Peek (${left} left)`;
+        modePeekBtn.disabled = left === 0;
+        modePeekBtn.style.opacity = left === 0 ? '0.45' : '';
       } else {
         standardBtn.style.display = 'inline-block';
         modePeekBtn.style.display = 'none';
@@ -817,10 +869,16 @@
 
     function peekCards() {
       if (lockBoard || peeking) return;
-      if (currentMode === 'standard' && score < 50) return;
       if (currentMode === 'standard') {
-        score -= 50;
+        if (score < PEEK_COST) return;
+        score -= PEEK_COST;
         scoreDisplay.textContent = score;
+      } else {
+        // Peek mode's free look used to be unlimited, which made the mode
+        // solvable by just mashing the button. It's now a fixed allowance.
+        if (peeksUsed >= FREE_PEEKS) return;
+        peeksUsed++;
+        updateModeUI();
       }
       peeking = true;
       lockBoard = true;
@@ -828,7 +886,7 @@
       cardEls.forEach(c => {
         if (!c.classList.contains('matched')) c.classList.add('flipped');
       });
-      setTimeout(() => {
+      schedule(() => {
         cardEls.forEach(c => {
           if (!c.classList.contains('matched')) c.classList.remove('flipped');
         });
@@ -890,8 +948,8 @@
           stopTimer();
           stopMusic();
           playWinSound();
-          saveBestScore();
-          showWin();
+          const isNewBest = saveBestScore();
+          showWin(isNewBest);
           launchBigConfetti();
         }
       } else {
@@ -900,11 +958,12 @@
         playMismatchSound();
         card1.classList.add('mismatch');
         card2.classList.add('mismatch');
-        setTimeout(() => {
+        schedule(() => {
           card1.classList.remove('flipped', 'mismatch');
           card2.classList.remove('flipped', 'mismatch');
-          card1.setAttribute('aria-label', `Card ${card1.dataset.index}, face down`);
-          card2.setAttribute('aria-label', `Card ${card2.dataset.index}, face down`);
+          // dataset.index is 0-based; the label is 1-based like the initial one.
+          card1.setAttribute('aria-label', `Card ${Number(card1.dataset.index) + 1}, face down`);
+          card2.setAttribute('aria-label', `Card ${Number(card2.dataset.index) + 1}, face down`);
           flippedCards = [];
           lockBoard = false;
         }, 1000);
@@ -917,11 +976,13 @@
       setTimeout(() => comboBanner.classList.remove('show'), 900);
     }
 
-    function showWin() {
+    function showWin(isNewBest = false) {
       document.getElementById('finalMoves').textContent = moves;
       document.getElementById('finalTime').textContent = timeDisplay.textContent;
       document.getElementById('finalScore').textContent = score;
       document.getElementById('finalBest').textContent = getBestScore();
+      document.getElementById('newBestTag').style.display = isNewBest ? 'block' : 'none';
+      bestDisplay.textContent = getBestScore();
       winModal.style.display = 'block';
     }
 
@@ -938,8 +999,12 @@
     let confettiReq;
 
     function resizeConfetti() {
-      confettiCanvas.width = window.innerWidth;
-      confettiCanvas.height = window.innerHeight;
+      const dpr = window.devicePixelRatio || 1;
+      confettiCanvas.width = Math.floor(window.innerWidth * dpr);
+      confettiCanvas.height = Math.floor(window.innerHeight * dpr);
+      // Particles are positioned in CSS pixels, so scale the backing store
+      // instead of letting the browser upscale a 1x canvas.
+      cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     window.addEventListener('resize', resizeConfetti);
     window.addEventListener('resize', resizeBoard);
@@ -981,8 +1046,11 @@
     }
 
     function animateConfetti() {
-      cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
-      particles.forEach((p, i) => {
+      cctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      // Reverse iteration: splicing inside a forEach skipped the element after
+      // each removal, so expired particles lingered for extra frames.
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
         p.x += p.vx;
         p.y += p.vy;
         p.vy += p.gravity;
@@ -1000,13 +1068,13 @@
         cctx.restore();
 
         if (p.life <= 0) particles.splice(i, 1);
-      });
+      }
 
       if (particles.length > 0) {
         confettiReq = requestAnimationFrame(animateConfetti);
       } else {
         confettiReq = null;
-        cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+        cctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
       }
     }
 
@@ -1024,7 +1092,7 @@
       if (winModal.style.display === 'block') return;
       if (!board.children.length) return;
 
-      const cssCols = { beginner: 3, easy: 3, medium: 4, hard: 4 }[currentDifficulty];
+      const cssCols = DIFFICULTIES[currentDifficulty].cols;
       const total = board.children.length;
 
       switch (e.key) {
