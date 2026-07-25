@@ -362,7 +362,7 @@
       <div class="card-content">
         <span class="game-icon">🚀</span>
         <h2 class="game-title">Space Shooter</h2>
-        <p class="game-desc">Blast alien ships, collect power-ups, and defend the galaxy.</p>
+        <p class="game-desc">Blast alien ships, chain kill combos, and grab shields and rapid fire to defend the galaxy.</p>
         <div class="card-meta">
           <span class="meta-chip best-chip">🏆 Not played yet</span>
           <span class="meta-chip plays-chip">▶ 0 plays</span>
@@ -571,7 +571,10 @@
         parseInt(localStorage.getItem('snakeHighScore') || '0', 10),
         ...['easy', 'medium', 'hard'].map(d =>
           parseInt(localStorage.getItem(`snakeBest_${d}`) || '0', 10))),
-      shooter: () => parseInt(localStorage.getItem('shooterBest') || '0', 10),
+      shooter: () => Math.max(
+        parseInt(localStorage.getItem('shooterBest') || '0', 10),
+        ...['easy', 'medium', 'hard'].map(d =>
+          parseInt(localStorage.getItem(`shooterBest_${d}`) || '0', 10))),
       maze: () => {
         const scores = JSON.parse(localStorage.getItem('neonMazeHighScores') || '{}');
         const values = Object.values(scores);
