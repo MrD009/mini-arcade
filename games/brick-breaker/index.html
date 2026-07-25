@@ -48,6 +48,21 @@
       z-index: 1;
     }
 
+    .play-border {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      height: 100%;
+      max-width: 600px;
+      border-left: 1px solid rgba(0, 242, 255, 0.25);
+      border-right: 1px solid rgba(0, 242, 255, 0.25);
+      box-shadow: inset 0 0 30px rgba(0, 242, 255, 0.07);
+      pointer-events: none;
+      z-index: 2;
+    }
+
     .ui-layer {
       position: absolute;
       top: 0;
@@ -96,20 +111,24 @@
     }
 
     .controls-bar {
-      position: absolute;
-      bottom: calc(10px + env(safe-area-inset-bottom));
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 20;
       display: flex;
-      gap: 8px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 0 14px 8px;
       pointer-events: auto;
-      background: rgba(15, 15, 36, 0.9);
+    }
+
+    .controls-bar button {
+      padding: 6px 10px;
+      font-size: 0.68rem;
+      background: rgba(15, 15, 36, 0.8);
       border: 1px solid rgba(0, 242, 255, 0.25);
-      border-radius: 12px;
-      padding: 8px 12px;
-      backdrop-filter: blur(6px);
-      box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+      backdrop-filter: blur(4px);
+    }
+
+    .controls-bar button:hover, .controls-bar button:active {
+      background: rgba(0, 242, 255, 0.2);
     }
 
     button {
@@ -243,7 +262,7 @@
 
     .mobile-hint {
       position: absolute;
-      bottom: 70px;
+      bottom: calc(14px + env(safe-area-inset-bottom));
       left: 50%;
       transform: translateX(-50%);
       color: rgba(255,255,255,0.5);
@@ -279,6 +298,7 @@
 </head>
 <body>
   <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
 
   <div class="ui-layer">
     <div class="hud" id="hud">
@@ -299,19 +319,20 @@
         <strong id="bestEl">0</strong>
       </div>
     </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button id="startBtn" onclick="showStartOverlay()">Restart</button>
+      <button id="pauseBtn" onclick="togglePause()">Pause</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
   </div>
 
   <div class="toast" id="toast">WIDE PADDLE!</div>
 
   <div class="mobile-hint" id="mobileHint">Drag to move • Tap to launch</div>
-
-  <div class="controls-bar" id="controlsBar">
-    <button id="startBtn" onclick="showStartOverlay()">Restart</button>
-    <button id="pauseBtn" onclick="togglePause()">Pause</button>
-    <a href="../../index.html" style="text-decoration:none;">
-      <button type="button">🏠 Home</button>
-    </a>
-  </div>
 
   <div class="overlay" id="startOverlay">
     <h1>🧱 Brick Breaker</h1>
@@ -380,6 +401,7 @@
     const toast = document.getElementById('toast');
     const mobileHint = document.getElementById('mobileHint');
     const pauseBtn = document.getElementById('pauseBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
     const controlsBar = document.getElementById('controlsBar');
 
     const DIFFICULTIES = {
@@ -468,6 +490,8 @@
     let touchX = null;
     let mouseDown = false;
     let playAreaWidth = 0;
+    let dragStartClientX = null;
+    let dragStartPaddleX = 0;
 
     function resizeCanvas() {
       const dpr = window.devicePixelRatio || 1;
@@ -477,11 +501,11 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       playAreaWidth = rect.width;
 
-      // Keep the paddle clear of the fixed controls bar (and any browser chrome
+      // Keep the paddle clear of the bottom hint text (and any browser chrome
       // that shrinks the real visible area below the 100vh canvas on mobile).
-      const controlsRect = controlsBar.getBoundingClientRect();
-      const clearanceAboveControls = (controlsRect.top - rect.top) - 24;
-      paddle.y = clearanceAboveControls > 0 ? Math.min(rect.height - 60, clearanceAboveControls) : rect.height - 60;
+      const hintRect = mobileHint.getBoundingClientRect();
+      const clearanceAboveHint = (hintRect.top - rect.top) - 20;
+      paddle.y = clearanceAboveHint > 0 ? Math.min(rect.height - 70, clearanceAboveHint) : rect.height - 70;
 
       if (!gameRunning) paddle.x = rect.width / 2;
     }
@@ -501,33 +525,45 @@
     });
     document.addEventListener('keyup', e => { keys[e.key] = false; });
 
+    // Touch/mouse dragging is relative, not absolute: the paddle moves by however
+    // far the finger travels from where it first touched down, rather than
+    // snapping to the finger's on-screen position. That way a thumb resting
+    // anywhere comfortable (not necessarily right over the paddle) still steers
+    // it, instead of the thumb always covering the paddle it's controlling.
     canvas.addEventListener('touchstart', e => {
       e.preventDefault();
-      touchX = e.touches[0].clientX;
+      dragStartClientX = e.touches[0].clientX;
+      dragStartPaddleX = paddle.x;
+      touchX = paddle.x;
       initAudio();
       launchBalls();
     }, { passive: false });
 
     canvas.addEventListener('touchmove', e => {
       e.preventDefault();
-      if (e.touches.length > 0) touchX = e.touches[0].clientX;
+      if (e.touches.length > 0 && dragStartClientX !== null) {
+        touchX = dragStartPaddleX + (e.touches[0].clientX - dragStartClientX);
+      }
     }, { passive: false });
 
     canvas.addEventListener('touchend', e => {
       e.preventDefault();
       touchX = null;
+      dragStartClientX = null;
     }, { passive: false });
 
     canvas.addEventListener('mousedown', e => {
       initAudio();
       mouseDown = true;
-      touchX = e.clientX - canvas.getBoundingClientRect().left;
+      dragStartClientX = e.clientX;
+      dragStartPaddleX = paddle.x;
+      touchX = paddle.x;
       launchBalls();
     });
-    document.addEventListener('mouseup', () => { mouseDown = false; touchX = null; });
+    document.addEventListener('mouseup', () => { mouseDown = false; touchX = null; dragStartClientX = null; });
     canvas.addEventListener('mousemove', e => {
-      if (!mouseDown) return;
-      touchX = e.clientX - canvas.getBoundingClientRect().left;
+      if (!mouseDown || dragStartClientX === null) return;
+      touchX = dragStartPaddleX + (e.clientX - dragStartClientX);
     });
 
     function setDifficulty(diff) {
@@ -567,7 +603,8 @@
       const margin = rect.width * 0.04;
       const usableWidth = rect.width - margin * 2;
       const brickWidth = (usableWidth - BRICK_GAP * (BRICK_COLS - 1)) / BRICK_COLS;
-      const startY = 60;
+      const controlsBottom = controlsBar.getBoundingClientRect().bottom - rect.top;
+      const startY = Math.max(60, controlsBottom + 16);
 
       bricks = [];
       for (let r = 0; r < rows; r++) {
@@ -1013,6 +1050,23 @@
       gamePaused = !gamePaused;
       pauseBtn.textContent = gamePaused ? 'Resume' : 'Pause';
       if (!gamePaused) lastTime = 0;
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+      } else {
+        document.exitFullscreen?.();
+      }
+    }
+
+    document.addEventListener('fullscreenchange', () => {
+      fullscreenBtn.textContent = document.fullscreenElement ? '⤢ Exit' : '⛶ Full';
+      resizeCanvas();
+    });
+
+    if (!document.documentElement.requestFullscreen) {
+      fullscreenBtn.style.display = 'none';
     }
 
     function gameOver() {
