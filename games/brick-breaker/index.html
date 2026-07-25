@@ -496,6 +496,7 @@
     function resizeCanvas() {
       const dpr = window.devicePixelRatio || 1;
       const rect = canvas.getBoundingClientRect();
+      const previousWidth = playAreaWidth;
       canvas.width = Math.floor(rect.width * dpr);
       canvas.height = Math.floor(rect.height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -506,6 +507,20 @@
       const hintRect = mobileHint.getBoundingClientRect();
       const clearanceAboveHint = (hintRect.top - rect.top) - 20;
       paddle.y = clearanceAboveHint > 0 ? Math.min(rect.height - 70, clearanceAboveHint) : rect.height - 70;
+
+      // Everything positioned in canvas coordinates has to follow a width
+      // change, or a rotate leaves the bricks hanging outside the play area
+      // and the ball and paddle off their old marks.
+      layoutBricks();
+      if (previousWidth > 0 && rect.width > 0 && previousWidth !== rect.width) {
+        const ratio = rect.width / previousWidth;
+        paddle.x *= ratio;
+        dragStartPaddleX *= ratio;
+        for (const b of balls) b.x *= ratio;
+        for (const p of powerUps) p.x *= ratio;
+        if (touchX !== null) touchX *= ratio;
+      }
+      paddle.x = Math.max(paddle.width / 2, Math.min(rect.width - paddle.width / 2, paddle.x));
 
       if (!gameRunning) paddle.x = rect.width / 2;
     }
@@ -539,11 +554,26 @@
       launchBalls();
     }, { passive: false });
 
+    // The drag re-anchors itself whenever it runs into a wall. Without this,
+    // pushing past the edge banked up travel (the paddle stops at the wall but
+    // the target kept going), and the player had to drag all the way back
+    // before the paddle would respond at all.
+    function updateDragTarget(clientX) {
+      if (dragStartClientX === null) return;
+      const rect = canvas.getBoundingClientRect();
+      const half = paddle.width / 2;
+      const desired = dragStartPaddleX + (clientX - dragStartClientX);
+      const clamped = Math.max(half, Math.min(rect.width - half, desired));
+      if (clamped !== desired) {
+        dragStartClientX = clientX;
+        dragStartPaddleX = clamped;
+      }
+      touchX = clamped;
+    }
+
     canvas.addEventListener('touchmove', e => {
       e.preventDefault();
-      if (e.touches.length > 0 && dragStartClientX !== null) {
-        touchX = dragStartPaddleX + (e.touches[0].clientX - dragStartClientX);
-      }
+      if (e.touches.length > 0) updateDragTarget(e.touches[0].clientX);
     }, { passive: false });
 
     canvas.addEventListener('touchend', e => {
@@ -562,8 +592,8 @@
     });
     document.addEventListener('mouseup', () => { mouseDown = false; touchX = null; dragStartClientX = null; });
     canvas.addEventListener('mousemove', e => {
-      if (!mouseDown || dragStartClientX === null) return;
-      touchX = dragStartPaddleX + (e.clientX - dragStartClientX);
+      if (!mouseDown) return;
+      updateDragTarget(e.clientX);
     });
 
     function setDifficulty(diff) {
@@ -595,10 +625,10 @@
       return 1;
     }
 
-    function buildBricks() {
-      const cfg = DIFFICULTIES[currentDifficulty];
-      const rows = Math.min(cfg.rows + Math.floor((level - 1) / 2), 9);
-      const palette = ['#ff2a2a', '#ff8800', '#ffd700', '#00ff88', '#00f2ff', '#5dade2', '#c39bd3', '#ff66c4'];
+    // Brick geometry is derived from grid position rather than baked in at
+    // build time, so a resize can re-place them without touching hp or alive.
+    function layoutBricks() {
+      if (!bricks.length) return;
       const rect = canvas.getBoundingClientRect();
       const margin = rect.width * 0.04;
       const usableWidth = rect.width - margin * 2;
@@ -606,21 +636,34 @@
       const controlsBottom = controlsBar.getBoundingClientRect().bottom - rect.top;
       const startY = Math.max(60, controlsBottom + 16);
 
+      for (const brick of bricks) {
+        brick.width = brickWidth;
+        brick.height = BRICK_HEIGHT;
+        brick.x = margin + brick.col * (brickWidth + BRICK_GAP) + brickWidth / 2;
+        brick.y = startY + brick.row * (BRICK_HEIGHT + BRICK_GAP) + BRICK_HEIGHT / 2;
+      }
+    }
+
+    function buildBricks() {
+      const cfg = DIFFICULTIES[currentDifficulty];
+      const rows = Math.min(cfg.rows + Math.floor((level - 1) / 2), 9);
+      const palette = ['#ff2a2a', '#ff8800', '#ffd700', '#00ff88', '#00f2ff', '#5dade2', '#c39bd3', '#ff66c4'];
+
       bricks = [];
       for (let r = 0; r < rows; r++) {
         const hp = getBrickHp(r, rows);
         const color = palette[r % palette.length];
         for (let c = 0; c < BRICK_COLS; c++) {
-          const x = margin + c * (brickWidth + BRICK_GAP) + brickWidth / 2;
-          const y = startY + r * (BRICK_HEIGHT + BRICK_GAP) + BRICK_HEIGHT / 2;
           bricks.push({
-            x, y, width: brickWidth, height: BRICK_HEIGHT,
+            row: r, col: c,
+            x: 0, y: 0, width: 0, height: BRICK_HEIGHT,
             hp, maxHp: hp, color,
             score: (rows - r) * 10 * hp,
             alive: true
           });
         }
       }
+      layoutBricks();
     }
 
     function resetBallOnPaddle() {
@@ -689,9 +732,11 @@
         widePaddleTimer = WIDE_MS;
         showToast('🟢 WIDE PADDLE!', '#00ff88');
       } else if (type === 'multi') {
-        const launchedBalls = balls.filter(b => b.launched);
-        const source = launchedBalls[0] || balls[0];
-        if (source && source.launched) {
+        // A ball still sitting on the paddle counts — launch it first so the
+        // power-up can never be collected for nothing.
+        launchBalls();
+        const source = balls.find(b => b.launched);
+        if (source) {
           [-25, 25].forEach(offset => {
             const angle = Math.atan2(source.vx, -source.vy) + offset * (Math.PI / 180);
             balls.push({
@@ -747,8 +792,12 @@
       paddle.velocityX = Math.max(-paddle.maxSpeed, Math.min(paddle.maxSpeed, paddle.velocityX));
 
       if (touchX !== null) {
-        const diff = touchX - paddle.x;
-        paddle.velocityX = diff * 10;
+        // Clamp the drag target to where the paddle can actually go. Letting it
+        // run past the wall banked up to half a paddle width of travel that the
+        // player then had to undo before the paddle would respond at all.
+        const half = paddle.width / 2;
+        touchX = Math.max(half, Math.min(rect.width - half, touchX));
+        paddle.velocityX = (touchX - paddle.x) * 10;
       }
 
       paddle.x += paddle.velocityX * dt;
@@ -876,6 +925,13 @@
         return;
       }
       playLifeLostSound();
+      // Clear timed effects the way a level change does, so slow-mo and a wide
+      // paddle don't carry over onto the next ball.
+      paddle.width = paddle.baseWidth;
+      widePaddleTimer = 0;
+      ballSpeedMultiplier = 1;
+      slowMoTimer = 0;
+      powerUps = [];
       resetBallOnPaddle();
     }
 
@@ -1069,6 +1125,11 @@
       fullscreenBtn.style.display = 'none';
     }
 
+    // Don't keep the ball in play while the tab is in the background.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && gameRunning && !gamePaused) togglePause();
+    });
+
     function gameOver() {
       gameRunning = false;
       cancelAnimationFrame(animationId);
@@ -1079,6 +1140,9 @@
       finalLevel.textContent = level;
       finalBest.textContent = getBestScore();
       finalBricks.textContent = bricksBroken;
+      // The HUD panel is only refreshed on start, so without this it kept
+      // showing the old best behind the game-over overlay.
+      bestEl.textContent = getBestScore();
       newBestTag.style.display = isNewBest ? 'block' : 'none';
       if (isNewBest) setTimeout(() => playBestSound(), 300);
 
