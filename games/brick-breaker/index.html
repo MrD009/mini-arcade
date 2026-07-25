@@ -380,6 +380,7 @@
     const toast = document.getElementById('toast');
     const mobileHint = document.getElementById('mobileHint');
     const pauseBtn = document.getElementById('pauseBtn');
+    const controlsBar = document.getElementById('controlsBar');
 
     const DIFFICULTIES = {
       easy:   { ballSpeed: 260, paddleWidth: 104, powerUpChance: 0.32, rows: 5, startLives: 4 },
@@ -475,7 +476,13 @@
       canvas.height = Math.floor(rect.height * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       playAreaWidth = rect.width;
-      paddle.y = rect.height - 60;
+
+      // Keep the paddle clear of the fixed controls bar (and any browser chrome
+      // that shrinks the real visible area below the 100vh canvas on mobile).
+      const controlsRect = controlsBar.getBoundingClientRect();
+      const clearanceAboveControls = (controlsRect.top - rect.top) - 24;
+      paddle.y = clearanceAboveControls > 0 ? Math.min(rect.height - 60, clearanceAboveControls) : rect.height - 60;
+
       if (!gameRunning) paddle.x = rect.width / 2;
     }
     window.addEventListener('resize', resizeCanvas);
