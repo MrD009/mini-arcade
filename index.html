@@ -145,6 +145,7 @@
     .game-card:nth-child(5) { animation-delay: 0.7s; }
     .game-card:nth-child(6) { animation-delay: 0.85s; }
     .game-card:nth-child(7) { animation-delay: 1.0s; }
+    .game-card:nth-child(8) { animation-delay: 1.15s; }
 
     .game-card::before {
       content: '';
@@ -424,6 +425,20 @@
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
+
+    <a href="games/highway-racer/index.html" class="game-card" data-game="highway-racer">
+      <span class="favorite-tag">🔥 Favorite</span>
+      <div class="card-content">
+        <span class="game-icon">🏎️</span>
+        <h2 class="game-title">Neon Highway Racer</h2>
+        <p class="game-desc">Weave through neon traffic, grab nitro and shields, and rack up near-miss combos as the speed climbs.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
   </main>
 
   <footer>
@@ -501,7 +516,7 @@
       osc.stop(audioCtx.currentTime + 0.12);
     }
 
-    const hoverFreqs = [440, 523, 587, 659, 740, 831, 932];
+    const hoverFreqs = [440, 523, 587, 659, 740, 831, 932, 988];
     const cards = [...document.querySelectorAll('.game-card')];
     const menuEl = document.getElementById('menu');
 
@@ -533,7 +548,9 @@
       'gravity-runner': () => parseInt(localStorage.getItem('gravityRunnerHighScore') || '0', 10),
       rabbit: () => parseInt(localStorage.getItem('neonBunnyHighScore') || '0', 10),
       'whack-a-mole': () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
-        parseInt(localStorage.getItem(`whackBest_${d}`) || '0', 10)))
+        parseInt(localStorage.getItem(`whackBest_${d}`) || '0', 10))),
+      'highway-racer': () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
+        parseInt(localStorage.getItem(`racerBest_${d}`) || '0', 10)))
     };
 
     // ---- Play counts ----
