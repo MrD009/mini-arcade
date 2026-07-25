@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🕹️ Mini Arcade</title>
+  <style>
+    :root {
+      --bg: #0d0d1a;
+      --panel: #16162e;
+      --accent: #00f2ff;
+      --accent2: #ff00aa;
+      --gold: #ffd700;
+      --text: #f5f5f5;
+      --card-bg: linear-gradient(145deg, #1a1a3d, #12122b);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #starfield {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    header {
+      text-align: center;
+      margin-top: 40px;
+      margin-bottom: 10px;
+      animation: fadeInDown 1s ease;
+    }
+
+    h1 {
+      font-size: 3rem;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2), var(--gold));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 0 30px rgba(0,242,255,0.3);
+      position: relative;
+      display: inline-block;
+    }
+
+    h1::after {
+      content: 'MINI ARCADE';
+      position: absolute;
+      left: 0; top: 0;
+      width: 100%;
+      background: inherit;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      filter: blur(8px);
+      opacity: 0.6;
+      z-index: -1;
+    }
+
+    .tagline {
+      font-size: 1.1rem;
+      color: #aaa;
+      margin-top: 8px;
+      animation: pulseText 2s infinite;
+    }
+
+    .stats-bar {
+      display: flex;
+      gap: 30px;
+      margin: 25px 0;
+      font-size: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .stat-pill {
+      background: var(--panel);
+      padding: 10px 20px;
+      border-radius: 50px;
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+
+    .stat-pill span {
+      color: var(--gold);
+      font-weight: bold;
+    }
+
+    .menu {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 30px;
+      max-width: 900px;
+      width: 100%;
+      padding: 30px;
+      perspective: 1000px;
+    }
+
+    .game-card {
+      display: block;
+      background: var(--card-bg);
+      border-radius: 20px;
+      padding: 30px;
+      text-decoration: none;
+      color: var(--text);
+      border: 2px solid rgba(255,255,255,0.05);
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+      transform-style: preserve-3d;
+      cursor: pointer;
+      animation: fadeInUp 0.8s ease both;
+    }
+
+    .game-card:nth-child(1) { animation-delay: 0.1s; }
+    .game-card:nth-child(2) { animation-delay: 0.25s; }
+    .game-card:nth-child(3) { animation-delay: 0.4s; }
+    .game-card:nth-child(4) { animation-delay: 0.55s; }
+    .game-card:nth-child(5) { animation-delay: 0.7s; }
+
+    .game-card::before {
+      content: '';
+      position: absolute;
+      top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background: conic-gradient(from 0deg, transparent, var(--accent), transparent 30%);
+      opacity: 0;
+      transition: opacity 0.5s;
+      animation: rotate 4s linear infinite;
+    }
+
+    .game-card:hover::before { opacity: 0.15; }
+
+    .game-card:hover {
+      transform: translateY(-10px) rotateX(5deg);
+      box-shadow: 0 20px 40px rgba(0,242,255,0.2);
+      border-color: var(--accent);
+    }
+
+    .card-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .game-icon {
+      font-size: 4rem;
+      margin-bottom: 15px;
+      display: block;
+      transition: transform 0.3s;
+    }
+
+    .game-card:hover .game-icon {
+      transform: scale(1.2) rotate(-5deg);
+    }
+
+    .game-title {
+      font-size: 1.6rem;
+      margin-bottom: 10px;
+      color: var(--accent);
+    }
+
+    .game-desc {
+      font-size: 0.95rem;
+      color: #bbb;
+      line-height: 1.5;
+      margin-bottom: 15px;
+    }
+
+    .play-btn {
+      display: inline-block;
+      background: var(--accent2);
+      color: white;
+      padding: 10px 24px;
+      border-radius: 30px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    .game-card:hover .play-btn {
+      background: var(--accent);
+      transform: scale(1.05);
+    }
+
+    footer {
+      margin-top: auto;
+      padding: 25px;
+      color: #666;
+      font-size: 0.85rem;
+    }
+
+    @keyframes rotate {
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulseText {
+      0%, 100% { opacity: 0.7; }
+      50% { opacity: 1; }
+    }
+
+    @media (max-width: 600px) {
+      h1 { font-size: 2rem; }
+      .menu { padding: 15px; gap: 20px; }
+      .game-card { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="starfield"></canvas>
+
+  <header>
+    <h1>🕹️ Mini Arcade</h1>
+    <p class="tagline">Pick a game and start playing!</p>
+  </header>
+
+  <div class="stats-bar">
+    <div class="stat-pill">👋 Welcome back! Visit #<span id="visitCount">1</span></div>
+    <div class="stat-pill">🎮 Games: $14</span></div>
+  </div>
+
+  <main class="menu" id="menu">
+    <a href="games/memory/index.html" class="game-card" data-game="memory">
+      <div class="card-content">
+        <span class="game-icon">🧠</span>
+        <h2 class="game-title">Memory Match</h2>
+        <p class="game-desc">Flip cards, find pairs, and test your brainpower against the clock.</p>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
+
+    <a href="games/snake/index.html" class="game-card" data-game="snake">
+      <div class="card-content">
+        <span class="game-icon">🐍</span>
+        <h2 class="game-title">Neon Snake</h2>
+        <p class="game-desc">Eat glowing apples, grow your snake, and avoid the walls.</p>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
+
+    <a href="games/shooter/index.html" class="game-card" data-game="shooter">
+      <div class="card-content">
+        <span class="game-icon">🚀</span>
+        <h2 class="game-title">Space Shooter</h2>
+        <p class="game-desc">Blast alien ships, collect power-ups, and defend the galaxy.</p>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
+
+    <a href="games/maze/index.html" class="game-card" data-game="maze">
+      <div class="card-content">
+        <span class="game-icon">🌀</span>
+        <h2 class="game-title">Neon Maze</h2>
+        <p class="game-desc">4 modes in one maze chaser: dodge Specters, outrun your own Echo, juggle Chroma colors, or flip the hunt in Glitch.</p>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
+
+    <a href="games/gravity-runner/index.html" class="game-card" data-game="gravity-runner">
+      <div class="card-content">
+        <span class="game-icon">🔃</span>
+        <h2 class="game-title">Gravity Flip Runner</h2>
+        <p class="game-desc">One button, no brakes. Flip gravity to dodge spike strips on the floor and ceiling as the speed climbs.</p>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
+
+    <a href="games/rabbit/index.html" class="game-card" data-game="rabbit">
+      <div class="card-content">
+        <span class="game-icon">🐰</span>
+        <h2 class="game-title">Bunny Hop</h2>
+        <p class="game-desc">Jump, collect carrots, and avoid foxes in this cute endless runner.</p>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
+  </main>
+
+  <footer>
+    Built with HTML, CSS & JavaScript. No frameworks needed.
+  </footer>
+
+  <script>
+    // ---- Starfield background ----
+    const canvas = document.getElementById('starfield');
+    const ctx = canvas.getContext('2d');
+    let stars = [];
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      stars = [];
+      const count = Math.floor((canvas.width * canvas.height) / 8000);
+      for (let i = 0; i < count; i++) {
+        stars.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          r: Math.random() * 1.5 + 0.5,
+          speed: Math.random() * 0.5 + 0.1,
+          alpha: Math.random()
+        });
+      }
+    }
+
+    function drawStars() {
+      ctx.fillStyle = '#0d0d1a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      stars.forEach(star => {
+        star.y += star.speed;
+        if (star.y > canvas.height) {
+          star.y = 0;
+          star.x = Math.random() * canvas.width;
+        }
+        star.alpha += (Math.random() - 0.5) * 0.05;
+        star.alpha = Math.max(0.2, Math.min(1, star.alpha));
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
+        ctx.fill();
+      });
+      requestAnimationFrame(drawStars);
+    }
+
+    window.addEventListener('resize', resize);
+    resize();
+    drawStars();
+
+    // ---- Audio feedback ----
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playHoverTone(freq) {
+      initAudio();
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.12);
+    }
+
+    const hoverFreqs = [440, 523, 587, 659, 740];
+    document.querySelectorAll('.game-card').forEach((card, index) => {
+      card.addEventListener('mouseenter', () => {
+        playHoverTone(hoverFreqs[index] || 440);
+      });
+    });
+
+    document.getElementById('gameCount').textContent = document.querySelectorAll('.game-card').length;
+
+    // ---- Visit counter ----
+    let visits = parseInt(localStorage.getItem('miniArcadeVisits') || '0', 10);
+    visits++;
+    localStorage.setItem('miniArcadeVisits', visits);
+    document.getElementById('visitCount').textContent = visits;
+  </script>
+</body>
+</html>

@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>🌀 Neon Maze</title>
+  <style>
+    :root {
+      --bg: #0d0d1a;
+      --panel: #16162e;
+      --accent: #00f2ff;
+      --accent2: #ff00aa;
+      --gold: #ffd700;
+      --lime: #7CFC00;
+      --text: #f5f5f5;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; touch-action: none; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+
+    header { text-align: center; margin-bottom: 12px; }
+
+    h1 {
+      font-size: 2rem;
+      color: var(--accent);
+      text-shadow: 0 0 20px rgba(0,242,255,0.5);
+    }
+
+    .mode-badge {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 4px 14px;
+      border-radius: 30px;
+      background: var(--panel);
+      font-size: 0.85rem;
+      color: var(--gold);
+      letter-spacing: 1px;
+    }
+
+    .stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .stat {
+      background: var(--panel);
+      padding: 8px 16px;
+      border-radius: 50px;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+
+    .stat span { color: var(--gold); font-weight: bold; }
+
+    .game-wrapper {
+      position: relative;
+      border: 2px solid var(--accent);
+      border-radius: 12px;
+      box-shadow: 0 0 30px rgba(0,242,255,0.2);
+      background: #050510;
+      max-width: 100%;
+      transition: transform 0.05s linear, filter 0.2s ease;
+    }
+
+    .game-wrapper.glitching {
+      filter: hue-rotate(60deg) saturate(1.4);
+    }
+
+    canvas {
+      display: block;
+      border-radius: 10px;
+      max-width: 100%;
+      height: auto;
+    }
+
+    .overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(13,13,26,0.94);
+      border-radius: 10px;
+      text-align: center;
+      padding: 20px;
+      z-index: 2;
+      overflow-y: auto;
+    }
+
+    .overlay h2 {
+      font-size: 1.7rem;
+      color: var(--accent2);
+      margin-bottom: 10px;
+    }
+
+    .overlay p { margin-bottom: 8px; color: #ccc; font-size: 0.95rem; }
+
+    .mode-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(140px, 1fr));
+      gap: 12px;
+      margin: 14px 0;
+      max-width: 360px;
+      width: 100%;
+    }
+
+    .mode-card {
+      background: var(--panel);
+      border: 2px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 12px 8px;
+      cursor: pointer;
+      color: var(--text);
+      transition: border-color 0.2s, transform 0.15s;
+      font-family: inherit;
+    }
+
+    .mode-card:hover { border-color: var(--accent); transform: translateY(-3px); }
+
+    .mode-card .m-icon { font-size: 1.8rem; display: block; margin-bottom: 4px; }
+    .mode-card .m-name { font-weight: bold; color: var(--accent); font-size: 0.95rem; }
+    .mode-card .m-desc { font-size: 0.72rem; color: #aaa; margin-top: 4px; line-height: 1.3; }
+
+    .controls {
+      margin-top: 18px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      background: var(--accent2);
+      color: white;
+      border: none;
+      padding: 12px 22px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    button:hover { background: var(--accent); transform: scale(1.05); }
+
+    .d-pad {
+      display: none;
+      grid-template-columns: repeat(3, 60px);
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .d-pad button {
+      width: 60px; height: 60px;
+      padding: 0;
+      font-size: 1.5rem;
+      background: var(--panel);
+      border: 1px solid var(--accent);
+    }
+
+    .d-pad .empty { visibility: hidden; }
+
+    @media (max-width: 600px) {
+      h1 { font-size: 1.5rem; }
+      .d-pad { display: grid; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🌀 Neon Maze</h1>
+    <span class="mode-badge" id="modeBadge">Choose a mode to begin</span>
+  </header>
+
+  <div class="stats">
+    <div class="stat">Score: <span id="score">0</span></div>
+    <div class="stat">High: <span id="highScore">0</span></div>
+    <div class="stat">Lives: <span id="lives">3</span></div>
+    <div class="stat">Level: <span id="level">1</span></div>
+  </div>
+
+  <div class="game-wrapper" id="gameWrapper">
+    <canvas id="gameCanvas" width="380" height="420"></canvas>
+    <div class="overlay" id="overlay">
+      <h2 id="overlayTitle">🌀 Neon Maze</h2>
+      <p id="overlayText">Four ways to play. Pick your poison.</p>
+      <div class="mode-grid" id="modeGrid">
+        <button class="mode-card" onclick="startGame('classic')">
+          <span class="m-icon">👻</span>
+          <span class="m-name">Classic</span>
+          <span class="m-desc">Roaming Specters hunt you. Power pellets let you turn the tables and eat them.</span>
+        </button>
+        <button class="mode-card" onclick="startGame('echo')">
+          <span class="m-icon">🌫️</span>
+          <span class="m-name">Echo</span>
+          <span class="m-desc">No enemies — just a delayed replay of your OWN past moves, chasing you.</span>
+        </button>
+        <button class="mode-card" onclick="startGame('chroma')">
+          <span class="m-icon">🎨</span>
+          <span class="m-name">Chroma</span>
+          <span class="m-desc">Your color auto-cycles. Enemies only hurt you if their color matches yours.</span>
+        </button>
+        <button class="mode-card" onclick="startGame('glitch')">
+          <span class="m-icon">⚡</span>
+          <span class="m-name">Glitch</span>
+          <span class="m-desc">Maze reshuffles every level. Glitch pellets flip you into the hunter role.</span>
+        </button>
+      </div>
+      <p id="overlayScore"></p>
+      <button id="startBtn" style="display:none;" onclick="handleOverlayAction()">Continue</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button onclick="restartCurrentMode()">Restart</button>
+    <button onclick="togglePause()">Pause</button>
+    <button onclick="showModeSelect()">Change Mode</button>
+    <a href="../../index.html" style="text-decoration:none;">
+      <button type="button">🏠 Arcade Home</button>
+    </a>
+  </div>
+
+  <div class="d-pad" id="dPad">
+    <div class="empty"></div>
+    <button onclick="setNextDir(0, -1)">▲</button>
+    <div class="empty"></div>
+    <button onclick="setNextDir(-1, 0)">◀</button>
+    <button onclick="togglePause()">⏸</button>
+    <button onclick="setNextDir(1, 0)">▶</button>
+    <div class="empty"></div>
+    <button onclick="setNextDir(0, 1)">▼</button>
+    <div class="empty"></div>
+  </div>
+
+  <script>
+    // ---------------------------------------------------------------
+    // Constants & maze geometry
+    // ---------------------------------------------------------------
+    const TILE = 20;
+    const LCOLS = 9, LROWS = 10;          // logical cell grid
+    const COLS = LCOLS * 2 + 1, ROWS = LROWS * 2 + 1; // tile grid (19x21)
+    const FIXED_SEED = 20260101;
+    const LOOP_FACTOR = 0.22;
+
+    const CENTER_LX = Math.floor(LCOLS / 2), CENTER_LY = Math.floor(LROWS / 2);
+    const PLAYER_SPAWN = { x: CENTER_LX * 2 + 1, y: (LROWS - 1) * 2 + 1 };
+    const ENEMY_HOMES = [
+      { x: CENTER_LX * 2 + 1, y: CENTER_LY * 2 + 1 },
+      { x: (CENTER_LX - 1) * 2 + 1, y: CENTER_LY * 2 + 1 },
+      { x: (CENTER_LX + 1) * 2 + 1, y: CENTER_LY * 2 + 1 },
+      { x: CENTER_LX * 2 + 1, y: (CENTER_LY - 1) * 2 + 1 }
+    ];
+    const CORNERS = [
+      { x: 1, y: 1 },
+      { x: (LCOLS - 1) * 2 + 1, y: 1 },
+      { x: 1, y: (LROWS - 1) * 2 + 1 },
+      { x: (LCOLS - 1) * 2 + 1, y: (LROWS - 1) * 2 + 1 }
+    ];
+
+    const CHROMA_COLORS = ['#00f2ff', '#ff00aa', '#ffd700', '#7CFC00'];
+    const ENEMY_BASE_COLORS = ['#ff00aa', '#00f2ff', '#a259ff', '#7CFC00'];
+
+    const DOT_SCORE = 10;
+    const POWER_SCORE = 50;
+    const ECHO_CATCH_SCORE = 150;
+    const CHROMA_PRISM_SCORE = 50;
+
+    const FRIGHTEN_TICKS = 42;
+    const ROLESWAP_TICKS = 46;
+    const RESPAWN_TICKS = 26;
+    const SCATTER_TICKS = 22;
+    const CHASE_TICKS = 55;
+    const CHROMA_CYCLE_TICKS = 20;
+    const CHROMA_GRACE_TICKS = 10;
+    const ECHO_FREEZE_TICKS = 45;
+    const ECHO_BASE_DELAY = 40;
+    const ECHO_LEVEL_STEP = 22;
+
+    const MODE_INFO = {
+      classic: { label: 'Classic', enemies: 4, echoes: 0 },
+      echo:    { label: 'Echo',    enemies: 0, echoes: 1 },
+      chroma:  { label: 'Chroma',  enemies: 4, echoes: 0 },
+      glitch:  { label: 'Glitch',  enemies: 4, echoes: 0 }
+    };
+
+    // ---------------------------------------------------------------
+    // DOM refs
+    // ---------------------------------------------------------------
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const gameWrapper = document.getElementById('gameWrapper');
+    const overlay = document.getElementById('overlay');
+    const overlayTitle = document.getElementById('overlayTitle');
+    const overlayText = document.getElementById('overlayText');
+    const overlayScore = document.getElementById('overlayScore');
+    const modeGrid = document.getElementById('modeGrid');
+    const startBtn = document.getElementById('startBtn');
+    const modeBadge = document.getElementById('modeBadge');
+    const scoreEl = document.getElementById('score');
+    const highScoreEl = document.getElementById('highScore');
+    const livesEl = document.getElementById('lives');
+    const levelEl = document.getElementById('level');
+
+    // ---------------------------------------------------------------
+    // PRNG + maze generation (recursive backtracker + extra loops)
+    // ---------------------------------------------------------------
+    function mulberry32(seed) {
+      let s = seed | 0;
+      return function () {
+        s = (s + 0x6D2B79F5) | 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function generateMaze(seed) {
+      const rng = mulberry32(seed);
+      const grid = [];
+      for (let r = 0; r < ROWS; r++) grid.push(new Array(COLS).fill('#'));
+      for (let ly = 0; ly < LROWS; ly++) {
+        for (let lx = 0; lx < LCOLS; lx++) grid[ly * 2 + 1][lx * 2 + 1] = '.';
+      }
+      const visited = Array.from({ length: LROWS }, () => new Array(LCOLS).fill(false));
+      const stack = [[0, 0]];
+      visited[0][0] = true;
+      while (stack.length) {
+        const [lx, ly] = stack[stack.length - 1];
+        const nbrs = [];
+        if (lx > 0 && !visited[ly][lx - 1]) nbrs.push([lx - 1, ly]);
+        if (lx < LCOLS - 1 && !visited[ly][lx + 1]) nbrs.push([lx + 1, ly]);
+        if (ly > 0 && !visited[ly - 1][lx]) nbrs.push([lx, ly - 1]);
+        if (ly < LROWS - 1 && !visited[ly + 1][lx]) nbrs.push([lx, ly + 1]);
+        if (!nbrs.length) { stack.pop(); continue; }
+        const [nx, ny] = nbrs[Math.floor(rng() * nbrs.length)];
+        const wr = (ly * 2 + 1) + (ny - ly);
+        const wc = (lx * 2 + 1) + (nx - lx);
+        grid[wr][wc] = '.';
+        visited[ny][nx] = true;
+        stack.push([nx, ny]);
+      }
+      for (let ly = 0; ly < LROWS; ly++) {
+        for (let lx = 0; lx < LCOLS; lx++) {
+          if (lx < LCOLS - 1) {
+            const wr = ly * 2 + 1, wc = lx * 2 + 2;
+            if (grid[wr][wc] === '#' && rng() < LOOP_FACTOR) grid[wr][wc] = '.';
+          }
+          if (ly < LROWS - 1) {
+            const wr = ly * 2 + 2, wc = lx * 2 + 1;
+            if (grid[wr][wc] === '#' && rng() < LOOP_FACTOR) grid[wr][wc] = '.';
+          }
+        }
+      }
+      const tunnelRow = Math.floor(LROWS / 2) * 2 + 1;
+      grid[tunnelRow][0] = '.';
+      grid[tunnelRow][COLS - 1] = '.';
+      return { grid, tunnelRow };
+    }
+
+    // ---------------------------------------------------------------
+    // Game state
+    // ---------------------------------------------------------------
+    let mode = null;
+    let grid = null, tunnelRow = 0;
+    let dots = null, powerDots = null, dotsRemaining = 0;
+    let player = null;
+    let enemies = [];
+    let echoes = [];
+    let history = [];
+    let tick = 0;
+    let score = 0, lives = 3, level = 1;
+    let speed = 160;
+    let running = false, paused = false;
+    let gameLoop = null;
+
+    let frightTicksLeft = 0;
+    let roleSwapTicksLeft = 0;
+    let comboCount = 0;
+    let globalState = 'scatter';
+    let globalStateTimer = SCATTER_TICKS;
+
+    let playerColorIndex = 0;
+    let colorCycleCounter = 0;
+    let chromaGraceLeft = 0;
+
+    let highScores = JSON.parse(localStorage.getItem('neonMazeHighScores') || '{}');
+
+    // ---------------------------------------------------------------
+    // Audio
+    // ---------------------------------------------------------------
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playTone(freq, type, duration, delay = 0, vol = 0.1) {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
+      gain.gain.setValueAtTime(vol, audioCtx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(audioCtx.currentTime + delay);
+      osc.stop(audioCtx.currentTime + delay + duration);
+    }
+
+    const sfx = {
+      dot: () => playTone(520, 'square', 0.05, 0, 0.06),
+      power: () => { playTone(300, 'sawtooth', 0.15); playTone(500, 'sawtooth', 0.15, 0.1); },
+      eatEnemy: () => { playTone(700, 'square', 0.08); playTone(1000, 'square', 0.1, 0.08); },
+      echoCatch: () => { playTone(880, 'sine', 0.12); playTone(1200, 'sine', 0.1, 0.1); },
+      hurt: () => { playTone(180, 'sawtooth', 0.3); playTone(110, 'sawtooth', 0.35, 0.15); },
+      levelUp: () => { [440, 554, 659, 880].forEach((f, i) => playTone(f, 'sine', 0.15, i * 0.1)); },
+      gameOver: () => { playTone(200, 'sawtooth', 0.4); playTone(140, 'sawtooth', 0.5, 0.2); playTone(80, 'sawtooth', 0.6, 0.4); }
+    };
+
+    // ---------------------------------------------------------------
+    // Maze queries
+    // ---------------------------------------------------------------
+    function canStep(x, y, dx, dy) {
+      let nx = x + dx, ny = y + dy;
+      if (ny < 0 || ny >= ROWS) return null;
+      if (nx < 0) { if (ny === tunnelRow) nx = COLS - 1; else return null; }
+      else if (nx >= COLS) { if (ny === tunnelRow) nx = 0; else return null; }
+      if (grid[ny][nx] !== '.') return null;
+      return { x: nx, y: ny };
+    }
+
+    function bfsFrom(sx, sy) {
+      const dist = Array.from({ length: ROWS }, () => new Array(COLS).fill(Infinity));
+      dist[sy][sx] = 0;
+      const queue = [[sx, sy]];
+      let qi = 0;
+      const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+      while (qi < queue.length) {
+        const [x, y] = queue[qi++];
+        for (const [dx, dy] of dirs) {
+          const n = canStep(x, y, dx, dy);
+          if (n && dist[n.y][n.x] === Infinity) {
+            dist[n.y][n.x] = dist[y][x] + 1;
+            queue.push([n.x, n.y]);
+          }
+        }
+      }
+      return dist;
+    }
+
+    // ---------------------------------------------------------------
+    // Level setup
+    // ---------------------------------------------------------------
+    function layoutMaze(seed) {
+      const gen = generateMaze(seed);
+      grid = gen.grid;
+      tunnelRow = gen.tunnelRow;
+    }
+
+    function layoutPellets() {
+      dots = Array.from({ length: ROWS }, () => new Array(COLS).fill(false));
+      powerDots = Array.from({ length: ROWS }, () => new Array(COLS).fill(false));
+      dotsRemaining = 0;
+      const reserved = new Set([`${PLAYER_SPAWN.x},${PLAYER_SPAWN.y}`]);
+      const info = MODE_INFO[mode];
+      for (let i = 0; i < info.enemies; i++) reserved.add(`${ENEMY_HOMES[i].x},${ENEMY_HOMES[i].y}`);
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          if (grid[y][x] === '.' && !reserved.has(`${x},${y}`)) {
+            dots[y][x] = true;
+            dotsRemaining++;
+          }
+        }
+      }
+      CORNERS.forEach(c => {
+        if (dots[c.y][c.x]) { dots[c.y][c.x] = false; dotsRemaining--; }
+        powerDots[c.y][c.x] = true;
+        dotsRemaining++;
+      });
+    }
+
+    function resetActors() {
+      player = { x: PLAYER_SPAWN.x, y: PLAYER_SPAWN.y, dir: { dx: 0, dy: 0 }, nextDir: { dx: 0, dy: 0 } };
+      const info = MODE_INFO[mode];
+      enemies = [];
+      for (let i = 0; i < info.enemies; i++) {
+        enemies.push({
+          x: ENEMY_HOMES[i].x, y: ENEMY_HOMES[i].y,
+          home: ENEMY_HOMES[i], scatter: CORNERS[i],
+          dir: { dx: 0, dy: 0 },
+          state: 'active',
+          respawnLeft: 0,
+          color: mode === 'chroma' ? CHROMA_COLORS[i] : ENEMY_BASE_COLORS[i],
+          colorIndex: i
+        });
+      }
+      echoes = [];
+      if (info.echoes) {
+        const count = Math.min(1 + (level - 1), 5);
+        for (let i = 0; i < count; i++) {
+          echoes.push({ delay: ECHO_BASE_DELAY + i * ECHO_LEVEL_STEP, pausedTicks: 0, freezeLeft: 0, active: false, pos: null, removed: false });
+        }
+      }
+      history = [];
+      tick = 0;
+      frightTicksLeft = 0;
+      roleSwapTicksLeft = 0;
+      comboCount = 0;
+      globalState = 'scatter';
+      globalStateTimer = SCATTER_TICKS;
+      playerColorIndex = 0;
+      colorCycleCounter = 0;
+      chromaGraceLeft = CHROMA_GRACE_TICKS;
+    }
+
+    function resetLevel(regenMaze) {
+      if (regenMaze || !grid) {
+        const seed = mode === 'glitch' && level > 1 ? Math.floor(Math.random() * 1e9) : FIXED_SEED;
+        layoutMaze(seed);
+      }
+      layoutPellets();
+      resetActors();
+      render();
+    }
+
+    // ---------------------------------------------------------------
+    // Start / mode selection
+    // ---------------------------------------------------------------
+    function startGame(selectedMode) {
+      initAudio();
+      mode = selectedMode;
+      score = 0;
+      lives = 3;
+      level = 1;
+      speed = 160;
+      grid = null;
+      scoreEl.textContent = score;
+      livesEl.textContent = lives;
+      levelEl.textContent = level;
+      highScoreEl.textContent = highScores[mode] || 0;
+      modeBadge.textContent = MODE_INFO[mode].label + ' Mode';
+      resetLevel(true);
+      overlay.style.display = 'none';
+      running = true;
+      paused = false;
+      clearInterval(gameLoop);
+      gameLoop = setInterval(step, speed);
+    }
+
+    function restartCurrentMode() {
+      if (!mode) { showModeSelect(); return; }
+      startGame(mode);
+    }
+
+    function showModeSelect() {
+      clearInterval(gameLoop);
+      running = false;
+      overlayTitle.textContent = '🌀 Neon Maze';
+      overlayText.textContent = 'Four ways to play. Pick your poison.';
+      overlayScore.textContent = '';
+      modeGrid.style.display = 'grid';
+      startBtn.style.display = 'none';
+      overlay.style.display = 'flex';
+    }
+
+    let overlayAction = null;
+    function handleOverlayAction() {
+      if (overlayAction) overlayAction();
+    }
+
+    // ---------------------------------------------------------------
+    // Input
+    // ---------------------------------------------------------------
+    function setNextDir(dx, dy) {
+      if (!player) return;
+      player.nextDir = { dx, dy };
+    }
+
+    document.addEventListener('keydown', e => {
+      initAudio();
+      switch (e.key) {
+        case 'ArrowUp': case 'w': case 'W': setNextDir(0, -1); break;
+        case 'ArrowDown': case 's': case 'S': setNextDir(0, 1); break;
+        case 'ArrowLeft': case 'a': case 'A': setNextDir(-1, 0); break;
+        case 'ArrowRight': case 'd': case 'D': setNextDir(1, 0); break;
+        case ' ': case 'Escape': if (running) togglePause(); break;
+      }
+    });
+
+    let touchStartX = 0, touchStartY = 0;
+    canvas.addEventListener('touchstart', e => {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    canvas.addEventListener('touchend', e => {
+      if (!running || paused) return;
+      const dxT = e.changedTouches[0].clientX - touchStartX;
+      const dyT = e.changedTouches[0].clientY - touchStartY;
+      if (Math.abs(dxT) < 10 && Math.abs(dyT) < 10) return;
+      if (Math.abs(dxT) > Math.abs(dyT)) setNextDir(dxT > 0 ? 1 : -1, 0);
+      else setNextDir(0, dyT > 0 ? 1 : -1);
+    }, { passive: true });
+
+    function togglePause() {
+      if (!running) return;
+      paused = !paused;
+      if (paused) {
+        clearInterval(gameLoop);
+        overlayTitle.textContent = '⏸ Paused';
+        overlayText.textContent = 'Press Resume to continue.';
+        overlayScore.textContent = '';
+        modeGrid.style.display = 'none';
+        startBtn.style.display = 'inline-block';
+        startBtn.textContent = 'Resume';
+        overlayAction = () => {
+          paused = false;
+          overlay.style.display = 'none';
+          gameLoop = setInterval(step, speed);
+        };
+        overlay.style.display = 'flex';
+      } else {
+        overlay.style.display = 'none';
+        gameLoop = setInterval(step, speed);
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // Movement
+    // ---------------------------------------------------------------
+    function movePlayer() {
+      const tryDirs = [player.nextDir, player.dir];
+      for (const d of tryDirs) {
+        if (d.dx === 0 && d.dy === 0) continue;
+        const n = canStep(player.x, player.y, d.dx, d.dy);
+        if (n) {
+          player.x = n.x; player.y = n.y; player.dir = d;
+          break;
+        }
+      }
+      history.push({ x: player.x, y: player.y });
+    }
+
+    function pickBestStep(x, y, lastDir, distMap, wantMax) {
+      const dirs = [{ dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 }];
+      let candidates = dirs
+        .filter(d => !(d.dx === -lastDir.dx && d.dy === -lastDir.dy))
+        .map(d => ({ d, n: canStep(x, y, d.dx, d.dy) }))
+        .filter(c => c.n);
+      if (!candidates.length) {
+        candidates = dirs.map(d => ({ d, n: canStep(x, y, d.dx, d.dy) })).filter(c => c.n);
+      }
+      if (!candidates.length) return null;
+      if (Math.random() < 0.18) {
+        return candidates[Math.floor(Math.random() * candidates.length)];
+      }
+      candidates.sort((a, b) => {
+        const da = distMap[a.n.y][a.n.x], db = distMap[b.n.y][b.n.x];
+        return wantMax ? db - da : da - db;
+      });
+      return candidates[0];
+    }
+
+    function moveEnemies() {
+      if (!enemies.length) return;
+      const distFromPlayer = bfsFrom(player.x, player.y);
+      enemies.forEach(en => {
+        if (en.state === 'returning') {
+          const distToHome = bfsFrom(en.home.x, en.home.y);
+          const step = pickBestStep(en.x, en.y, en.dir, distToHome, false);
+          if (step) { en.x = step.n.x; en.y = step.n.y; en.dir = step.d; }
+          if (en.x === en.home.x && en.y === en.home.y) {
+            en.state = 'cooldown';
+            en.respawnLeft = RESPAWN_TICKS;
+          }
+          return;
+        }
+        if (en.state === 'cooldown') {
+          en.respawnLeft--;
+          if (en.respawnLeft <= 0) en.state = 'active';
+          return;
+        }
+        const fleeing = frightTicksLeft > 0 || roleSwapTicksLeft > 0;
+        let target;
+        if (fleeing) {
+          target = distFromPlayer;
+        } else if (globalState === 'scatter' && mode !== 'chroma') {
+          target = bfsFrom(en.scatter.x, en.scatter.y);
+        } else {
+          target = distFromPlayer;
+        }
+        const step = pickBestStep(en.x, en.y, en.dir, target, fleeing);
+        if (step) { en.x = step.n.x; en.y = step.n.y; en.dir = step.d; }
+      });
+    }
+
+    function moveEchoes() {
+      echoes.forEach(ec => {
+        if (ec.removed) return;
+        if (ec.freezeLeft > 0) { ec.freezeLeft--; ec.pausedTicks++; return; }
+        const idx = tick - ec.delay - ec.pausedTicks;
+        if (idx < 0 || idx >= history.length) { ec.active = false; return; }
+        ec.active = true;
+        ec.pos = history[idx];
+      });
+    }
+
+    // ---------------------------------------------------------------
+    // Pellets & power effects
+    // ---------------------------------------------------------------
+    function checkPelletPickup() {
+      const x = player.x, y = player.y;
+      if (dots[y][x]) {
+        dots[y][x] = false;
+        dotsRemaining--;
+        score += DOT_SCORE;
+        sfx.dot();
+      } else if (powerDots[y][x]) {
+        powerDots[y][x] = false;
+        dotsRemaining--;
+        score += POWER_SCORE;
+        sfx.power();
+        onPowerPellet();
+      }
+      scoreEl.textContent = score;
+      if (score > (highScores[mode] || 0)) {
+        highScores[mode] = score;
+        highScoreEl.textContent = score;
+        localStorage.setItem('neonMazeHighScores', JSON.stringify(highScores));
+      }
+    }
+
+    function onPowerPellet() {
+      if (mode === 'classic') {
+        frightTicksLeft = FRIGHTEN_TICKS;
+        comboCount = 0;
+      } else if (mode === 'echo') {
+        echoes.forEach(ec => { if (!ec.removed) ec.freezeLeft = ECHO_FREEZE_TICKS; });
+      } else if (mode === 'chroma') {
+        let next;
+        do { next = Math.floor(Math.random() * CHROMA_COLORS.length); } while (next === playerColorIndex);
+        playerColorIndex = next;
+        colorCycleCounter = 0;
+        chromaGraceLeft = CHROMA_GRACE_TICKS;
+        score += CHROMA_PRISM_SCORE;
+      } else if (mode === 'glitch') {
+        roleSwapTicksLeft = ROLESWAP_TICKS;
+        comboCount = 0;
+        gameWrapper.classList.add('glitching');
+      }
+    }
+
+    // ---------------------------------------------------------------
+    // Collisions
+    // ---------------------------------------------------------------
+    function checkCollisions() {
+      if (mode === 'echo') {
+        for (const ec of echoes) {
+          if (ec.removed || !ec.active || !ec.pos) continue;
+          if (ec.pos.x === player.x && ec.pos.y === player.y) {
+            if (ec.freezeLeft > 0) {
+              ec.removed = true;
+              score += ECHO_CATCH_SCORE;
+              scoreEl.textContent = score;
+              sfx.echoCatch();
+            } else {
+              handleLifeLost();
+            }
+            return;
+          }
+        }
+        return;
+      }
+
+      for (const en of enemies) {
+        if (en.state !== 'active') continue;
+        if (en.x !== player.x || en.y !== player.y) continue;
+        const fleeing = (mode === 'classic' && frightTicksLeft > 0) || (mode === 'glitch' && roleSwapTicksLeft > 0);
+        if (fleeing) {
+          comboCount++;
+          score += Math.min(200 * comboCount, 1600);
+          scoreEl.textContent = score;
+          sfx.eatEnemy();
+          en.state = 'returning';
+        } else if (mode === 'chroma') {
+          if (chromaGraceLeft > 0) continue;
+          if (en.colorIndex === playerColorIndex) { handleLifeLost(); return; }
+        } else {
+          handleLifeLost();
+          return;
+        }
+      }
+    }
+
+    function handleLifeLost() {
+      clearInterval(gameLoop);
+      running = false;
+      sfx.hurt();
+      lives--;
+      livesEl.textContent = lives;
+      if (lives <= 0) {
+        gameOverFlow();
+        return;
+      }
+      overlayTitle.textContent = '💥 Caught!';
+      overlayText.textContent = `Lives remaining: ${lives}`;
+      overlayScore.textContent = `Score: ${score}`;
+      modeGrid.style.display = 'none';
+      startBtn.style.display = 'inline-block';
+      startBtn.textContent = 'Continue';
+      overlayAction = () => {
+        resetActors();
+        overlay.style.display = 'none';
+        running = true;
+        render();
+        gameLoop = setInterval(step, speed);
+      };
+      overlay.style.display = 'flex';
+    }
+
+    function gameOverFlow() {
+      sfx.gameOver();
+      const isHigh = score >= (highScores[mode] || 0) && score > 0;
+      overlayTitle.textContent = '☠ Game Over';
+      overlayText.textContent = `${MODE_INFO[mode].label} mode — Final Score: ${score}`;
+      overlayScore.textContent = isHigh ? '🎉 New High Score!' : `High Score: ${highScores[mode] || 0}`;
+      modeGrid.style.display = 'none';
+      startBtn.style.display = 'inline-block';
+      startBtn.textContent = 'Play Again';
+      overlayAction = () => startGame(mode);
+      overlay.style.display = 'flex';
+    }
+
+    function levelComplete() {
+      clearInterval(gameLoop);
+      running = false;
+      sfx.levelUp();
+      overlayTitle.textContent = '✨ Level Cleared!';
+      overlayText.textContent = `Level ${level} complete — onward!`;
+      overlayScore.textContent = `Score: ${score}`;
+      modeGrid.style.display = 'none';
+      startBtn.style.display = 'inline-block';
+      startBtn.textContent = 'Next Level';
+      overlayAction = () => {
+        level++;
+        levelEl.textContent = level;
+        speed = Math.max(90, speed - 6);
+        resetLevel(mode === 'glitch');
+        overlay.style.display = 'none';
+        running = true;
+        gameLoop = setInterval(step, speed);
+      };
+      overlay.style.display = 'flex';
+    }
+
+    // ---------------------------------------------------------------
+    // Main tick
+    // ---------------------------------------------------------------
+    function step() {
+      if (!running || paused) return;
+      tick++;
+
+      movePlayer();
+
+      if (frightTicksLeft > 0) frightTicksLeft--;
+      if (roleSwapTicksLeft > 0) {
+        roleSwapTicksLeft--;
+        if (roleSwapTicksLeft === 0) gameWrapper.classList.remove('glitching');
+      } else {
+        gameWrapper.classList.remove('glitching');
+      }
+      if (chromaGraceLeft > 0) chromaGraceLeft--;
+
+      if (mode === 'chroma') {
+        colorCycleCounter++;
+        if (colorCycleCounter >= CHROMA_CYCLE_TICKS) {
+          colorCycleCounter = 0;
+          playerColorIndex = (playerColorIndex + 1) % CHROMA_COLORS.length;
+        }
+      }
+
+      if (frightTicksLeft <= 0 && roleSwapTicksLeft <= 0) {
+        globalStateTimer--;
+        if (globalStateTimer <= 0) {
+          globalState = globalState === 'scatter' ? 'chase' : 'scatter';
+          globalStateTimer = globalState === 'scatter' ? SCATTER_TICKS : CHASE_TICKS;
+        }
+      }
+
+      moveEnemies();
+      moveEchoes();
+      checkPelletPickup();
+      checkCollisions();
+
+      if (running && dotsRemaining <= 0) {
+        levelComplete();
+        return;
+      }
+
+      if (running) render();
+    }
+
+    // ---------------------------------------------------------------
+    // Rendering
+    // ---------------------------------------------------------------
+    function render() {
+      ctx.fillStyle = '#050510';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      drawMaze();
+      drawPellets();
+      if (mode === 'echo') drawEchoes();
+      else drawEnemies();
+      drawPlayer();
+    }
+
+    function drawMaze() {
+      ctx.fillStyle = 'rgba(0, 242, 255, 0.10)';
+      ctx.strokeStyle = 'rgba(0, 242, 255, 0.5)';
+      ctx.lineWidth = 1;
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          if (grid[y][x] === '#') {
+            ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+          }
+        }
+      }
+    }
+
+    function drawPellets() {
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          if (dots[y][x]) {
+            ctx.fillStyle = '#ffd700';
+            ctx.beginPath();
+            ctx.arc(x * TILE + TILE / 2, y * TILE + TILE / 2, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (powerDots[y][x]) {
+            const pulse = 4 + Math.sin(tick * 0.4) * 1.5;
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = mode === 'chroma' ? CHROMA_COLORS[Math.floor(tick / 10) % CHROMA_COLORS.length] : '#ff00aa';
+            ctx.fillStyle = ctx.shadowColor;
+            ctx.beginPath();
+            ctx.arc(x * TILE + TILE / 2, y * TILE + TILE / 2, pulse, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+          }
+        }
+      }
+    }
+
+    function drawPlayer() {
+      const cx = player.x * TILE + TILE / 2, cy = player.y * TILE + TILE / 2;
+      const color = mode === 'chroma' ? CHROMA_COLORS[playerColorIndex]
+        : (roleSwapTicksLeft > 0 ? '#ff3030' : '#ffd700');
+      const angle = Math.atan2(player.dir.dy, player.dir.dx) || 0;
+      const mouth = 0.15 + Math.abs(Math.sin(tick * 0.5)) * 0.25;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle);
+      ctx.shadowBlur = 14;
+      ctx.shadowColor = color;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(0, 0, TILE / 2 - 2, mouth * Math.PI, (2 - mouth) * Math.PI);
+      ctx.lineTo(0, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+      if (mode === 'chroma' && chromaGraceLeft > 0) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, TILE / 2 + 2, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    function drawEnemies() {
+      enemies.forEach(en => {
+        if (en.state === 'cooldown') return;
+        const cx = en.x * TILE + TILE / 2, cy = en.y * TILE + TILE / 2;
+        let color = en.color;
+        if (en.state === 'returning') color = 'rgba(255,255,255,0.4)';
+        else if (mode === 'classic' && frightTicksLeft > 0) color = frightTicksLeft < 12 && tick % 6 < 3 ? '#ffffff' : '#3050ff';
+        else if (mode === 'glitch' && roleSwapTicksLeft > 0) color = roleSwapTicksLeft < 12 && tick % 6 < 3 ? '#ffffff' : '#3050ff';
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = color;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(cx, cy, TILE / 2 - 3, Math.PI, 0);
+        ctx.lineTo(cx + TILE / 2 - 3, cy + TILE / 2 - 3);
+        for (let i = 0; i < 3; i++) {
+          const wx = cx + TILE / 2 - 3 - (i + 0.5) * (TILE - 6) / 3;
+          ctx.lineTo(wx, cy + (i % 2 === 0 ? TILE / 2 - 3 : TILE / 2 - 7));
+        }
+        ctx.lineTo(cx - TILE / 2 + 3, cy + TILE / 2 - 3);
+        ctx.closePath();
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+    }
+
+    function drawEchoes() {
+      echoes.forEach(ec => {
+        if (ec.removed || !ec.active || !ec.pos) return;
+        const cx = ec.pos.x * TILE + TILE / 2, cy = ec.pos.y * TILE + TILE / 2;
+        ctx.globalAlpha = 0.55;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = ec.freezeLeft > 0 ? '#ffffff' : '#9b30ff';
+        ctx.fillStyle = ec.freezeLeft > 0 ? '#ffffff' : '#9b30ff';
+        ctx.beginPath();
+        ctx.arc(cx, cy, TILE / 2 - 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      });
+    }
+
+    // ---------------------------------------------------------------
+    // Init: show mode select
+    // ---------------------------------------------------------------
+    showModeSelect();
+  </script>
+</body>
+</html>

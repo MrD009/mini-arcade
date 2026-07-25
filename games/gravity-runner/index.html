@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>🔃 Gravity Flip Runner</title>
+  <style>
+    :root {
+      --bg: #0d0d1a;
+      --panel: #16162e;
+      --accent: #00f2ff;
+      --accent2: #ff00aa;
+      --gold: #ffd700;
+      --text: #f5f5f5;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; touch-action: none; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+
+    header { text-align: center; margin-bottom: 12px; }
+
+    h1 {
+      font-size: 2rem;
+      color: var(--accent);
+      text-shadow: 0 0 20px rgba(0,242,255,0.5);
+    }
+
+    .stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .stat {
+      background: var(--panel);
+      padding: 8px 16px;
+      border-radius: 50px;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+
+    .stat span { color: var(--gold); font-weight: bold; }
+
+    .game-wrapper {
+      position: relative;
+      border: 2px solid var(--accent);
+      border-radius: 12px;
+      box-shadow: 0 0 30px rgba(0,242,255,0.2);
+      background: #050510;
+      max-width: 100%;
+      transition: transform 0.05s linear;
+    }
+
+    .game-wrapper.shake { animation: shake 0.35s ease; }
+
+    @keyframes shake {
+      0%, 100% { transform: translate(0,0); }
+      20% { transform: translate(-6px, 4px); }
+      40% { transform: translate(6px, -4px); }
+      60% { transform: translate(-4px, -3px); }
+      80% { transform: translate(4px, 3px); }
+    }
+
+    canvas {
+      display: block;
+      border-radius: 10px;
+      max-width: 100%;
+      height: auto;
+      cursor: pointer;
+    }
+
+    .overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(13,13,26,0.92);
+      border-radius: 10px;
+      text-align: center;
+      padding: 20px;
+      z-index: 2;
+    }
+
+    .overlay h2 {
+      font-size: 1.8rem;
+      color: var(--accent2);
+      margin-bottom: 10px;
+    }
+
+    .overlay p { margin-bottom: 8px; color: #ccc; }
+
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      background: var(--accent2);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    button:hover { background: var(--accent); transform: scale(1.05); }
+
+    .flip-btn {
+      display: none;
+      margin-top: 18px;
+      width: 100%;
+      max-width: 400px;
+      padding: 18px;
+      font-size: 1.2rem;
+      letter-spacing: 2px;
+      background: var(--panel);
+      border: 2px solid var(--accent);
+    }
+
+    @media (max-width: 600px) {
+      h1 { font-size: 1.5rem; }
+      .flip-btn { display: block; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🔃 Gravity Flip Runner</h1>
+  </header>
+
+  <div class="stats">
+    <div class="stat">Score: <span id="score">0</span></div>
+    <div class="stat">High Score: <span id="highScore">0</span></div>
+    <div class="stat">Speed: <span id="speedMult">1.0x</span></div>
+  </div>
+
+  <div class="game-wrapper" id="gameWrapper">
+    <canvas id="gameCanvas" width="640" height="360"></canvas>
+    <div class="overlay" id="overlay">
+      <h2 id="overlayTitle">🔃 Gravity Flip Runner</h2>
+      <p id="overlayText">Tap, click, or press Space to flip gravity.<br>Dodge the spikes on the floor and ceiling — one hit ends the run.</p>
+      <p id="overlayScore"></p>
+      <button id="startBtn" onclick="handleOverlayAction()">Start Run</button>
+    </div>
+  </div>
+
+  <button class="flip-btn" id="mobileFlipBtn" onclick="flipGravity()">⇅ FLIP</button>
+
+  <div class="controls">
+    <button onclick="restartGame()">Restart</button>
+    <button onclick="togglePause()">Pause</button>
+    <a href="../../index.html" style="text-decoration:none;">
+      <button type="button">🏠 Arcade Home</button>
+    </a>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const gameWrapper = document.getElementById('gameWrapper');
+    const overlay = document.getElementById('overlay');
+    const overlayTitle = document.getElementById('overlayTitle');
+    const overlayText = document.getElementById('overlayText');
+    const overlayScore = document.getElementById('overlayScore');
+    const startBtn = document.getElementById('startBtn');
+    const scoreEl = document.getElementById('score');
+    const highScoreEl = document.getElementById('highScore');
+    const speedMultEl = document.getElementById('speedMult');
+
+    const W = canvas.width, H = canvas.height;
+    const FLOOR_Y = H - 24;
+    const CEIL_Y = 24;
+    const PLAYER_X = 110;
+    const PLAYER_R = 11;
+    const GRAVITY = 0.062;
+    const BASE_SPEED = 4.2;
+    const MAX_SPEED = 11;
+    const SPEED_RAMP_MS = 3800;
+    const SPEED_RAMP_FACTOR = 1.07;
+    const BASE_SPAWN_MS = 1350;
+    const MIN_SPAWN_MS = 620;
+
+    let player, obstacles, trail, particles;
+    let scrollSpeed, spawnTimer, rampTimer, distance, score;
+    let highScore = parseInt(localStorage.getItem('gravityRunnerHighScore') || '0', 10);
+    let running = false, paused = false, hitStop = 0;
+    let lastTime = 0;
+
+    highScoreEl.textContent = highScore;
+
+    // ---- Audio ----
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+    function playTone(freq, type, duration, delay = 0, vol = 0.09) {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
+      gain.gain.setValueAtTime(vol, audioCtx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(audioCtx.currentTime + delay);
+      osc.stop(audioCtx.currentTime + delay + duration);
+    }
+    const sfx = {
+      flip: () => playTone(520, 'square', 0.08, 0, 0.07),
+      pass: () => playTone(880, 'sine', 0.05, 0, 0.04),
+      crash: () => { playTone(160, 'sawtooth', 0.3); playTone(90, 'sawtooth', 0.4, 0.12); }
+    };
+
+    function resetGame() {
+      player = { y: FLOOR_Y - PLAYER_R, vy: 0, gravityDir: 1 };
+      obstacles = [];
+      trail = [];
+      particles = [];
+      scrollSpeed = BASE_SPEED;
+      spawnTimer = BASE_SPAWN_MS;
+      rampTimer = 0;
+      distance = 0;
+      score = 0;
+      hitStop = 0;
+      scoreEl.textContent = 0;
+      speedMultEl.textContent = '1.0x';
+    }
+
+    function startGame() {
+      initAudio();
+      resetGame();
+      overlay.style.display = 'none';
+      running = true;
+      paused = false;
+    }
+
+    function restartGame() {
+      startGame();
+    }
+
+    let overlayAction = () => startGame();
+    function handleOverlayAction() { overlayAction(); }
+
+    function togglePause() {
+      if (!running) { overlayAction(); return; }
+      paused = !paused;
+      if (paused) {
+        overlayTitle.textContent = '⏸ Paused';
+        overlayText.textContent = 'Press Resume to continue.';
+        overlayScore.textContent = '';
+        startBtn.textContent = 'Resume';
+        overlayAction = () => {
+          paused = false;
+          overlay.style.display = 'none';
+        };
+        overlay.style.display = 'flex';
+      } else {
+        overlay.style.display = 'none';
+      }
+    }
+
+    function flipGravity() {
+      if (!running || paused) return;
+      player.gravityDir *= -1;
+      sfx.flip();
+      for (let i = 0; i < 8; i++) {
+        particles.push({
+          x: PLAYER_X, y: player.y,
+          vx: (Math.random() - 0.5) * 3,
+          vy: (Math.random() - 0.5) * 3,
+          life: 20, color: '#00f2ff'
+        });
+      }
+    }
+
+    // ---- Input ----
+    document.addEventListener('keydown', e => {
+      initAudio();
+      if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+        e.preventDefault();
+        if (!running) { startGame(); return; }
+        flipGravity();
+      } else if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+        togglePause();
+      }
+    });
+
+    canvas.addEventListener('pointerdown', () => {
+      initAudio();
+      if (!running) { startGame(); return; }
+      if (paused) return;
+      flipGravity();
+    });
+
+    function spawnObstacle() {
+      const side = Math.random() < 0.5 ? 'floor' : 'ceil';
+      const h = 44 + Math.random() * 46;
+      const w = 26 + Math.random() * 18;
+      obstacles.push({ x: W + 10, w, h, side, scored: false });
+      if (score > 220 && Math.random() < 0.22) {
+        const otherSide = side === 'floor' ? 'ceil' : 'floor';
+        obstacles.push({ x: W + 10 + w + 40 + Math.random() * 30, w: 22 + Math.random() * 14, h: 36 + Math.random() * 40, side: otherSide, scored: false });
+      }
+    }
+
+    function circleRectHit(cx, cy, r, rx, ry, rw, rh) {
+      const closestX = Math.max(rx, Math.min(cx, rx + rw));
+      const closestY = Math.max(ry, Math.min(cy, ry + rh));
+      const dx = cx - closestX, dy = cy - closestY;
+      return dx * dx + dy * dy < r * r;
+    }
+
+    function update(dt) {
+      const dtF = Math.min(dt / 16.67, 3);
+
+      player.vy += GRAVITY * player.gravityDir * dtF;
+      player.y += player.vy * dtF;
+      const floorRest = FLOOR_Y - PLAYER_R;
+      const ceilRest = CEIL_Y + PLAYER_R;
+      if (player.gravityDir === 1 && player.y >= floorRest) { player.y = floorRest; player.vy = 0; }
+      if (player.gravityDir === -1 && player.y <= ceilRest) { player.y = ceilRest; player.vy = 0; }
+
+      trail.push({ x: PLAYER_X, y: player.y });
+      if (trail.length > 14) trail.shift();
+
+      rampTimer += dt;
+      if (rampTimer >= SPEED_RAMP_MS) {
+        rampTimer = 0;
+        scrollSpeed = Math.min(scrollSpeed * SPEED_RAMP_FACTOR, MAX_SPEED);
+        speedMultEl.textContent = (scrollSpeed / BASE_SPEED).toFixed(1) + 'x';
+      }
+
+      distance += scrollSpeed * dtF;
+      score = Math.floor(distance / 8);
+      scoreEl.textContent = score;
+      if (score > highScore) {
+        highScore = score;
+        highScoreEl.textContent = highScore;
+        localStorage.setItem('gravityRunnerHighScore', highScore);
+      }
+
+      spawnTimer -= dt;
+      if (spawnTimer <= 0) {
+        spawnObstacle();
+        const interval = Math.max(MIN_SPAWN_MS, BASE_SPAWN_MS - score * 1.5);
+        spawnTimer = interval + Math.random() * interval * 0.35;
+      }
+
+      for (const o of obstacles) {
+        o.x -= scrollSpeed * dtF;
+        if (!o.scored && o.x + o.w < PLAYER_X) { o.scored = true; sfx.pass(); }
+      }
+      obstacles = obstacles.filter(o => o.x + o.w > -10);
+
+      for (const o of obstacles) {
+        const ry = o.side === 'floor' ? FLOOR_Y - o.h : CEIL_Y;
+        if (circleRectHit(PLAYER_X, player.y, PLAYER_R - 2, o.x, ry, o.w, o.h)) {
+          gameOver();
+          return;
+        }
+      }
+
+      particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
+      particles = particles.filter(p => p.life > 0);
+    }
+
+    function gameOver() {
+      running = false;
+      sfx.crash();
+      gameWrapper.classList.add('shake');
+      setTimeout(() => gameWrapper.classList.remove('shake'), 350);
+      const isHigh = score >= highScore && score > 0;
+      overlayTitle.textContent = '💥 Crashed!';
+      overlayText.textContent = `Final Score: ${score}`;
+      overlayScore.textContent = isHigh ? '🎉 New High Score!' : `High Score: ${highScore}`;
+      startBtn.textContent = 'Run Again';
+      overlayAction = () => startGame();
+      overlay.style.display = 'flex';
+    }
+
+    // ---- Rendering ----
+    function render() {
+      ctx.fillStyle = '#050510';
+      ctx.fillRect(0, 0, W, H);
+
+      // scrolling parallax grid
+      ctx.strokeStyle = 'rgba(0,242,255,0.06)';
+      ctx.lineWidth = 1;
+      const gridSize = 40;
+      const offset = running ? -(distance % gridSize) : 0;
+      for (let x = offset; x < W; x += gridSize) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      }
+
+      // floor & ceiling
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = '#00f2ff';
+      ctx.strokeStyle = '#00f2ff';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(0, FLOOR_Y); ctx.lineTo(W, FLOOR_Y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, CEIL_Y); ctx.lineTo(W, CEIL_Y); ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // obstacles (spike strips)
+      obstacles.forEach(o => {
+        ctx.fillStyle = '#ff00aa';
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#ff00aa';
+        const spikeW = 12;
+        const count = Math.max(1, Math.round(o.w / spikeW));
+        for (let i = 0; i < count; i++) {
+          const sx = o.x + i * (o.w / count);
+          ctx.beginPath();
+          if (o.side === 'floor') {
+            ctx.moveTo(sx, FLOOR_Y);
+            ctx.lineTo(sx + o.w / count / 2, FLOOR_Y - o.h);
+            ctx.lineTo(sx + o.w / count, FLOOR_Y);
+          } else {
+            ctx.moveTo(sx, CEIL_Y);
+            ctx.lineTo(sx + o.w / count / 2, CEIL_Y + o.h);
+            ctx.lineTo(sx + o.w / count, CEIL_Y);
+          }
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.shadowBlur = 0;
+      });
+
+      // trail
+      trail.forEach((t, i) => {
+        const alpha = (i / trail.length) * 0.35;
+        ctx.fillStyle = `rgba(255,215,0,${alpha})`;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, PLAYER_R * (i / trail.length) * 0.8, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // particles
+      particles.forEach(p => {
+        ctx.globalAlpha = Math.max(0, p.life / 20);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      });
+
+      // player
+      ctx.shadowBlur = 16;
+      ctx.shadowColor = '#ffd700';
+      ctx.fillStyle = '#ffd700';
+      ctx.beginPath();
+      ctx.arc(PLAYER_X, player.y, PLAYER_R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // gravity direction indicator
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'center';
+      const arrow = player.gravityDir === 1 ? '▼' : '▲';
+      ctx.fillText(arrow, PLAYER_X, player.y - PLAYER_R * (player.gravityDir === 1 ? -1.8 : 1.4));
+    }
+
+    function loop(timestamp) {
+      const dt = lastTime ? timestamp - lastTime : 16.67;
+      lastTime = timestamp;
+      if (running && !paused) {
+        update(Math.min(dt, 40));
+      }
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    // ---- Init ----
+    resetGame();
+    render();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

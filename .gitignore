@@ -1,0 +1,5 @@
+.chat-history/
+.claude/
+*.bak
+*.bak[0-9]
+node_modules/

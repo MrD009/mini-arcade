@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🐰 Bunny Hop | Mini Arcade</title>
+  <style>
+    :root {
+      --bg: #87CEEB;
+      --panel: #fff5f8;
+      --accent: #ff85a2;
+      --accent2: #6bc4ff;
+      --gold: #ffd700;
+      --text: #4a4a68;
+      --ground: #7cb342;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; touch-action: none; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: #1a1a2e;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100vh;
+      width: 100vw;
+      position: relative;
+    }
+
+    #gameCanvas {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      height: 100%;
+      max-width: 700px;
+      background: linear-gradient(180deg, #87CEEB 0%, #b3e0ff 60%, #e0f6ff 100%);
+      display: block;
+      z-index: 1;
+    }
+
+    .ui-layer {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 700px;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 12px 16px;
+      gap: 10px;
+      pointer-events: auto;
+      flex-shrink: 0;
+    }
+
+    .hud-panel {
+      background: rgba(255, 255, 255, 0.9);
+      border: 2px solid var(--accent);
+      border-radius: 14px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      min-width: 80px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    .hud-panel span {
+      display: block;
+      font-size: 0.65rem;
+      color: #888;
+      margin-bottom: 2px;
+    }
+
+    .hud-panel strong {
+      color: var(--accent);
+      font-size: 1.1rem;
+    }
+
+    .controls-bar {
+      position: absolute;
+      bottom: calc(10px + env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      display: flex;
+      gap: 8px;
+      pointer-events: auto;
+      background: rgba(255, 255, 255, 0.95);
+      border: 2px solid var(--accent);
+      border-radius: 14px;
+      padding: 8px 14px;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.12);
+    }
+
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+
+    button:hover, button:active {
+      background: #ff5c85;
+      transform: scale(1.05);
+    }
+
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 700px;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.95);
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 30px 20px;
+      pointer-events: auto;
+    }
+
+    .overlay h1 {
+      font-size: clamp(2rem, 8vw, 3rem);
+      color: var(--accent);
+      text-shadow: 2px 2px 0px #ffd1dc;
+      margin-bottom: 10px;
+    }
+
+    .overlay p {
+      color: #777;
+      font-size: 1rem;
+      margin-bottom: 8px;
+      max-width: 320px;
+    }
+
+    .overlay .stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin: 20px 0;
+      width: 100%;
+      max-width: 300px;
+    }
+
+    .overlay .stat {
+      background: #fff0f5;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid #ffd1dc;
+    }
+
+    .overlay .stat .num { font-size: 1.4rem; color: var(--accent); font-weight: bold; }
+    .overlay .stat .lbl { font-size: 0.75rem; color: #888; }
+
+    .overlay button {
+      padding: 14px 32px;
+      font-size: 1.1rem;
+      margin-top: 10px;
+    }
+
+    .hidden { display: none !important; }
+
+    .mobile-hint {
+      position: absolute;
+      bottom: 75px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(74, 74, 104, 0.7);
+      font-size: 0.75rem;
+      text-align: center;
+      z-index: 5;
+      pointer-events: none;
+      width: 100%;
+      max-width: 700px;
+    }
+
+    .jump-zone {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 700px;
+      height: calc(100% - 70px);
+      z-index: 4;
+      pointer-events: auto;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span>Score</span>
+        <strong id="scoreEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Carrots</span>
+        <strong id="carrotEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="mobile-hint" id="mobileHint">Tap anywhere to jump • Collect carrots 🥕</div>
+
+  <div class="jump-zone" id="jumpZone"></div>
+
+  <div class="controls-bar" id="controlsBar">
+    <button id="startBtn" onclick="startGame()">Start</button>
+    <button id="pauseBtn" onclick="togglePause()">Pause</button>
+    <a href="../../index.html" style="text-decoration:none;">
+      <button type="button">🏠 Home</button>
+    </a>
+  </div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🐰 Bunny Hop</h1>
+    <p>Help the cute bunny run and collect carrots!</p>
+    <p>Tap, click, Space, or Up arrow to jump. Down arrow to fast-fall.</p>
+    <button onclick="startGame()">Start Running</button>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <h1>🥕 Oops!</h1>
+    <p>The bunny bumped into something.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalScore">0</div>
+        <div class="lbl">Score</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalCarrots">0</div>
+        <div class="lbl">Carrots</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBest">0</div>
+        <div class="lbl">Best</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalDistance">0</div>
+        <div class="lbl">Meters</div>
+      </div>
+    </div>
+    <button onclick="startGame()">Hop Again</button>
+    <a href="../../index.html" style="text-decoration:none;">
+      <button type="button">🏠 Arcade Home</button>
+    </a>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('scoreEl');
+    const carrotEl = document.getElementById('carrotEl');
+    const bestEl = document.getElementById('bestEl');
+    const startOverlay = document.getElementById('startOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const finalScore = document.getElementById('finalScore');
+    const finalCarrots = document.getElementById('finalCarrots');
+    const finalBest = document.getElementById('finalBest');
+    const finalDistance = document.getElementById('finalDistance');
+    const mobileHint = document.getElementById('mobileHint');
+    const jumpZone = document.getElementById('jumpZone');
+
+    // Game state
+    let gameRunning = false;
+    let gamePaused = false;
+    let lastTime = 0;
+    let score = 0;
+    let carrots = 0;
+    let distance = 0;
+    let bestScore = parseInt(localStorage.getItem('bunnyBest') || '0', 10);
+    let gameSpeed = 220;
+    let speedTimer = 0;
+    let animationId;
+
+    bestEl.textContent = bestScore;
+
+    // Audio
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playTone(freq, type, duration, vol = 0.08) {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    }
+
+    function playJumpSound() {
+      playTone(500, 'sine', 0.08);
+      playTone(700, 'sine', 0.1, 0.06);
+    }
+    function playCarrotSound() {
+      playTone(900, 'sine', 0.06);
+      playTone(1100, 'sine', 0.08, 0.05);
+    }
+    function playHitSound() {
+      playTone(180, 'sawtooth', 0.2, 0.1);
+      playTone(120, 'sawtooth', 0.25, 0.08);
+    }
+    function playGameOverSound() {
+      playTone(400, 'sawtooth', 0.15);
+      playTone(300, 'sawtooth', 0.2, 0.08);
+      playTone(200, 'sawtooth', 0.3, 0.08);
+    }
+
+    // World
+    const groundY = 0;
+    let groundOffset = 0;
+    const clouds = [];
+    const bushes = [];
+    const obstacles = [];
+    const carrotItems = [];
+    const particles = [];
+
+    // Rabbit
+    const rabbit = {
+      x: 80,
+      y: 0,
+      width: 50,
+      height: 50,
+      vy: 0,
+      gravity: 1400,
+      jumpForce: -520,
+      grounded: true,
+      fastFall: false,
+      blinkTimer: 0,
+      earWiggle: 0
+    };
+
+    // Input
+    let jumpQueued = false;
+    let downPressed = false;
+
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      rabbit.y = rect.height - 110;
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    // Input handlers
+    function queueJump() {
+      jumpQueued = true;
+      initAudio();
+    }
+    function setDown(active) {
+      downPressed = active;
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+        e.preventDefault();
+        if (gameRunning && !gamePaused) queueJump();
+        else if (!gameRunning) startGame();
+      }
+      if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+        e.preventDefault();
+        setDown(true);
+      }
+      if (e.code === 'Escape') {
+        e.preventDefault();
+        if (gameRunning) togglePause();
+      }
+    });
+
+    document.addEventListener('keyup', e => {
+      if (e.code === 'ArrowDown' || e.code === 'KeyS') setDown(false);
+    });
+
+    jumpZone.addEventListener('touchstart', e => {
+      e.preventDefault();
+      queueJump();
+    }, { passive: false });
+
+    jumpZone.addEventListener('mousedown', e => {
+      e.preventDefault();
+      queueJump();
+    });
+
+    canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      queueJump();
+    }, { passive: false });
+
+    canvas.addEventListener('mousedown', e => {
+      e.preventDefault();
+      queueJump();
+    });
+
+    // Entity spawners
+    function spawnCloud() {
+      const rect = canvas.getBoundingClientRect();
+      clouds.push({
+        x: rect.width + 50,
+        y: Math.random() * (rect.height * 0.45) + 20,
+        speed: 20 + Math.random() * 30,
+        size: 0.6 + Math.random() * 0.8,
+        alpha: 0.5 + Math.random() * 0.4
+      });
+    }
+
+    function spawnBush() {
+      const rect = canvas.getBoundingClientRect();
+      bushes.push({
+        x: rect.width + 60,
+        y: rect.height - 85,
+        width: 40 + Math.random() * 30,
+        speed: gameSpeed
+      });
+    }
+
+    function spawnObstacle() {
+      const rect = canvas.getBoundingClientRect();
+      const type = Math.random();
+      let obs;
+      if (type < 0.35) {
+        // Rock
+        obs = { x: rect.width + 50, y: rect.height - 95, width: 38, height: 38, type: 'rock', color: '#888' };
+      } else if (type < 0.7) {
+        // Fox (needs jump)
+        obs = { x: rect.width + 50, y: rect.height - 105, width: 46, height: 46, type: 'fox', color: '#ff8c42' };
+      } else {
+        // Log (low, can jump or run under? but rabbit can't duck under log because it's low? Actually log is on ground tall)
+        obs = { x: rect.width + 50, y: rect.height - 100, width: 42, height: 42, type: 'log', color: '#8b5a2b' };
+      }
+      obstacles.push(obs);
+    }
+
+    function spawnCarrot() {
+      const rect = canvas.getBoundingClientRect();
+      carrotItems.push({
+        x: rect.width + 50,
+        y: rect.height - 160 - Math.random() * 80,
+        width: 28,
+        height: 28,
+        collected: false
+      });
+    }
+
+    function spawnParticles(x, y, color, count) {
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x, y,
+          vx: (Math.random() - 0.5) * 180,
+          vy: (Math.random() - 1) * 180,
+          life: 0.5 + Math.random() * 0.5,
+          size: 3 + Math.random() * 4,
+          color
+        });
+      }
+    }
+
+    // Update functions
+    function updateRabbit(dt) {
+      const rect = canvas.getBoundingClientRect();
+      const floorY = rect.height - 60;
+
+      if (jumpQueued && rabbit.grounded) {
+        rabbit.vy = rabbit.jumpForce;
+        rabbit.grounded = false;
+        rabbit.earWiggle = 1;
+        playJumpSound();
+        jumpQueued = false;
+      }
+      jumpQueued = false;
+
+      // Fast fall
+      if (downPressed && !rabbit.grounded) {
+        rabbit.vy += rabbit.gravity * 1.8 * dt;
+      } else {
+        rabbit.vy += rabbit.gravity * dt;
+      }
+
+      rabbit.y += rabbit.vy * dt;
+
+      // Land
+      if (rabbit.y >= floorY - rabbit.height) {
+        rabbit.y = floorY - rabbit.height;
+        rabbit.vy = 0;
+        rabbit.grounded = true;
+      } else {
+        rabbit.grounded = false;
+      }
+
+      rabbit.blinkTimer += dt;
+      rabbit.earWiggle = Math.max(0, rabbit.earWiggle - dt * 3);
+    }
+
+    function updateBackground(dt) {
+      const rect = canvas.getBoundingClientRect();
+      groundOffset = (groundOffset - gameSpeed * dt) % 40;
+
+      // Clouds
+      if (Math.random() < 0.015) spawnCloud();
+      for (let i = clouds.length - 1; i >= 0; i--) {
+        const c = clouds[i];
+        c.x -= c.speed * dt;
+        if (c.x < -100) clouds.splice(i, 1);
+      }
+
+      // Bushes
+      if (Math.random() < 0.03) spawnBush();
+      for (let i = bushes.length - 1; i >= 0; i--) {
+        const b = bushes[i];
+        b.x -= gameSpeed * dt;
+        if (b.x < -80) bushes.splice(i, 1);
+      }
+    }
+
+    function updateObstacles(dt) {
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const obs = obstacles[i];
+        obs.x -= gameSpeed * dt;
+
+        if (obs.x < -60) {
+          obstacles.splice(i, 1);
+          score += 5;
+          continue;
+        }
+
+        if (rectIntersect(
+          rabbit.x - rabbit.width/2 + 8, rabbit.y + 8, rabbit.width - 16, rabbit.height - 16,
+          obs.x - obs.width/2 + 4, obs.y - obs.height/2 + 4, obs.width - 8, obs.height - 8
+        )) {
+          gameOver();
+          return;
+        }
+      }
+    }
+
+    function updateCarrots(dt) {
+      for (let i = carrotItems.length - 1; i >= 0; i--) {
+        const c = carrotItems[i];
+        c.x -= gameSpeed * dt;
+
+        if (c.x < -40) {
+          carrotItems.splice(i, 1);
+          continue;
+        }
+
+        if (!c.collected && rectIntersect(
+          rabbit.x - rabbit.width/2, rabbit.y, rabbit.width, rabbit.height,
+          c.x - c.width/2, c.y - c.height/2, c.width, c.height
+        )) {
+          c.collected = true;
+          carrots++;
+          score += 25;
+          spawnParticles(c.x, c.y, '#ff8c00', 8);
+          playCarrotSound();
+          carrotItems.splice(i, 1);
+        }
+      }
+    }
+
+    function updateParticles(dt) {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 300 * dt;
+        p.life -= dt;
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+    }
+
+    function rectIntersect(x1, y1, w1, h1, x2, y2, w2, h2) {
+      return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
+    }
+
+    // Drawing
+    function drawRabbit() {
+      ctx.save();
+      ctx.translate(rabbit.x, rabbit.y + rabbit.height/2);
+
+      const earAngle = Math.sin(Date.now() / 120) * 0.1 + rabbit.earWiggle * 0.3;
+
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.beginPath();
+      ctx.ellipse(0, rabbit.height/2 - 4, rabbit.width/2, 8, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      // Ears
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = '#ffd1dc';
+      ctx.lineWidth = 2;
+
+      // Left ear
+      ctx.beginPath();
+      ctx.ellipse(-10, -30 - earAngle*10, 8, 22, -0.15 + earAngle, 0, Math.PI*2);
+      ctx.fill();
+      ctx.stroke();
+      // Inner ear
+      ctx.fillStyle = '#ffb7c5';
+      ctx.beginPath();
+      ctx.ellipse(-10, -30 - earAngle*10, 4, 14, -0.15 + earAngle, 0, Math.PI*2);
+      ctx.fill();
+
+      // Right ear
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.ellipse(10, -30 + earAngle*10, 8, 22, 0.15 - earAngle, 0, Math.PI*2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffb7c5';
+      ctx.beginPath();
+      ctx.ellipse(10, -30 + earAngle*10, 4, 14, 0.15 - earAngle, 0, Math.PI*2);
+      ctx.fill();
+
+      // Body
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rabbit.width/2, rabbit.height/2.2, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffd1dc';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Tail
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(-rabbit.width/2 + 4, 5, 8, 0, Math.PI*2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Face
+      ctx.fillStyle = '#333';
+      const blink = rabbit.blinkTimer % 4 < 0.15;
+      if (blink) {
+        // Closed eyes
+        ctx.beginPath();
+        ctx.moveTo(-12, -8); ctx.lineTo(-6, -8);
+        ctx.moveTo(6, -8); ctx.lineTo(12, -8);
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      } else {
+        // Open eyes
+        ctx.beginPath();
+        ctx.arc(-9, -8, 4, 0, Math.PI*2);
+        ctx.arc(9, -8, 4, 0, Math.PI*2);
+        ctx.fill();
+        // Shine
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(-10, -10, 1.5, 0, Math.PI*2);
+        ctx.arc(8, -10, 1.5, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      // Nose
+      ctx.fillStyle = '#ff85a2';
+      ctx.beginPath();
+      ctx.arc(0, -2, 4, 0, Math.PI*2);
+      ctx.fill();
+
+      // Mouth
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 2, 4, 0.2, Math.PI - 0.2);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function drawClouds() {
+      ctx.save();
+      for (const c of clouds) {
+        ctx.globalAlpha = c.alpha;
+        ctx.fillStyle = '#fff';
+        ctx.translate(c.x, c.y);
+        ctx.scale(c.size, c.size);
+        ctx.beginPath();
+        ctx.arc(0, 0, 20, 0, Math.PI*2);
+        ctx.arc(25, -5, 25, 0, Math.PI*2);
+        ctx.arc(50, 0, 20, 0, Math.PI*2);
+        ctx.fill();
+        ctx.setTransform(1,0,0,1,0,0);
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
+    function drawGround() {
+      const rect = canvas.getBoundingClientRect();
+      const groundTop = rect.height - 60;
+
+      // Ground fill
+      ctx.fillStyle = '#8bc34a';
+      ctx.fillRect(0, groundTop, rect.width, rect.height - groundTop);
+
+      // Top grass line
+      ctx.fillStyle = '#7cb342';
+      ctx.fillRect(0, groundTop, rect.width, 12);
+
+      // Moving ground pattern
+      ctx.fillStyle = '#9ccc65';
+      const patternW = 40;
+      for (let x = groundOffset; x < rect.width; x += patternW) {
+        ctx.beginPath();
+        ctx.arc(x, groundTop + 18, 8, Math.PI, 0);
+        ctx.fill();
+      }
+    }
+
+    function drawBushes() {
+      ctx.save();
+      ctx.fillStyle = '#66bb6a';
+      for (const b of bushes) {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.width/2, Math.PI, 0);
+        ctx.arc(b.x + b.width/3, b.y - 10, b.width/3, Math.PI, 0);
+        ctx.arc(b.x - b.width/3, b.y - 8, b.width/3.5, Math.PI, 0);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawObstacles() {
+      ctx.save();
+      for (const obs of obstacles) {
+        ctx.translate(obs.x, obs.y);
+
+        if (obs.type === 'rock') {
+          ctx.fillStyle = '#9e9e9e';
+          ctx.beginPath();
+          ctx.arc(0, 0, obs.width/2, Math.PI, 0);
+          ctx.lineTo(obs.width/2, obs.height/2);
+          ctx.lineTo(-obs.width/2, obs.height/2);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = '#bdbdbd';
+          ctx.beginPath();
+          ctx.arc(-5, -5, 6, 0, Math.PI*2);
+          ctx.fill();
+        } else if (obs.type === 'fox') {
+          // Simple fox face
+          ctx.fillStyle = '#ff8c42';
+          ctx.beginPath();
+          ctx.ellipse(0, 0, obs.width/2, obs.height/2.5, 0, 0, Math.PI*2);
+          ctx.fill();
+          // Ears
+          ctx.beginPath();
+          ctx.moveTo(-14, -14); ctx.lineTo(-18, -28); ctx.lineTo(-6, -18);
+          ctx.moveTo(14, -14); ctx.lineTo(18, -28); ctx.lineTo(6, -18);
+          ctx.fill();
+          // Eyes
+          ctx.fillStyle = '#333';
+          ctx.beginPath();
+          ctx.arc(-8, -4, 3, 0, Math.PI*2);
+          ctx.arc(8, -4, 3, 0, Math.PI*2);
+          ctx.fill();
+          // Nose
+          ctx.fillStyle = '#333';
+          ctx.beginPath();
+          ctx.arc(0, 2, 4, 0, Math.PI*2);
+          ctx.fill();
+        } else {
+          // Log
+          ctx.fillStyle = '#8d6e63';
+          ctx.fillRect(-obs.width/2, -obs.height/2, obs.width, obs.height);
+          ctx.fillStyle = '#6d4c41';
+          ctx.beginPath();
+          ctx.arc(-obs.width/2 + 4, 0, 5, 0, Math.PI*2);
+          ctx.fill();
+        }
+        ctx.setTransform(1,0,0,1,0,0);
+      }
+      ctx.restore();
+    }
+
+    function drawCarrots() {
+      ctx.save();
+      for (const c of carrotItems) {
+        ctx.translate(c.x, c.y);
+        // Carrot body
+        ctx.fillStyle = '#ff8c00';
+        ctx.beginPath();
+        ctx.moveTo(0, 12);
+        ctx.quadraticCurveTo(8, -4, 0, -14);
+        ctx.quadraticCurveTo(-8, -4, 0, 12);
+        ctx.fill();
+        // Lines
+        ctx.strokeStyle = '#e65100';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, 8); ctx.lineTo(0, -8);
+        ctx.stroke();
+        // Leaves
+        ctx.fillStyle = '#4caf50';
+        ctx.beginPath();
+        ctx.ellipse(-6, -14, 4, 8, -0.5, 0, Math.PI*2);
+        ctx.ellipse(6, -14, 4, 8, 0.5, 0, Math.PI*2);
+        ctx.fill();
+        ctx.setTransform(1,0,0,1,0,0);
+      }
+      ctx.restore();
+    }
+
+    function drawParticles() {
+      ctx.save();
+      for (const p of particles) {
+        ctx.globalAlpha = Math.max(0, p.life);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
+    function drawHUD() {
+      scoreEl.textContent = Math.floor(score);
+      carrotEl.textContent = carrots;
+    }
+
+    // Main loop
+    function gameLoop(timestamp) {
+      if (!gameRunning) return;
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+      lastTime = timestamp;
+
+      if (!gamePaused) {
+        updateRabbit(dt);
+        updateBackground(dt);
+        updateObstacles(dt);
+        updateCarrots(dt);
+        updateParticles(dt);
+
+        distance += gameSpeed * dt / 50;
+        score += gameSpeed * dt / 20;
+
+        // Gradually increase speed
+        speedTimer += dt;
+        if (speedTimer > 8) {
+          gameSpeed += 12;
+          speedTimer = 0;
+        }
+
+        // Spawn obstacles and carrots
+        if (Math.random() < 0.012 * (gameSpeed / 220)) spawnObstacle();
+        if (Math.random() < 0.008) spawnCarrot();
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      drawClouds();
+      drawBushes();
+      drawGround();
+      drawCarrots();
+      drawObstacles();
+      drawRabbit();
+      drawParticles();
+      drawHUD();
+
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function startGame() {
+      initAudio();
+      resizeCanvas();
+
+      score = 0;
+      carrots = 0;
+      distance = 0;
+      gameSpeed = 220;
+      speedTimer = 0;
+      groundOffset = 0;
+      clouds.length = 0;
+      bushes.length = 0;
+      obstacles.length = 0;
+      carrotItems.length = 0;
+      particles.length = 0;
+
+      rabbit.y = canvas.getBoundingClientRect().height - 110;
+      rabbit.vy = 0;
+      rabbit.grounded = true;
+      rabbit.blinkTimer = 0;
+
+      scoreEl.textContent = '0';
+      carrotEl.textContent = '0';
+      bestEl.textContent = bestScore;
+
+      startOverlay.classList.add('hidden');
+      gameOverOverlay.classList.add('hidden');
+      document.getElementById('startBtn').textContent = 'Restart';
+
+      // Pre-populate clouds
+      for (let i = 0; i < 5; i++) {
+        clouds.push({
+          x: Math.random() * canvas.getBoundingClientRect().width,
+          y: Math.random() * (canvas.getBoundingClientRect().height * 0.4) + 20,
+          speed: 20 + Math.random() * 30,
+          size: 0.6 + Math.random() * 0.8,
+          alpha: 0.5 + Math.random() * 0.4
+        });
+      }
+
+      gameRunning = true;
+      gamePaused = false;
+      lastTime = 0;
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function togglePause() {
+      if (!gameRunning) return;
+      gamePaused = !gamePaused;
+      document.getElementById('pauseBtn').textContent = gamePaused ? 'Resume' : 'Pause';
+      if (!gamePaused) lastTime = 0;
+    }
+
+    function gameOver() {
+      gameRunning = false;
+      cancelAnimationFrame(animationId);
+      playHitSound();
+      playGameOverSound();
+      if (Math.floor(score) > bestScore) {
+        bestScore = Math.floor(score);
+        localStorage.setItem('bunnyBest', bestScore);
+      }
+      finalScore.textContent = Math.floor(score);
+      finalCarrots.textContent = carrots;
+      finalBest.textContent = bestScore;
+      finalDistance.textContent = Math.floor(distance);
+      gameOverOverlay.classList.remove('hidden');
+    }
+
+    // Hint for non-touch
+    if (!('ontouchstart' in window)) {
+      mobileHint.textContent = 'Space/Up to jump • Down to fast-fall';
+    }
+
+    resizeCanvas();
+  </script>
+</body>
+</html>
