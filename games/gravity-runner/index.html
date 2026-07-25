@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>🔃 Gravity Flip Runner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🔃 Gravity Flip Runner | Mini Arcade</title>
   <style>
     :root {
-      --bg: #0d0d1a;
-      --panel: #16162e;
+      --bg: #050510;
+      --panel: #0f0f24;
       --accent: #00f2ff;
       --accent2: #ff00aa;
       --gold: #ffd700;
@@ -16,202 +16,493 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; touch-action: none; }
 
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
     body {
       font-family: 'Segoe UI', Tahoma, sans-serif;
-      background: var(--bg);
       color: var(--text);
-      min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 20px;
-      overflow-x: hidden;
-    }
-
-    header { text-align: center; margin-bottom: 12px; }
-
-    h1 {
-      font-size: 2rem;
-      color: var(--accent);
-      text-shadow: 0 0 20px rgba(0,242,255,0.5);
-    }
-
-    .stats {
-      display: flex;
-      gap: 16px;
-      margin-bottom: 15px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    .stat {
-      background: var(--panel);
-      padding: 8px 16px;
-      border-radius: 50px;
-      font-size: 0.9rem;
-      white-space: nowrap;
-    }
-
-    .stat span { color: var(--gold); font-weight: bold; }
-
-    .game-wrapper {
+      height: 100vh;
+      width: 100vw;
       position: relative;
-      border: 2px solid var(--accent);
-      border-radius: 12px;
-      box-shadow: 0 0 30px rgba(0,242,255,0.2);
-      background: #050510;
-      max-width: 100%;
-      transition: transform 0.05s linear;
     }
 
-    .game-wrapper.shake { animation: shake 0.35s ease; }
-
-    @keyframes shake {
-      0%, 100% { transform: translate(0,0); }
-      20% { transform: translate(-6px, 4px); }
-      40% { transform: translate(6px, -4px); }
-      60% { transform: translate(-4px, -3px); }
-      80% { transform: translate(4px, 3px); }
-    }
-
-    canvas {
+    #gameCanvas {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      height: 100%;
+      max-width: 760px;
+      background: radial-gradient(ellipse at top, #14142c 0%, #050510 100%);
       display: block;
-      border-radius: 10px;
-      max-width: 100%;
-      height: auto;
+      z-index: 1;
       cursor: pointer;
     }
 
-    .overlay {
+    .play-border {
       position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: rgba(13,13,26,0.92);
-      border-radius: 10px;
-      text-align: center;
-      padding: 20px;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      height: 100%;
+      max-width: 760px;
+      border-left: 1px solid rgba(0, 242, 255, 0.25);
+      border-right: 1px solid rgba(0, 242, 255, 0.25);
+      box-shadow: inset 0 0 30px rgba(0, 242, 255, 0.07);
+      pointer-events: none;
       z-index: 2;
     }
 
-    .overlay h2 {
-      font-size: 1.8rem;
-      color: var(--accent2);
-      margin-bottom: 10px;
+    .ui-layer {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 760px;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
     }
 
-    .overlay p { margin-bottom: 8px; color: #ccc; }
-
-    .controls {
-      margin-top: 20px;
+    .hud {
       display: flex;
-      gap: 12px;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 10px 14px 4px;
+      gap: 8px;
+      pointer-events: auto;
+      flex-shrink: 0;
+    }
+
+    .hud-panel {
+      background: rgba(15, 15, 36, 0.75);
+      border: 1px solid rgba(0, 242, 255, 0.25);
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: 0.75rem;
+      min-width: 56px;
+      text-align: center;
+      backdrop-filter: blur(4px);
+    }
+
+    .hud-panel span {
+      display: block;
+      font-size: 0.6rem;
+      color: #888;
+      margin-bottom: 1px;
+    }
+
+    .hud-panel strong {
+      color: var(--accent);
+      font-size: 0.9rem;
+    }
+
+    .hud-panel.combo strong { color: var(--gold); }
+    .hud-panel.combo { opacity: 0.5; transition: opacity 0.2s, transform 0.2s; }
+    .hud-panel.combo.active { opacity: 1; transform: scale(1.06); }
+
+    .controls-bar {
+      display: flex;
+      justify-content: flex-end;
       flex-wrap: wrap;
-      justify-content: center;
+      gap: 6px;
+      padding: 0 14px 8px;
+      pointer-events: auto;
+      flex-shrink: 0;
+    }
+
+    .controls-bar button {
+      padding: 6px 10px;
+      font-size: 0.68rem;
+      background: rgba(15, 15, 36, 0.8);
+      border: 1px solid rgba(0, 242, 255, 0.25);
+      backdrop-filter: blur(4px);
+    }
+
+    .controls-bar button:hover, .controls-bar button:active {
+      background: rgba(0, 242, 255, 0.2);
     }
 
     button {
       background: var(--accent2);
       color: white;
       border: none;
-      padding: 12px 24px;
-      border-radius: 8px;
-      font-size: 1rem;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 0.75rem;
       font-weight: bold;
       cursor: pointer;
-      transition: transform 0.2s, background 0.2s;
+      transition: transform 0.15s, background 0.15s;
+      white-space: nowrap;
     }
 
-    button:hover { background: var(--accent); transform: scale(1.05); }
+    button:hover, button:active {
+      background: var(--accent);
+      transform: scale(1.05);
+    }
+
+    .bottom-bar {
+      margin-top: auto;
+      padding: 6px 14px calc(10px + env(safe-area-inset-bottom));
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      width: 100%;
+    }
+
+    .hint-line {
+      font-size: 0.66rem;
+      color: rgba(255, 255, 255, 0.5);
+      text-align: center;
+    }
 
     .flip-btn {
-      display: none;
-      margin-top: 18px;
       width: 100%;
-      max-width: 400px;
-      padding: 18px;
-      font-size: 1.2rem;
+      max-width: 340px;
+      padding: 14px;
+      font-size: 1rem;
       letter-spacing: 2px;
-      background: var(--panel);
+      background: rgba(15, 15, 36, 0.85);
       border: 2px solid var(--accent);
+      backdrop-filter: blur(4px);
     }
 
-    @media (max-width: 600px) {
-      h1 { font-size: 1.5rem; }
-      .flip-btn { display: block; }
+    .flip-btn:active {
+      background: rgba(0, 242, 255, 0.25);
+    }
+
+    @media (pointer: fine) {
+      .flip-btn { display: none; }
+    }
+
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 760px;
+      height: 100%;
+      background: rgba(5, 5, 16, 0.92);
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 30px 20px;
+      pointer-events: auto;
+      overflow-y: auto;
+    }
+
+    .overlay h1 {
+      font-size: clamp(1.5rem, 6.5vw, 2.4rem);
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 0 30px rgba(0, 242, 255, 0.3);
+      margin-bottom: 10px;
+    }
+
+    .overlay p {
+      color: #aaa;
+      font-size: 0.9rem;
+      margin-bottom: 6px;
+      max-width: 340px;
+    }
+
+    .difficulty-bar {
+      display: flex;
+      gap: 6px;
+      margin: 14px 0 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .difficulty-bar button {
+      padding: 8px 16px;
+      font-size: 0.78rem;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .difficulty-bar button.active {
+      background: rgba(0, 242, 255, 0.15);
+      border-color: var(--accent);
+      box-shadow: 0 0 10px rgba(0,242,255,0.25);
+    }
+
+    .diff-note {
+      font-size: 0.7rem;
+      color: var(--accent);
+      min-height: 1.1em;
+      margin-bottom: 2px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      font-size: 0.7rem;
+      color: #999;
+      margin: 10px 0 4px;
+    }
+
+    .overlay .stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin: 18px 0;
+      width: 100%;
+      max-width: 280px;
+    }
+
+    .overlay .stat {
+      background: rgba(255,255,255,0.05);
+      padding: 12px;
+      border-radius: 10px;
+    }
+
+    .overlay .stat .num { font-size: 1.2rem; color: var(--accent); font-weight: bold; }
+    .overlay .stat .lbl { font-size: 0.68rem; color: #888; }
+
+    .new-best {
+      color: var(--gold);
+      font-weight: bold;
+      font-size: 0.85rem;
+      margin-top: -8px;
+      margin-bottom: 8px;
+      display: none;
+    }
+
+    .overlay button.primary {
+      padding: 12px 28px;
+      font-size: 1rem;
+      margin-top: 6px;
+    }
+
+    .overlay .secondary-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .hidden { display: none !important; }
+
+    .toast {
+      position: absolute;
+      top: 26%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0);
+      font-size: clamp(1.2rem, 5.5vw, 1.9rem);
+      font-weight: bold;
+      color: var(--gold);
+      text-shadow: 0 0 25px rgba(255,215,0,0.6);
+      z-index: 15;
+      pointer-events: none;
+      transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.35s;
+      opacity: 0;
+      white-space: nowrap;
+    }
+
+    .toast.show {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 1;
     }
   </style>
 </head>
 <body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
 
-  <header>
-    <h1>🔃 Gravity Flip Runner</h1>
-  </header>
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span>Score</span>
+        <strong id="scoreEl">0</strong>
+      </div>
+      <div class="hud-panel combo" id="comboPanel">
+        <span>Combo</span>
+        <strong id="comboEl">x1</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Speed</span>
+        <strong id="speedEl">1.0x</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
 
-  <div class="stats">
-    <div class="stat">Score: <span id="score">0</span></div>
-    <div class="stat">High Score: <span id="highScore">0</span></div>
-    <div class="stat">Speed: <span id="speedMult">1.0x</span></div>
-  </div>
+    <div class="controls-bar" id="controlsBar">
+      <button id="startBtn" onclick="showStartOverlay()">Restart</button>
+      <button id="pauseBtn" onclick="togglePause()">Pause</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
 
-  <div class="game-wrapper" id="gameWrapper">
-    <canvas id="gameCanvas" width="640" height="360"></canvas>
-    <div class="overlay" id="overlay">
-      <h2 id="overlayTitle">🔃 Gravity Flip Runner</h2>
-      <p id="overlayText">Tap, click, or press Space to flip gravity.<br>Dodge the spikes on the floor and ceiling — one hit ends the run.</p>
-      <p id="overlayScore"></p>
-      <button id="startBtn" onclick="handleOverlayAction()">Start Run</button>
+    <div class="bottom-bar" id="bottomBar">
+      <div class="hint-line" id="hintLine">Tap anywhere to flip gravity</div>
+      <button type="button" class="flip-btn" id="flipBtn">⇅ FLIP</button>
     </div>
   </div>
 
-  <button class="flip-btn" id="mobileFlipBtn" onclick="flipGravity()">⇅ FLIP</button>
+  <div class="toast" id="toast">NEAR MISS!</div>
 
-  <div class="controls">
-    <button onclick="restartGame()">Restart</button>
-    <button onclick="togglePause()">Pause</button>
-    <a href="../../index.html" style="text-decoration:none;">
-      <button type="button">🏠 Arcade Home</button>
-    </a>
+  <div class="overlay" id="startOverlay">
+    <h1>🔃 Gravity Flip Runner</h1>
+    <p>One button, no brakes. Flip gravity to dodge spike strips on the floor and ceiling — and shave them close for near-miss combos.</p>
+
+    <div class="difficulty-bar" id="difficultyBar">
+      <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+      <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+      <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+    </div>
+    <p class="diff-note" id="diffNote"></p>
+
+    <div class="legend">
+      <span>⇅ Flip Gravity</span>
+      <span>⚡ Shave Spikes for Combo</span>
+      <span>💥 One Hit Ends It</span>
+    </div>
+
+    <button class="primary" onclick="startGame()">▶ Start Run</button>
+  </div>
+
+  <div class="overlay hidden" id="pauseOverlay">
+    <h1>⏸ Paused</h1>
+    <p>Your run is safe — pick up where you left off.</p>
+    <button class="primary" onclick="togglePause()">▶ Resume</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Restart</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <h1>💥 Crashed!</h1>
+    <p class="new-best" id="newBestTag">🏆 New Best Score!</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalScore">0</div>
+        <div class="lbl">Score</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalCombo">x1</div>
+        <div class="lbl">Best Combo</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalNearMisses">0</div>
+        <div class="lbl">Near Misses</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBest">0</div>
+        <div class="lbl">Best</div>
+      </div>
+    </div>
+    <button class="primary" onclick="startGame()">Run Again</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Difficulty</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
   </div>
 
   <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    const gameWrapper = document.getElementById('gameWrapper');
-    const overlay = document.getElementById('overlay');
-    const overlayTitle = document.getElementById('overlayTitle');
-    const overlayText = document.getElementById('overlayText');
-    const overlayScore = document.getElementById('overlayScore');
-    const startBtn = document.getElementById('startBtn');
-    const scoreEl = document.getElementById('score');
-    const highScoreEl = document.getElementById('highScore');
-    const speedMultEl = document.getElementById('speedMult');
+    const scoreEl = document.getElementById('scoreEl');
+    const comboEl = document.getElementById('comboEl');
+    const comboPanel = document.getElementById('comboPanel');
+    const speedEl = document.getElementById('speedEl');
+    const bestEl = document.getElementById('bestEl');
+    const startOverlay = document.getElementById('startOverlay');
+    const pauseOverlay = document.getElementById('pauseOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const finalScore = document.getElementById('finalScore');
+    const finalCombo = document.getElementById('finalCombo');
+    const finalNearMisses = document.getElementById('finalNearMisses');
+    const finalBest = document.getElementById('finalBest');
+    const newBestTag = document.getElementById('newBestTag');
+    const diffNote = document.getElementById('diffNote');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.getElementById('bottomBar');
+    const flipBtn = document.getElementById('flipBtn');
 
-    const W = canvas.width, H = canvas.height;
-    const FLOOR_Y = H - 24;
+    // A fixed 640x360 stage scaled and centred in the canvas, the same way the
+    // other games centre a fixed board. Flip physics stay identical at every
+    // screen size instead of stretching with the viewport.
+    const STAGE_W = 640;
+    const STAGE_H = 360;
+    const FLOOR_Y = STAGE_H - 24;
     const CEIL_Y = 24;
     const PLAYER_X = 110;
     const PLAYER_R = 11;
     const GRAVITY = 0.062;
-    const BASE_SPEED = 4.2;
-    const MAX_SPEED = 11;
-    const SPEED_RAMP_MS = 3800;
     const SPEED_RAMP_FACTOR = 1.07;
-    const BASE_SPAWN_MS = 1350;
-    const MIN_SPAWN_MS = 620;
+    const DISTANCE_PER_POINT = 8;
+    const CLEAR_BONUS = 5;
+    const NEAR_MISS_PX = 22;
+    const NEAR_MISS_BONUS = 20;
+    const MAX_COMBO = 10;
+
+    const DIFFICULTIES = {
+      easy:   { baseSpeed: 3.6, maxSpeed: 9.0,  rampMs: 4600, spawnMs: 1500, minSpawnMs: 760,
+                doubleFrom: 320, doubleChance: 0.16, note: '🌱 Slower ramp, roomier gaps.' },
+      medium: { baseSpeed: 4.2, maxSpeed: 11.0, rampMs: 3800, spawnMs: 1350, minSpawnMs: 620,
+                doubleFrom: 220, doubleChance: 0.22, note: '🔃 The classic flip.' },
+      hard:   { baseSpeed: 5.0, maxSpeed: 13.0, rampMs: 3200, spawnMs: 1200, minSpawnMs: 540,
+                doubleFrom: 120, doubleChance: 0.30, note: '🔥 Double spike strips much sooner.' }
+    };
+
+    let currentDifficulty = 'easy';
+    let gameRunning = false;
+    let gamePaused = false;
+    let lastTime = 0;
+    let animationId = null;
 
     let player, obstacles, trail, particles;
-    let scrollSpeed, spawnTimer, rampTimer, distance, score;
-    let highScore = parseInt(localStorage.getItem('gravityRunnerHighScore') || '0', 10);
-    let running = false, paused = false, hitStop = 0;
-    let lastTime = 0;
+    let scrollSpeed, spawnTimer, rampTimer, distance;
+    // Distance points and pickup bonuses are kept apart and summed, so a bonus
+    // can never be overwritten by the distance figure on a later frame.
+    let bonusPoints = 0;
+    let score = 0;
+    let combo = 0, bestCombo = 0, nearMisses = 0;
+    let runStartBest = 0;
+    let shakeLeft = 0;
 
-    highScoreEl.textContent = highScore;
+    let stageScale = 1, stageX = 0, stageY = 0;
 
-    // ---- Audio ----
+    // Audio
     let audioCtx = null;
     function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -233,59 +524,57 @@
     const sfx = {
       flip: () => playTone(520, 'square', 0.08, 0, 0.07),
       pass: () => playTone(880, 'sine', 0.05, 0, 0.04),
-      crash: () => { playTone(160, 'sawtooth', 0.3); playTone(90, 'sawtooth', 0.4, 0.12); }
+      nearMiss: (c) => playTone(900 + c * 70, 'triangle', 0.09, 0, 0.07),
+      crash: () => { playTone(160, 'sawtooth', 0.3); playTone(90, 'sawtooth', 0.4, 0.12); },
+      best: () => { [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => playTone(f, 'sine', 0.3, i * 0.13)); }
     };
 
-    function resetGame() {
+    function resizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const topOffset = Math.max(0, controlsBar.getBoundingClientRect().bottom - rect.top) + 8;
+      const bottomOffset = Math.max(0, rect.bottom - bottomBar.getBoundingClientRect().top) + 8;
+      const availWidth = rect.width * 0.96;
+      const availHeight = Math.max(80, rect.height - topOffset - bottomOffset);
+
+      stageScale = Math.min(availWidth / STAGE_W, availHeight / STAGE_H);
+      stageX = (rect.width - STAGE_W * stageScale) / 2;
+      stageY = topOffset + Math.max(0, (availHeight - STAGE_H * stageScale) / 2);
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function resetRun() {
+      const cfg = DIFFICULTIES[currentDifficulty];
       player = { y: FLOOR_Y - PLAYER_R, vy: 0, gravityDir: 1 };
       obstacles = [];
       trail = [];
       particles = [];
-      scrollSpeed = BASE_SPEED;
-      spawnTimer = BASE_SPAWN_MS;
+      scrollSpeed = cfg.baseSpeed;
+      spawnTimer = cfg.spawnMs;
       rampTimer = 0;
       distance = 0;
+      bonusPoints = 0;
       score = 0;
-      hitStop = 0;
-      scoreEl.textContent = 0;
-      speedMultEl.textContent = '1.0x';
+      combo = 0;
+      bestCombo = 0;
+      nearMisses = 0;
+      shakeLeft = 0;
+      scoreEl.textContent = '0';
+      comboEl.textContent = 'x1';
+      comboPanel.classList.remove('active');
+      speedEl.textContent = '1.0x';
     }
 
-    function startGame() {
-      initAudio();
-      resetGame();
-      overlay.style.display = 'none';
-      running = true;
-      paused = false;
-    }
-
-    function restartGame() {
-      startGame();
-    }
-
-    let overlayAction = () => startGame();
-    function handleOverlayAction() { overlayAction(); }
-
-    function togglePause() {
-      if (!running) { overlayAction(); return; }
-      paused = !paused;
-      if (paused) {
-        overlayTitle.textContent = '⏸ Paused';
-        overlayText.textContent = 'Press Resume to continue.';
-        overlayScore.textContent = '';
-        startBtn.textContent = 'Resume';
-        overlayAction = () => {
-          paused = false;
-          overlay.style.display = 'none';
-        };
-        overlay.style.display = 'flex';
-      } else {
-        overlay.style.display = 'none';
-      }
+    function comboMultiplier() {
+      return Math.min(1 + Math.floor(combo / 3) * 0.5, 3);
     }
 
     function flipGravity() {
-      if (!running || paused) return;
+      if (!gameRunning || gamePaused) return;
       player.gravityDir *= -1;
       sfx.flip();
       for (let i = 0; i < 8; i++) {
@@ -298,33 +587,31 @@
       }
     }
 
-    // ---- Input ----
-    document.addEventListener('keydown', e => {
-      initAudio();
-      if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
-        e.preventDefault();
-        if (!running) { startGame(); return; }
-        flipGravity();
-      } else if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
-        togglePause();
-      }
-    });
-
-    canvas.addEventListener('pointerdown', () => {
-      initAudio();
-      if (!running) { startGame(); return; }
-      if (paused) return;
-      flipGravity();
-    });
+    function showToast(text, color) {
+      toast.textContent = text;
+      toast.style.color = color;
+      toast.style.textShadow = `0 0 25px ${color}`;
+      toast.classList.remove('show');
+      void toast.offsetWidth;
+      toast.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => toast.classList.remove('show'), 900);
+    }
 
     function spawnObstacle() {
+      const cfg = DIFFICULTIES[currentDifficulty];
       const side = Math.random() < 0.5 ? 'floor' : 'ceil';
       const h = 44 + Math.random() * 46;
       const w = 26 + Math.random() * 18;
-      obstacles.push({ x: W + 10, w, h, side, scored: false });
-      if (score > 220 && Math.random() < 0.22) {
+      obstacles.push({ x: STAGE_W + 10, w, h, side, scored: false, minGap: Infinity });
+      if (score > cfg.doubleFrom && Math.random() < cfg.doubleChance) {
         const otherSide = side === 'floor' ? 'ceil' : 'floor';
-        obstacles.push({ x: W + 10 + w + 40 + Math.random() * 30, w: 22 + Math.random() * 14, h: 36 + Math.random() * 40, side: otherSide, scored: false });
+        obstacles.push({
+          x: STAGE_W + 10 + w + 40 + Math.random() * 30,
+          w: 22 + Math.random() * 14,
+          h: 36 + Math.random() * 40,
+          side: otherSide, scored: false, minGap: Infinity
+        });
       }
     }
 
@@ -335,7 +622,35 @@
       return dx * dx + dy * dy < r * r;
     }
 
+    // How much daylight there is between the player and this strip's tips,
+    // while they overlap horizontally. Used to score near misses.
+    function verticalClearance(o) {
+      if (o.side === 'floor') return (FLOOR_Y - o.h) - (player.y + PLAYER_R);
+      return (player.y - PLAYER_R) - (CEIL_Y + o.h);
+    }
+
+    function registerPass(o) {
+      bonusPoints += CLEAR_BONUS;
+      if (o.minGap <= NEAR_MISS_PX) {
+        combo = Math.min(combo + 1, MAX_COMBO);
+        bestCombo = Math.max(bestCombo, combo);
+        nearMisses++;
+        bonusPoints += Math.round(NEAR_MISS_BONUS * comboMultiplier());
+        comboEl.textContent = 'x' + comboMultiplier();
+        comboPanel.classList.add('active');
+        sfx.nearMiss(combo);
+        if (combo > 0 && combo % 3 === 0) showToast(`NEAR MISS x${comboMultiplier()}!`, '#ffd700');
+      } else {
+        // Playing it safe is still worth the clear bonus, but drops the chain.
+        combo = 0;
+        comboEl.textContent = 'x1';
+        comboPanel.classList.remove('active');
+        sfx.pass();
+      }
+    }
+
     function update(dt) {
+      const cfg = DIFFICULTIES[currentDifficulty];
       const dtF = Math.min(dt / 16.67, 3);
 
       player.vy += GRAVITY * player.gravityDir * dtF;
@@ -348,32 +663,35 @@
       trail.push({ x: PLAYER_X, y: player.y });
       if (trail.length > 14) trail.shift();
 
+      if (shakeLeft > 0) shakeLeft = Math.max(0, shakeLeft - dt);
+
       rampTimer += dt;
-      if (rampTimer >= SPEED_RAMP_MS) {
+      if (rampTimer >= cfg.rampMs) {
         rampTimer = 0;
-        scrollSpeed = Math.min(scrollSpeed * SPEED_RAMP_FACTOR, MAX_SPEED);
-        speedMultEl.textContent = (scrollSpeed / BASE_SPEED).toFixed(1) + 'x';
+        scrollSpeed = Math.min(scrollSpeed * SPEED_RAMP_FACTOR, cfg.maxSpeed);
+        speedEl.textContent = (scrollSpeed / cfg.baseSpeed).toFixed(1) + 'x';
       }
 
       distance += scrollSpeed * dtF;
-      score = Math.floor(distance / 8);
-      scoreEl.textContent = score;
-      if (score > highScore) {
-        highScore = score;
-        highScoreEl.textContent = highScore;
-        localStorage.setItem('gravityRunnerHighScore', highScore);
-      }
+      score = Math.floor(distance / DISTANCE_PER_POINT) + bonusPoints;
 
       spawnTimer -= dt;
       if (spawnTimer <= 0) {
         spawnObstacle();
-        const interval = Math.max(MIN_SPAWN_MS, BASE_SPAWN_MS - score * 1.5);
+        const interval = Math.max(cfg.minSpawnMs, cfg.spawnMs - score * 1.5);
         spawnTimer = interval + Math.random() * interval * 0.35;
       }
 
       for (const o of obstacles) {
         o.x -= scrollSpeed * dtF;
-        if (!o.scored && o.x + o.w < PLAYER_X) { o.scored = true; sfx.pass(); }
+        // Track the tightest gap while the strip is alongside the player.
+        if (o.x < PLAYER_X + PLAYER_R && o.x + o.w > PLAYER_X - PLAYER_R) {
+          o.minGap = Math.min(o.minGap, verticalClearance(o));
+        }
+        if (!o.scored && o.x + o.w < PLAYER_X - PLAYER_R) {
+          o.scored = true;
+          registerPass(o);
+        }
       }
       obstacles = obstacles.filter(o => o.x + o.w > -10);
 
@@ -385,48 +703,73 @@
         }
       }
 
-      particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life--; });
+      particles.forEach(p => { p.x += p.vx * dtF; p.y += p.vy * dtF; p.life -= dtF; });
       particles = particles.filter(p => p.life > 0);
-    }
 
-    function gameOver() {
-      running = false;
-      sfx.crash();
-      gameWrapper.classList.add('shake');
-      setTimeout(() => gameWrapper.classList.remove('shake'), 350);
-      const isHigh = score >= highScore && score > 0;
-      overlayTitle.textContent = '💥 Crashed!';
-      overlayText.textContent = `Final Score: ${score}`;
-      overlayScore.textContent = isHigh ? '🎉 New High Score!' : `High Score: ${highScore}`;
-      startBtn.textContent = 'Run Again';
-      overlayAction = () => startGame();
-      overlay.style.display = 'flex';
+      score = Math.floor(distance / DISTANCE_PER_POINT) + bonusPoints;
+      scoreEl.textContent = score;
     }
 
     // ---- Rendering ----
     function render() {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      let shakeOffX = 0, shakeOffY = 0;
+      if (shakeLeft > 0) {
+        const mag = (shakeLeft / 350) * 6;
+        shakeOffX = (Math.random() - 0.5) * mag * 2;
+        shakeOffY = (Math.random() - 0.5) * mag * 2;
+      }
+
+      ctx.save();
+      ctx.translate(stageX + shakeOffX, stageY + shakeOffY);
+      ctx.scale(stageScale, stageScale);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, STAGE_W, STAGE_H);
+      ctx.clip();
+
       ctx.fillStyle = '#050510';
-      ctx.fillRect(0, 0, W, H);
+      ctx.fillRect(0, 0, STAGE_W, STAGE_H);
 
       // scrolling parallax grid
       ctx.strokeStyle = 'rgba(0,242,255,0.06)';
       ctx.lineWidth = 1;
       const gridSize = 40;
-      const offset = running ? -(distance % gridSize) : 0;
-      for (let x = offset; x < W; x += gridSize) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      const offset = -(distance % gridSize);
+      for (let x = offset; x < STAGE_W; x += gridSize) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, STAGE_H); ctx.stroke();
       }
 
-      // floor & ceiling
-      ctx.shadowBlur = 12;
-      ctx.shadowColor = '#00f2ff';
-      ctx.strokeStyle = '#00f2ff';
+      // floor & ceiling, tinted by which way gravity is pulling
+      const downward = player.gravityDir === 1;
       ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(0, FLOOR_Y); ctx.lineTo(W, FLOOR_Y); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, CEIL_Y); ctx.lineTo(W, CEIL_Y); ctx.stroke();
+      [[FLOOR_Y, downward], [CEIL_Y, !downward]].forEach(([y, active]) => {
+        const color = active ? '#ffd700' : '#00f2ff';
+        ctx.shadowBlur = active ? 16 : 10;
+        ctx.shadowColor = color;
+        ctx.strokeStyle = color;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(STAGE_W, y); ctx.stroke();
+      });
       ctx.shadowBlur = 0;
 
-      // obstacles (spike strips)
+      drawObstacles();
+      drawTrail();
+      drawParticles();
+      drawPlayer();
+
+      ctx.restore();
+
+      ctx.strokeStyle = combo > 0 ? 'rgba(255,215,0,0.55)' : 'rgba(0,242,255,0.4)';
+      ctx.lineWidth = 2 / stageScale;
+      ctx.strokeRect(0, 0, STAGE_W, STAGE_H);
+
+      ctx.restore();
+    }
+
+    function drawObstacles() {
       obstacles.forEach(o => {
         ctx.fillStyle = '#ff00aa';
         ctx.shadowBlur = 10;
@@ -450,8 +793,9 @@
         }
         ctx.shadowBlur = 0;
       });
+    }
 
-      // trail
+    function drawTrail() {
       trail.forEach((t, i) => {
         const alpha = (i / trail.length) * 0.35;
         ctx.fillStyle = `rgba(255,215,0,${alpha})`;
@@ -459,8 +803,9 @@
         ctx.arc(t.x, t.y, PLAYER_R * (i / trail.length) * 0.8, 0, Math.PI * 2);
         ctx.fill();
       });
+    }
 
-      // particles
+    function drawParticles() {
       particles.forEach(p => {
         ctx.globalAlpha = Math.max(0, p.life / 20);
         ctx.fillStyle = p.color;
@@ -469,8 +814,9 @@
         ctx.fill();
         ctx.globalAlpha = 1;
       });
+    }
 
-      // player
+    function drawPlayer() {
       ctx.shadowBlur = 16;
       ctx.shadowColor = '#ffd700';
       ctx.fillStyle = '#ffd700';
@@ -479,7 +825,6 @@
       ctx.fill();
       ctx.shadowBlur = 0;
 
-      // gravity direction indicator
       ctx.fillStyle = 'rgba(255,255,255,0.7)';
       ctx.font = '14px sans-serif';
       ctx.textAlign = 'center';
@@ -487,20 +832,168 @@
       ctx.fillText(arrow, PLAYER_X, player.y - PLAYER_R * (player.gravityDir === 1 ? -1.8 : 1.4));
     }
 
-    function loop(timestamp) {
+    function gameLoop(timestamp) {
+      if (!gameRunning) return;
       const dt = lastTime ? timestamp - lastTime : 16.67;
       lastTime = timestamp;
-      if (running && !paused) {
-        update(Math.min(dt, 40));
-      }
+
+      if (!gamePaused) update(Math.min(dt, 40));
+      if (!gameRunning) return;
+
       render();
-      requestAnimationFrame(loop);
+      animationId = requestAnimationFrame(gameLoop);
     }
 
-    // ---- Init ----
-    resetGame();
-    render();
-    requestAnimationFrame(loop);
+    // Best scores are per difficulty, and written once when a run ends rather
+    // than on every scoring frame.
+    function getBestScore() {
+      return parseInt(localStorage.getItem(`gravityBest_${currentDifficulty}`) || '0', 10);
+    }
+
+    function saveBestScore() {
+      if (score > runStartBest) {
+        localStorage.setItem(`gravityBest_${currentDifficulty}`, score);
+        return true;
+      }
+      return false;
+    }
+
+    function migrateLegacyBest() {
+      const legacy = parseInt(localStorage.getItem('gravityRunnerHighScore') || '0', 10);
+      if (legacy > 0 && !localStorage.getItem('gravityBestMigrated')) {
+        const existing = parseInt(localStorage.getItem('gravityBest_medium') || '0', 10);
+        if (legacy > existing) localStorage.setItem('gravityBest_medium', String(legacy));
+      }
+      localStorage.setItem('gravityBestMigrated', '1');
+    }
+
+    function setDifficulty(diff) {
+      currentDifficulty = diff;
+      document.querySelectorAll('#difficultyBar button').forEach(btn =>
+        btn.classList.toggle('active', btn.dataset.diff === diff));
+      diffNote.textContent = DIFFICULTIES[diff].note;
+      bestEl.textContent = getBestScore();
+    }
+
+    function showStartOverlay() {
+      gameRunning = false;
+      gamePaused = false;
+      cancelAnimationFrame(animationId);
+      gameOverOverlay.classList.add('hidden');
+      pauseOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+      pauseBtn.textContent = 'Pause';
+      resetRun();
+      render();
+    }
+
+    function startGame() {
+      initAudio();
+      cancelAnimationFrame(animationId);
+      resizeCanvas();
+      resetRun();
+      runStartBest = getBestScore();
+      bestEl.textContent = runStartBest;
+
+      startOverlay.classList.add('hidden');
+      pauseOverlay.classList.add('hidden');
+      gameOverOverlay.classList.add('hidden');
+      document.getElementById('startBtn').textContent = 'Restart';
+      pauseBtn.textContent = 'Pause';
+
+      gameRunning = true;
+      gamePaused = false;
+      lastTime = 0;
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function togglePause() {
+      if (!gameRunning) return;
+      gamePaused = !gamePaused;
+      pauseBtn.textContent = gamePaused ? 'Resume' : 'Pause';
+      pauseOverlay.classList.toggle('hidden', !gamePaused);
+      if (!gamePaused) lastTime = 0;
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+      } else {
+        document.exitFullscreen?.();
+      }
+    }
+
+    document.addEventListener('fullscreenchange', () => {
+      fullscreenBtn.textContent = document.fullscreenElement ? '⤢ Exit' : '⛶ Full';
+      resizeCanvas();
+    });
+
+    if (!document.documentElement.requestFullscreen) {
+      fullscreenBtn.style.display = 'none';
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && gameRunning && !gamePaused) togglePause();
+    });
+
+    function gameOver() {
+      gameRunning = false;
+      cancelAnimationFrame(animationId);
+      sfx.crash();
+      shakeLeft = 350;
+      const isNewBest = saveBestScore();
+
+      finalScore.textContent = score;
+      finalCombo.textContent = 'x' + Math.min(1 + Math.floor(bestCombo / 3) * 0.5, 3);
+      finalNearMisses.textContent = nearMisses;
+      finalBest.textContent = getBestScore();
+      bestEl.textContent = getBestScore();
+      newBestTag.style.display = isNewBest ? 'block' : 'none';
+      if (isNewBest) setTimeout(() => sfx.best(), 300);
+
+      render();
+      pauseOverlay.classList.add('hidden');
+      gameOverOverlay.classList.remove('hidden');
+    }
+
+    // ---- Input ----
+    const NAV_KEYS = [' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+    document.addEventListener('keydown', e => {
+      if (NAV_KEYS.includes(e.key)) e.preventDefault();
+      initAudio();
+      if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'ArrowDown' ||
+          e.key === 'w' || e.key === 'W' || e.key === 's' || e.key === 'S') {
+        flipGravity();
+      } else if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+        togglePause();
+      }
+    });
+
+    canvas.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      initAudio();
+      flipGravity();
+    });
+
+    flipBtn.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      initAudio();
+      flipGravity();
+    });
+
+    if (!('ontouchstart' in window)) {
+      hintLine.textContent = 'Space / ↑ / ↓ to flip gravity • Esc to pause';
+    }
+
+    try {
+      migrateLegacyBest();
+      setDifficulty('easy');
+      resizeCanvas();
+      resetRun();
+      render();
+    } catch (err) {
+      console.error('Gravity Flip Runner init failed:', err);
+    }
   </script>
 </body>
 </html>
