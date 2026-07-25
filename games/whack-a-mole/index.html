@@ -474,6 +474,33 @@
 
     const HOLE_COUNT = 9;
     const BONUS_TIME = 3;
+    const LOW_TIME = 5;
+    // A hole that has been resolved this pop but is still playing its hit
+    // animation. It used to stay marked 'mole', so spamming one hole scored a
+    // fresh hit on every click inside the 260ms window.
+    const WHACKED = 'whacked';
+
+    // Deferred callbacks are tagged with the round they belong to and cancelled
+    // on restart: a hit's cleanup timer used to fire into the next round and
+    // wipe a freshly spawned critter.
+    let roundToken = 0;
+    let pendingTimeouts = [];
+
+    function schedule(fn, ms) {
+      const token = roundToken;
+      const id = setTimeout(() => {
+        pendingTimeouts = pendingTimeouts.filter(t => t !== id);
+        if (token !== roundToken) return;
+        fn();
+      }, ms);
+      pendingTimeouts.push(id);
+      return id;
+    }
+
+    function clearPendingTimeouts() {
+      pendingTimeouts.forEach(clearTimeout);
+      pendingTimeouts = [];
+    }
 
     let currentDifficulty = 'easy';
     let holes = [];
@@ -545,7 +572,11 @@
       currentDifficulty = diff;
       document.querySelectorAll('#difficultyBar button').forEach(btn => btn.classList.toggle('active', btn.dataset.diff === diff));
       roundDuration = DIFFICULTIES[diff].duration;
-      resetStatsUI();
+      // Switching mid-round used to zero the score and swap in the new
+      // difficulty's clock while the round carried on, leaving critters up under
+      // the old settings. Start a clean round instead.
+      if (gameRunning) startGame();
+      else resetStatsUI();
     }
 
     function getBestScore() {
@@ -602,13 +633,29 @@
       timeStat.classList.remove('low-time');
     }
 
+    // Shared by the countdown and the golden-star bonus. The warning styling used
+    // to be added below 5s and never removed, so a star that bought time back
+    // left the clock stuck looking critical.
+    function updateTimeUI() {
+      const shown = Math.max(0, timeLeft);
+      timeDisplay.textContent = shown;
+      timeFill.style.width = `${Math.max(0, (timeLeft / roundDuration) * 100)}%`;
+      const low = timeLeft <= LOW_TIME;
+      timeFill.classList.toggle('low', low);
+      timeStat.classList.toggle('low-time', low);
+    }
+
     // ---- Game flow ----
     function startGame() {
       initAudio();
+      roundToken++;
+      clearPendingTimeouts();
       clearTimeout(spawnTimeout);
       clearInterval(countdownInterval);
       holeTimers.forEach(t => clearTimeout(t));
       holeTimers = [];
+      comboBanner.classList.remove('show');
+      document.body.classList.remove('shake');
       buildBoard();
       holeState = new Array(HOLE_COUNT).fill('empty');
       resetStatsUI();
@@ -618,17 +665,9 @@
 
       countdownInterval = setInterval(() => {
         timeLeft--;
-        timeDisplay.textContent = Math.max(0, timeLeft);
-        const pct = Math.max(0, (timeLeft / roundDuration) * 100);
-        timeFill.style.width = `${pct}%`;
-        if (timeLeft <= 5) {
-          timeFill.classList.add('low');
-          timeStat.classList.add('low-time');
-          if (timeLeft > 0) playTickSound();
-        }
-        if (timeLeft <= 0) {
-          endRound();
-        }
+        updateTimeUI();
+        if (timeLeft <= LOW_TIME && timeLeft > 0) playTickSound();
+        if (timeLeft <= 0) endRound();
       }, 1000);
 
       scheduleSpawn();
@@ -684,9 +723,13 @@
       if (!gameRunning) return;
       const type = holeState[idx];
       const hole = holes[idx];
+      // This pop is already resolved and just finishing its animation. Ignore the
+      // click entirely rather than counting it as a hit or a miss.
+      if (type === WHACKED) return;
       clicks++;
 
       if (type === 'mole' || type === 'golden') {
+        holeState[idx] = WHACKED;
         hits++;
         combo++;
         comboMultiplier = 1 + Math.floor(combo / 5) * 0.5;
@@ -706,7 +749,7 @@
         if (type === 'golden') {
           playGoldenSound();
           timeLeft = Math.min(roundDuration, timeLeft + BONUS_TIME);
-          timeDisplay.textContent = timeLeft;
+          updateTimeUI();
           showPopup(hole, `+${BONUS_TIME}s`, 'good');
         } else {
           playWhackSound();
@@ -717,12 +760,13 @@
           showCombo(comboMultiplier);
         }
 
-        setTimeout(() => {
+        schedule(() => {
           hole.classList.remove('hit', 'flash-good');
           hideHole(idx);
         }, 260);
 
       } else if (type === 'bomb') {
+        holeState[idx] = WHACKED;
         combo = 0;
         comboMultiplier = 1;
         comboDisplay.textContent = 'x1';
@@ -735,7 +779,7 @@
         playBombSound();
         shakeScreen();
 
-        setTimeout(() => {
+        schedule(() => {
           hole.classList.remove('hit', 'flash-bad');
           hideHole(idx);
         }, 260);
@@ -746,7 +790,7 @@
         comboDisplay.textContent = 'x1';
         playMissSound();
         hole.classList.add('flash-bad');
-        setTimeout(() => hole.classList.remove('flash-bad'), 200);
+        schedule(() => hole.classList.remove('flash-bad'), 200);
       }
 
       accuracyDisplay.textContent = clicks ? `${Math.round((hits / clicks) * 100)}%` : '0%';
@@ -757,18 +801,18 @@
       popup.className = `score-popup ${kind}`;
       popup.textContent = text;
       hole.appendChild(popup);
-      setTimeout(() => popup.remove(), 700);
+      schedule(() => popup.remove(), 700);
     }
 
     function showCombo(multiplier) {
       comboBanner.textContent = `🔥 Combo x${multiplier.toFixed(1).replace('.0', '')}!`;
       comboBanner.classList.add('show');
-      setTimeout(() => comboBanner.classList.remove('show'), 900);
+      schedule(() => comboBanner.classList.remove('show'), 900);
     }
 
     function shakeScreen() {
       document.body.classList.add('shake');
-      setTimeout(() => document.body.classList.remove('shake'), 350);
+      schedule(() => document.body.classList.remove('shake'), 350);
     }
 
     function endRound() {
@@ -805,8 +849,12 @@
     let confettiReq;
 
     function resizeConfetti() {
-      confettiCanvas.width = window.innerWidth;
-      confettiCanvas.height = window.innerHeight;
+      const dpr = window.devicePixelRatio || 1;
+      confettiCanvas.width = Math.floor(window.innerWidth * dpr);
+      confettiCanvas.height = Math.floor(window.innerHeight * dpr);
+      // Particles are positioned in CSS pixels, so scale the backing store rather
+      // than letting the browser upscale a 1x canvas.
+      cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     window.addEventListener('resize', resizeConfetti);
     resizeConfetti();
@@ -833,8 +881,11 @@
     }
 
     function animateConfetti() {
-      cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
-      particles.forEach((p, i) => {
+      cctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      // Reverse iteration: splicing inside a forEach skipped the element after
+      // each removal, so expired particles lingered for extra frames.
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
         p.x += p.vx;
         p.y += p.vy;
         p.vy += p.gravity;
@@ -852,21 +903,22 @@
         cctx.restore();
 
         if (p.life <= 0) particles.splice(i, 1);
-      });
+      }
 
       if (particles.length > 0) {
         confettiReq = requestAnimationFrame(animateConfetti);
       } else {
         confettiReq = null;
-        cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+        cctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
       }
     }
 
     // ---- Keyboard shortcut: 1-9 for holes ----
     document.addEventListener('keydown', (e) => {
       if (!gameRunning) return;
-      const active = document.activeElement;
-      if (active && (active.tagName === 'BUTTON' || active.tagName === 'A')) return;
+      // Digits can't activate a focused button, so there's no need to bail out
+      // when one has focus — doing so left the 1-9 shortcuts dead for the rest
+      // of the round after any control button was clicked.
       const num = parseInt(e.key, 10);
       if (num >= 1 && num <= HOLE_COUNT) {
         e.preventDefault();
