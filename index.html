@@ -99,6 +99,19 @@
       font-weight: bold;
     }
 
+    .stat-pill.surprise-btn {
+      cursor: pointer;
+      border: none;
+      font: inherit;
+      color: var(--text);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .stat-pill.surprise-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(255,0,170,0.35);
+    }
+
     .menu {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -130,6 +143,8 @@
     .game-card:nth-child(3) { animation-delay: 0.4s; }
     .game-card:nth-child(4) { animation-delay: 0.55s; }
     .game-card:nth-child(5) { animation-delay: 0.7s; }
+    .game-card:nth-child(6) { animation-delay: 0.85s; }
+    .game-card:nth-child(7) { animation-delay: 1.0s; }
 
     .game-card::before {
       content: '';
@@ -150,10 +165,56 @@
       border-color: var(--accent);
     }
 
+    .game-card:focus-visible {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent), 0 20px 40px rgba(0,242,255,0.25);
+    }
+
+    .game-card.favorite {
+      border-color: rgba(255,215,0,0.3);
+    }
+
+    .favorite-tag {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: linear-gradient(90deg, var(--gold), #ffae00);
+      color: #241a00;
+      font-weight: bold;
+      font-size: 0.62rem;
+      letter-spacing: 0.5px;
+      padding: 3px 9px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(255,215,0,0.5);
+      z-index: 2;
+      display: none;
+    }
+
+    .game-card.favorite .favorite-tag { display: inline-block; }
+
     .card-content {
       position: relative;
       z-index: 1;
     }
+
+    .card-meta {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .meta-chip {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: #bbb;
+      font-size: 0.7rem;
+      padding: 3px 9px;
+      border-radius: 12px;
+    }
+
+    .meta-chip.best-chip { color: var(--gold); }
 
     .game-icon {
       font-size: 4rem;
@@ -261,68 +322,105 @@
   <div class="stats-bar">
     <div class="stat-pill">👋 Welcome back! Visit #<span id="visitCount">1</span></div>
     <div class="stat-pill">🎮 Games: <span id="gameCount">0</span></div>
+    <div class="stat-pill" id="favoritePill" style="display:none;">🔥 Favorite: <span id="favoriteGame">–</span></div>
+    <button class="stat-pill surprise-btn" type="button" onclick="surpriseMe()">🎲 Surprise Me</button>
   </div>
 
   <main class="menu" id="menu">
     <a href="games/memory/index.html" class="game-card" data-game="memory">
+      <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🧠</span>
         <h2 class="game-title">Memory Match</h2>
         <p class="game-desc">Flip cards, find pairs, and test your brainpower against the clock.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
 
     <a href="games/snake/index.html" class="game-card" data-game="snake">
+      <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🐍</span>
         <h2 class="game-title">Neon Snake</h2>
         <p class="game-desc">Eat glowing apples, grow your snake, and avoid the walls.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
 
     <a href="games/shooter/index.html" class="game-card" data-game="shooter">
+      <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🚀</span>
         <h2 class="game-title">Space Shooter</h2>
         <p class="game-desc">Blast alien ships, collect power-ups, and defend the galaxy.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
 
     <a href="games/maze/index.html" class="game-card" data-game="maze">
+      <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🌀</span>
         <h2 class="game-title">Neon Maze</h2>
         <p class="game-desc">4 modes in one maze chaser: dodge Specters, outrun your own Echo, juggle Chroma colors, or flip the hunt in Glitch.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
 
     <a href="games/gravity-runner/index.html" class="game-card" data-game="gravity-runner">
+      <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🔃</span>
         <h2 class="game-title">Gravity Flip Runner</h2>
         <p class="game-desc">One button, no brakes. Flip gravity to dodge spike strips on the floor and ceiling as the speed climbs.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
 
     <a href="games/rabbit/index.html" class="game-card" data-game="rabbit">
+      <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🐰</span>
         <h2 class="game-title">Neon Bunny Hop</h2>
         <p class="game-desc">Double-jump past neon foxes, chain carrots for combo multipliers, and grab the gold carrot to go Turbo.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
 
     <a href="games/whack-a-mole/index.html" class="game-card" data-game="whack-a-mole">
+      <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🔨</span>
         <h2 class="game-title">Whack-a-Mole</h2>
         <p class="game-desc">Whack moles against the clock, build combos, grab gold stars for bonus time, and dodge the bombs.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
@@ -403,20 +501,143 @@
       osc.stop(audioCtx.currentTime + 0.12);
     }
 
-    const hoverFreqs = [440, 523, 587, 659, 740];
-    document.querySelectorAll('.game-card').forEach((card, index) => {
+    const hoverFreqs = [440, 523, 587, 659, 740, 831, 932];
+    const cards = [...document.querySelectorAll('.game-card')];
+    const menuEl = document.getElementById('menu');
+
+    cards.forEach((card, index) => {
       card.addEventListener('mouseenter', () => {
         playHoverTone(hoverFreqs[index] || 440);
       });
     });
 
-    document.getElementById('gameCount').textContent = document.querySelectorAll('.game-card').length;
+    document.getElementById('gameCount').textContent = cards.length;
 
     // ---- Visit counter ----
     let visits = parseInt(localStorage.getItem('miniArcadeVisits') || '0', 10);
     visits++;
     localStorage.setItem('miniArcadeVisits', visits);
     document.getElementById('visitCount').textContent = visits;
+
+    // ---- Per-game best scores (read from each game's own localStorage keys) ----
+    const GAME_BEST_GETTERS = {
+      memory: () => Math.max(0, ...['beginner', 'easy', 'medium', 'hard'].map(d =>
+        parseInt(localStorage.getItem(`memoryBest_${d}`) || '0', 10))),
+      snake: () => parseInt(localStorage.getItem('snakeHighScore') || '0', 10),
+      shooter: () => parseInt(localStorage.getItem('shooterBest') || '0', 10),
+      maze: () => {
+        const scores = JSON.parse(localStorage.getItem('neonMazeHighScores') || '{}');
+        const values = Object.values(scores);
+        return values.length ? Math.max(...values) : 0;
+      },
+      'gravity-runner': () => parseInt(localStorage.getItem('gravityRunnerHighScore') || '0', 10),
+      rabbit: () => parseInt(localStorage.getItem('neonBunnyHighScore') || '0', 10),
+      'whack-a-mole': () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
+        parseInt(localStorage.getItem(`whackBest_${d}`) || '0', 10)))
+    };
+
+    // ---- Play counts ----
+    function getPlayCount(game) {
+      return parseInt(localStorage.getItem(`arcadePlays_${game}`) || '0', 10);
+    }
+
+    function bumpPlayCount(game) {
+      const next = getPlayCount(game) + 1;
+      localStorage.setItem(`arcadePlays_${game}`, next);
+      return next;
+    }
+
+    function renderCardMeta() {
+      const favoritePill = document.getElementById('favoritePill');
+      const favoriteGameLabel = document.getElementById('favoriteGame');
+      let favoriteCard = null;
+      let favoriteCount = 0;
+
+      cards.forEach(card => {
+        const game = card.dataset.game;
+        const getBest = GAME_BEST_GETTERS[game];
+        const best = getBest ? getBest() : 0;
+        const bestChip = card.querySelector('.best-chip');
+        bestChip.textContent = best > 0 ? `🏆 Best: ${best}` : '🏆 Not played yet';
+
+        const plays = getPlayCount(game);
+        const playsChip = card.querySelector('.plays-chip');
+        playsChip.textContent = `▶ ${plays} ${plays === 1 ? 'play' : 'plays'}`;
+
+        card.classList.remove('favorite');
+        if (plays > favoriteCount) {
+          favoriteCount = plays;
+          favoriteCard = card;
+        }
+      });
+
+      if (favoriteCard && favoriteCount > 0) {
+        favoriteCard.classList.add('favorite');
+        favoriteGameLabel.textContent = favoriteCard.querySelector('.game-title').textContent;
+        favoritePill.style.display = '';
+      } else {
+        favoritePill.style.display = 'none';
+      }
+    }
+
+    cards.forEach(card => {
+      card.addEventListener('click', () => bumpPlayCount(card.dataset.game));
+    });
+
+    renderCardMeta();
+
+    // ---- Surprise Me ----
+    function surpriseMe() {
+      if (!cards.length) return;
+      const pick = cards[Math.floor(Math.random() * cards.length)];
+      bumpPlayCount(pick.dataset.game);
+      window.location.href = pick.getAttribute('href');
+    }
+
+    // ---- Keyboard navigation between cards ----
+    let focusIndex = 0;
+
+    function gridColumnCount() {
+      const cols = getComputedStyle(menuEl).gridTemplateColumns.split(' ').filter(Boolean);
+      return cols.length || 1;
+    }
+
+    function focusCardAt(i) {
+      if (!cards.length) return;
+      focusIndex = Math.max(0, Math.min(cards.length - 1, i));
+      cards[focusIndex].focus();
+    }
+
+    cards.forEach((card, i) => {
+      card.addEventListener('focus', () => { focusIndex = i; });
+    });
+
+    document.addEventListener('keydown', e => {
+      const tag = document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const cols = gridColumnCount();
+      switch (e.key) {
+        case 'ArrowRight': e.preventDefault(); focusCardAt(focusIndex + 1); break;
+        case 'ArrowLeft':  e.preventDefault(); focusCardAt(focusIndex - 1); break;
+        case 'ArrowDown':  e.preventDefault(); focusCardAt(focusIndex + cols); break;
+        case 'ArrowUp':    e.preventDefault(); focusCardAt(focusIndex - cols); break;
+      }
+    });
+
+    // ---- Cursor-tracking tilt (pointer devices only) ----
+    if (window.matchMedia('(pointer: fine)').matches) {
+      cards.forEach(card => {
+        card.addEventListener('mousemove', e => {
+          const rect = card.getBoundingClientRect();
+          const px = (e.clientX - rect.left) / rect.width;
+          const py = (e.clientY - rect.top) / rect.height;
+          const rotateX = (0.5 - py) * 12;
+          const rotateY = (px - 0.5) * 12;
+          card.style.transform = `translateY(-10px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+        });
+        card.addEventListener('mouseleave', () => { card.style.transform = ''; });
+      });
+    }
   </script>
 </body>
 </html>
