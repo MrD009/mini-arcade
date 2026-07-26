@@ -46,7 +46,8 @@
 
     .row {
       display: grid;
-      grid-template-columns: repeat(5, var(--cell));
+      /* --cols is set from JS: a six-letter row wraps if this stays at 5. */
+      grid-template-columns: repeat(var(--cols, 5), var(--cell));
       gap: var(--gap);
     }
 
@@ -144,6 +145,30 @@
     .key.hit  { background: var(--hit);  color: #04140b; }
     .key.near { background: var(--near); color: #1a1200; }
     .key.miss { background: var(--miss); color: #6c6c88; }
+
+    /* Word-length picker. Same look as the shared difficulty bar, but always
+       visible: every length has its own daily, not just practice. */
+    .length-bar {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      margin: 12px 0 2px;
+    }
+
+    .length-bar button {
+      min-width: 44px;
+      padding: 7px 0;
+      font-size: 0.9rem;
+      font-weight: bold;
+      background: rgba(15, 15, 36, 0.85);
+      border: 1px solid rgba(0, 242, 255, 0.3);
+    }
+
+    .length-bar button.active {
+      background: var(--accent);
+      color: #04140b;
+      border-color: var(--accent);
+    }
 
     /* Revealed hints, pinned above the keyboard so a hint stays useful after
        the toast that announced it has gone. */
@@ -340,6 +365,10 @@
         <strong id="puzzleEl">#1</strong>
       </div>
       <div class="hud-panel">
+        <span>Huruf</span>
+        <strong id="lenEl">5</strong>
+      </div>
+      <div class="hud-panel">
         <span>Rentetan</span>
         <strong id="streakEl">0</strong>
       </div>
@@ -375,7 +404,7 @@
 
   <div class="overlay" id="startOverlay">
     <h1>🌺 Teka Kata Neon</h1>
-    <p>Satu perkataan lima huruf, enam tekaan. Setiap tekaan akan menyala untuk menunjukkan sejauh mana anda hampir.</p>
+    <p>Satu perkataan tersembunyi — pilih panjangnya di bawah. Setiap tekaan akan menyala untuk menunjukkan sejauh mana anda hampir.</p>
 
     <div class="example">
       <div class="row-mini">
@@ -393,6 +422,9 @@
     </div>
 
     <p class="mode-line" id="startModeLine"></p>
+
+    <div class="length-bar" id="lengthBar"></div>
+    <p class="diff-note" id="lenNote"></p>
 
     <div class="difficulty-bar hidden" id="difficultyBar">
       <button data-diff="easy" onclick="setDifficulty('easy')">Mudah</button>
@@ -412,7 +444,7 @@
 
   <div class="overlay hidden" id="helpOverlay">
     <h1>❔ Cara Bermain</h1>
-    <p>Taip mana-mana perkataan lima huruf dan tekan Enter. Jubin akan menunjukkan markah setiap huruf.</p>
+    <p>Taip mana-mana perkataan Melayu sepanjang yang betul dan tekan Enter. Jubin akan menunjukkan markah setiap huruf.</p>
 
     <div class="example">
       <div class="row-mini">
@@ -429,9 +461,10 @@
       </div>
     </div>
 
+    <p>Pilih panjang perkataan — <strong>3, 4, 5 atau 6</strong> huruf. Lebih pendek bukan lebih mudah: tiga huruf memberi sangat sedikit maklumat, jadi pusingan pendek dapat tekaan tambahan. Setiap panjang ada teka harian dan rentetannya sendiri.</p>
     <p>Huruf berulang hanya menyala sebanyak kali ia muncul dalam jawapan — lebihannya bertukar kelabu.</p>
     <p>Buntu? <strong>💡 Petunjuk</strong> mendedahkan satu huruf pada tempat sebenarnya. Teka harian dapat satu; latihan Mudah dapat dua.</p>
-    <p>Mana-mana perkataan Melayu lima huruf boleh diteka — anda tidak terhad kepada perkataan yang boleh menjadi jawapan.</p>
+    <p>Mana-mana perkataan Melayu sepanjang itu boleh diteka — anda tidak terhad kepada perkataan yang boleh menjadi jawapan.</p>
     <p><strong>Harian</strong> ialah perkataan yang sama untuk semua orang, sekali sehari. <strong>Latihan</strong> ialah perkataan rawak baharu bila-bila masa.</p>
     <p>Dalam latihan <strong>Sukar</strong> tiada petunjuk, dan setiap petunjuk yang anda temui mesti muncul dalam tekaan seterusnya.</p>
 
@@ -498,82 +531,192 @@
   </div>
 
   <script src="../../shared/arcade.js"></script>
-  <script src="dictionary.js"></script>
   <script>
-    // -------------------------------------------------------------- words ---
-    // The answer pool: 643 everyday Malay five-letter words, in standard
-    // Malaysian spelling. Kept separate from the much larger accepted-guess
-    // dictionary in dictionary.js, because the two jobs pull in opposite
-    // directions — answers should be words everybody knows, while guesses
-    // should almost never be refused.
+    // --------------------------------------------------------------- words ---
+    // Kumpulan jawapan, satu bagi setiap panjang perkataan, dalam ejaan Melayu
+    // Malaysia baku. Berasingan daripada kamus tekaan dalam dict-<n>.js kerana
+    // dua tugas itu bertentangan arah: jawapan patut perkataan yang semua orang
+    // tahu, manakala tekaan hampir tidak sepatutnya ditolak.
     //
-    // Hand-picked rather than taken off the top of the frequency list, because
-    // the corpus behind it is film subtitles: it mixes Indonesian forms in with
-    // Malay ones (pikir/fikir, menit/minit, musik/muzik, kabar/khabar), and it
-    // is thick with character names. Every word here was then checked back
-    // against that corpus, so nothing in the pool is a word nobody actually
-    // uses. No answer has more than three same-pattern neighbours inside the
-    // pool, so no puzzle comes down to a blind pick.
-    const WORDS = `
-      abadi abang aduan agama agung ajaib akaun akhir akses aktif alami ambil ampun andai
-      angin angka angsa arnab artis asing askar asyik atlet babak badai badan badut bagus
-      bahan bakar bakat balai balas balik bantu basah basuh batas batuk bawah bayar beban
-      bebas bedah bekas belas belok belon belum benar benci benda benih beras berat beruk
-      besar besok betul biasa bibir bijak bilik bocor bodoh boleh bomba bosan botak botol
-      buang budak bukan bukit bukti bulan bulat buluh bunga bunuh bunyi buruk busuk busur
-      cabar cabut cacat cakap calon catur cawan cekap cemas cepat cerah ceria cikgu cinta
-      cipta comel corak cuaca cukai cukup cukur culik dadah dalam damai dapat dapur darab
-      darah darat dasar datuk degil dekat demam denda depan detik dewan duduk dungu dunia
-      emosi empat encik enjin entah faham fakta fasal fikir filem fizik fokus gadai gadis
-      gagah gagal gajah ganas ganda ganti garaj garam garis garpu gelap gelar gelas gempa
-      gemuk gerak getah ghaib gigit gitar gosok gugup gurun gusti habis hadir hafal hajat
-      hakim halau halus hantu hanya haram harap harga harta harus hasil hayat hebat helah
-      henti hidup hijau hirup hisap hitam hodoh hujan hukum huruf hutan iaitu ialah iblis
-      iklan indah ingat ingin isnin jahat jahit jaket jalan jalur jambu jamin janji jarak
-      jarum jatuh jawab jejak jelas jenis jerit jijik jiran juara jubah jujur julai jumpa
-      jurus kabel kabin kabur kacak kadar kagum kakak kalah kalau kalis kanan kapak kapal
-      kargo karut karya kasar kasih kasut katak katil kawal kawan kebal kebun kecil kedai
-      kedua kejam kejap kejar kekal kelab kelas kemas kenal kerap keras kerja kesal kesan
-      ketam ketat ketua ketuk kicap kilat kimia kirim kisah kitab koboi kolam kolej komen
-      kotak kotor kuali kuasa kubur kukuh kulit kunci lahir lalat laman lampu lanun lapan
-      lapar lapor latar lawak lawan layan layar lazat lebah lebar lebih leher lekas lemah
-      lemas lembu lepas lesen letak letih lewat licik lidah lihat lilin litar logam logik
-      lukis lulus lumba lurus lutut mabuk macam magik mahal mahir makam makan makin makna
-      malah malam malas mampu mandi manis marah masak masam masih masin masuk mayat medan
-      merah mesej mesin mesra mesti mewah milik mimpi minat minit minta minum mirip mitos
-      modal moden mohon mudah mulai mulia mulut murah murid musim musuh muzik nafas nafsu
-      nakal namun nanti nasib nenek nilai nipis nyata nyawa objek ombak orang padam padan
-      pagar pahit pakai pakar pakej paksa palsu panah panas pandu panik papan parti paruh
-      parut pasal pasar pasir pasti patah patik patuh patut payah pecah pecat pedas pekak
-      pekan pelan pelik peluk penat penuh perak pergi perlu perut pesan pesta petik petir
-      piala pihak pilih pintu pisah pisau poket pokok polis pucat puisi pukul pulau pulih
-      puluh punca punya purba pusat putar putih putus racun rajin rakam rakan rakit ramah
-      ramai rapat rasmi ratus rawak rehat rekod retak riang ribut rindu risau roket rokok
-      rosak ruang rumah rumit rusuk sabar sabtu saham sakit saksi salah salam salji saman
-      saraf sawah sayap sayur sebab sebut sedap sedar sedia sedih segar sejak sejam sejuk
-      selam semak semua semut sepak serah seram serta sesak sesat setia siang siapa sibuk
-      sifar sifat sihat sihir sikap sikat sikit silam silap sinar singa siput skala skrin
-      solek sopan sosej suami suara suatu subuh sudah sudut sukan sukar sulit sunyi surat
-      suruh susah tabik tahan tahap tahun tajam tajuk takut tamak taman tamat tanah tanam
-      tanda tanpa tanya tapak tarik tasik tayar tebal tegas tekak tekan teksi telah telan
-      teluk telur teman tenis tentu teori tepat tepuk teruk terus tetap tewas tiada tidak
-      tidur tikam tiket tikus tilam timur tipis titik tolak tolol topik tuala tubuh tugas
-      tuhan tujuh tukar tulen tulis tumit tunai tupai turun turut tutup udang udara ujian
-      ulang umpan undur untuk upaya usaha utama utara versi wabak wahai wajah wajar wakil
-      waktu walau wangi waran waras warga waris warna watak wujud yakin yatim zaman
-    `.trim().split(/\s+/);
+    // Dipilih dengan tangan, bukan diambil terus dari senarai kekerapan, kerana
+    // korpusnya sarikata filem: ia mencampurkan bentuk Indonesia dengan Melayu
+    // (pikir/fikir, menit/minit, musik/muzik, kabar/khabar) dan penuh nama watak.
+    // Setiap perkataan disemak semula terhadap korpus itu, jadi tiada jawapan
+    // yang tidak pernah digunakan orang.
+    //
+    // Perkataan pendek lebih SUKAR, bukan lebih mudah — tiga huruf memberi
+    // sangat sedikit maklumat setiap tekaan, jadi kumpulan tiga huruf sengaja
+    // kecil; perbendaharaan Melayu tiga huruf pun tipis.
+    const ANSWER_POOLS = {
+      3: `
+        abu ada air ais aku apa api bab bar bas bau beg bil bom bot bui but cap cek cip dah
+        dam dan dia doa dua ela esa gam gas gua hak hal ibu ini isi isu itu jag jam kad kal
+        kan kau kek kem kes kod kos lif lot mak nak nil pam pil pos pun rak roh sah sel sen
+        set sup tab tag tak tar tau tim tin ton tua tut ubi uji zon
+      `,
+      4: `
+        abad adik adil aduh agak agar agen ahli ajak ajar akal akan aksi akui alam alat alih
+        aman amat anak anda aneh arah arak asal asap asas asli atas atau atuk awak awal awam
+        awan awas ayah ayam ayat ayuh babi baca bagi baik baju bang bank bapa baru batu bawa
+        bayi beli beri besi beta biar bila bina biru blok bola buah buat budi buka buku bulu
+        bumi cina cium cuba cucu cuma curi cuti dada data daun daya debu demi desa dewa diam
+        diri dosa duit dulu ejen ekor elok emak emas enak enam esok fail foto gaji gaun gaya
+        geng gila gula guna guru hari hati helo hero idea ikan ikat ikut ilmu inci ipar izin
+        jadi jaga jala jari jasa jauh jika jiwa jual juga juri juta kaca kain kaki kaku kali
+        kami kamu kata kaum kaya kayu keju kena kera khas kini kita kopi kota krim kuat kubu
+        kuda kuih kuil kuku labu laci lagi lagu lain laju laku lalu lama laut lawa lega lena
+        liar lidi lima luar luas lucu luka lupa maaf madu mahu main maju maka malu mana mari
+        masa mata mati maut mega meja misi muat muda muka mula nada naga naik nama nasi nota
+        okey oleh otak otot pada padi pagi paha paip paku pala para pasu paus pena peti pita
+        puak puan puas pula raja rasa ratu raut raya rela ribu roti rugi rupa rusa saat saiz
+        saja sama sana sang sapu satu saya segi seni sewa sial siap sila sini sisa sisi situ
+        soal suci sudi suhu suka suku susu tadi tahu tali tamu tapi tebu teka temu tepi tiap
+        tiba tiga tipu tiru tong topi trak tuan tugu tuju ubah ubat ucap ular umum umur unik
+        unit upah usah usia wain waja wang wira yang
+      `,
+      5: `
+        abadi abang aduan agama agung ajaib akaun akhir akses aktif alami ambil ampun andai
+        angin angka angsa arnab artis asing askar asyik atlet babak badai badan badut bagus
+        bahan bakar bakat balai balas balik bantu basah basuh batas batuk bawah bayar beban
+        bebas bedah bekas belas belok belon belum benar benci benda benih beras berat beruk
+        besar besok betul biasa bibir bijak bilik bocor bodoh boleh bomba bosan botak botol
+        buang budak bukan bukit bukti bulan bulat buluh bunga bunuh bunyi buruk busuk busur
+        cabar cabut cacat cakap calon catur cawan cekap cemas cepat cerah ceria cikgu cinta
+        cipta comel corak cuaca cukai cukup cukur culik dadah dalam damai dapat dapur darab
+        darah darat dasar datuk degil dekat demam denda depan detik dewan duduk dungu dunia
+        emosi empat encik enjin entah faham fakta fasal fikir filem fizik fokus gadai gadis
+        gagah gagal gajah ganas ganda ganti garaj garam garis garpu gelap gelar gelas gempa
+        gemuk gerak getah ghaib gigit gitar gosok gugup gurun gusti habis hadir hafal hajat
+        hakim halau halus hantu hanya haram harap harga harta harus hasil hayat hebat helah
+        henti hidup hijau hirup hisap hitam hodoh hujan hukum huruf hutan iaitu ialah iblis
+        iklan indah ingat ingin isnin jahat jahit jaket jalan jalur jambu jamin janji jarak
+        jarum jatuh jawab jejak jelas jenis jerit jijik jiran juara jubah jujur julai jumpa
+        jurus kabel kabin kabur kacak kadar kagum kakak kalah kalau kalis kanan kapak kapal
+        kargo karut karya kasar kasih kasut katak katil kawal kawan kebal kebun kecil kedai
+        kedua kejam kejap kejar kekal kelab kelas kemas kenal kerap keras kerja kesal kesan
+        ketam ketat ketua ketuk kicap kilat kimia kirim kisah kitab koboi kolam kolej komen
+        kotak kotor kuali kuasa kubur kukuh kulit kunci lahir lalat laman lampu lanun lapan
+        lapar lapor latar lawak lawan layan layar lazat lebah lebar lebih leher lekas lemah
+        lemas lembu lepas lesen letak letih lewat licik lidah lihat lilin litar logam logik
+        lukis lulus lumba lurus lutut mabuk macam magik mahal mahir makam makan makin makna
+        malah malam malas mampu mandi manis marah masak masam masih masin masuk mayat medan
+        merah mesej mesin mesra mesti mewah milik mimpi minat minit minta minum mirip mitos
+        modal moden mohon mudah mulai mulia mulut murah murid musim musuh muzik nafas nafsu
+        nakal namun nanti nasib nenek nilai nipis nyata nyawa objek ombak orang padam padan
+        pagar pahit pakai pakar pakej paksa palsu panah panas pandu panik papan parti paruh
+        parut pasal pasar pasir pasti patah patik patuh patut payah pecah pecat pedas pekak
+        pekan pelan pelik peluk penat penuh perak pergi perlu perut pesan pesta petik petir
+        piala pihak pilih pintu pisah pisau poket pokok polis pucat puisi pukul pulau pulih
+        puluh punca punya purba pusat putar putih putus racun rajin rakam rakan rakit ramah
+        ramai rapat rasmi ratus rawak rehat rekod retak riang ribut rindu risau roket rokok
+        rosak ruang rumah rumit rusuk sabar sabtu saham sakit saksi salah salam salji saman
+        saraf sawah sayap sayur sebab sebut sedap sedar sedia sedih segar sejak sejam sejuk
+        selam semak semua semut sepak serah seram serta sesak sesat setia siang siapa sibuk
+        sifar sifat sihat sihir sikap sikat sikit silam silap sinar singa siput skala skrin
+        solek sopan sosej suami suara suatu subuh sudah sudut sukan sukar sulit sunyi surat
+        suruh susah tabik tahan tahap tahun tajam tajuk takut tamak taman tamat tanah tanam
+        tanda tanpa tanya tapak tarik tasik tayar tebal tegas tekak tekan teksi telah telan
+        teluk telur teman tenis tentu teori tepat tepuk teruk terus tetap tewas tiada tidak
+        tidur tikam tiket tikus tilam timur tipis titik tolak tolol topik tuala tubuh tugas
+        tuhan tujuh tukar tulen tulis tumit tunai tupai turun turut tutup udang udara ujian
+        ulang umpan undur untuk upaya usaha utama utara versi wabak wahai wajah wajar wakil
+        waktu walau wangi waran waras warga waris warna watak wujud yakin yatim zaman
+      `,
+      6: `
+        adakah adalah adanya afrika akhbar akibat alamak alamat alasan almari amaran anggap
+        angkat anjing antara apakah arahan bahasa bahawa bahaya bahkan bandar bangga bangsa
+        bangun banyak barang batang bateri begini begitu beliau bentuk berada berani berapa
+        berasa berbau berdoa berdua berhak berita bersih betapa bicara bidang bimbit bising
+        bisnes bohong burung butang cahaya campur cantik cedera celaka cerita cermin cincin
+        ciuman coklat daerah daftar daging dahulu darjah datang dendam dengan dengar dewasa
+        diberi dibina dibuat dibuka dicuri dijual dingin doktor enggan engkau eropah gambar
+        ganggu genius gereja gudang gunung hadapi hadiah haiwan hampir hancur hangat hantar
+        hargai hendak hidung hilang hingga hormat hujung hutang ikatan impian istana isteri
+        jadual jangan jangka jarang jemput jenaka jerman jumlah kahwin kaitan kajian kalian
+        kamera kapten kecewa keldai keliru keluar kenapa kepada kepala kerana kereta kering
+        kertas kerusi ketawa ketiga ketika khabar khusus kilang kiraan kongsi korang korban
+        kosong kredit kucing kuning kurang ladang laluan lambat lancar langit lantai lautan
+        lelaki lembut lengan lokasi lompat lorong lubang mainan majlis makcik makmal maksud
+        malang mangsa markas memang memori menang menara menari menipu menuju merasa merayu
+        mereka miliki minggu minyak miskin monyet muncul muntah musnah nampak negara negeri
+        neraka nombor normal padang paderi pakcik paling pandai pantai pantas pasang patung
+        pedang peduli pegang peguam peluru pemain pemuda penari pendek penipu pentas perahu
+        perang pernah petang pindah pingat pinjam pintar pistol planet potong projek proses
+        pulang puncak pusing putera puteri rahsia rakyat rambut rantai rasuah remaja rendah
+        ringan risiko sahaja saling sambil sampah sampai sangat sangka sarang sarjan sarkas
+        sayang sebaik sebuah secara sedang seekor segala segera sehari sejati sejauh sekali
+        selagi selain selalu selama selesa seluar semasa sembuh semoga sempat semula senang
+        sentuh senyap senyum sepupu serang sering serius sertai sesuai setiap setuju seumur
+        siaran siasat simbol simpan sistem soalan stabil stesen subjek sultan sumber sumpah
+        sungai supaya suspek syarat syurga takdir takkan talian tambah tampak tandas tangan
+        tangga tangki tarian tarikh teknik tembak tembok tempat tempoh tenaga tenang tengah
+        tengok terang terasa terima terjun teruja tetamu tetapi tinggi tolong topeng tuanku
+        tujuan tukang tulang tumbuh tunduk tunggu tunjuk ucapan ulangi urusan wanita
+      `
+    };
+
+    /** length -> the words that can be the answer at that length. */
+    const ANSWERS = {};
+    Object.keys(ANSWER_POOLS).forEach(k => {
+      ANSWERS[k] = ANSWER_POOLS[k].trim().split(/\s+/);
+    });
+
+    let WORDS = ANSWERS[5];        // pool for the length being played
 
     /**
-     * Everything the game will accept as a guess. dictionary.js is a plain
-     * script rather than a module, so if it ever fails to load the game still
-     * runs — it just falls back to accepting the answer pool only.
+     * Accepted-guess dictionaries, fetched one length at a time.
+     *
+     * All four at once is far too much to send on every visit — the English
+     * six-letter list alone is 82KB gzipped — and a round only ever needs one.
+     * Each dict-<n>.js is a plain script that appends itself to the global, so
+     * injecting a tag is enough. If one fails to load the game still plays; it
+     * just falls back to accepting that length's answer pool only.
      */
-    const DICT = new Set(Array.isArray(window.CIPHER_MS_DICT) ? window.CIPHER_MS_DICT : WORDS);
-    WORDS.forEach(w => DICT.add(w));
+    const DICT_CACHE = {};              // length -> Set of legal guesses
+    let DICT = new Set();                // the set for the length in play
+    let dictReady = false;
+
+    function loadDict(n) {
+      if (DICT_CACHE[n]) return Promise.resolve(DICT_CACHE[n]);
+      return new Promise(resolve => {
+        const finish = raw => {
+          const set = new Set(Array.isArray(raw) ? raw : []);
+          ANSWERS[n].forEach(w => set.add(w));   // an answer is always guessable
+          DICT_CACHE[n] = set;
+          resolve(set);
+        };
+        const s = document.createElement('script');
+        s.src = 'dict-' + n + '.js';
+        s.onload = () => finish((window.CIPHER_MS_DICT || {})[n]);
+        s.onerror = () => finish(null);
+        document.head.appendChild(s);
+      });
+    }
+
+    /** Points DICT at a length, loading that file the first time it is needed. */
+    function useDict(n) {
+      dictReady = false;
+      return loadDict(n).then(set => {
+        if (cols === n) { DICT = set; dictReady = true; updateHint(); }
+        return set;
+      });
+    }
 
     // -------------------------------------------------------------- state ---
-    const ROWS = 6;
-    const COLS = 5;
+    const LENGTHS = [3, 4, 5, 6];
+    const DEFAULT_LEN = 5;
+
+    /**
+     * Guesses granted per word length at the standard difficulty.
+     *
+     * Not length + 1, which is the intuitive rule and the wrong one. Measured
+     * with a solver over each answer pool: five letters are comfortable on six
+     * guesses and six letters on seven, while three and four need seven, because
+     * every guess reveals so much less when the word is short.
+     */
+    const BASE_GUESSES = { 3: 7, 4: 7, 5: 6, 6: 7 };
+
+    let cols = DEFAULT_LEN;       // letters per word, chosen by the player
     const FLIP_MS = 500;          // one tile's flip animation
     const FLIP_STAGGER = 260;     // gap between neighbouring tiles starting
     const KEY_LAYOUT = [
@@ -582,10 +725,12 @@
       ['enter', ...'zxcvbnm'.split(''), 'back']
     ];
 
+    // extraRows adds to BASE_GUESSES for the chosen length, so a tier means
+    // the same thing whichever word size the player picks.
     const DIFFICULTIES = {
-      easy:   { rows: 7, hints: 2, hardMode: false, note: 'Mudah — tujuh tekaan dan dua petunjuk.' },
-      medium: { rows: 6, hints: 1, hardMode: false, note: 'Sederhana — enam tekaan, satu petunjuk.' },
-      hard:   { rows: 6, hints: 0, hardMode: true,  note: 'Sukar — enam tekaan, tiada petunjuk, dan setiap petunjuk mesti diguna semula.' }
+      easy:   { extraRows: 1, hints: 2, hardMode: false, note: 'Mudah — satu tekaan tambahan dan dua petunjuk.' },
+      medium: { extraRows: 0, hints: 1, hardMode: false, note: 'Sederhana — bilangan biasa bagi panjang ini, satu petunjuk.' },
+      hard:   { extraRows: 0, hints: 0, hardMode: true,  note: 'Sukar — bilangan biasa, tiada petunjuk, dan setiap petunjuk mesti diguna semula.' }
     };
 
     const DAILY_HINTS = 1;        // teka harian sentiasa dapat satu
@@ -598,6 +743,7 @@
     const puzzleEl = document.getElementById('puzzleEl');
     const puzzleLabel = document.getElementById('puzzleLabel');
     const streakEl = document.getElementById('streakEl');
+    const lenEl = document.getElementById('lenEl');
     const bestEl = document.getElementById('bestEl');
     const hintLine = document.getElementById('hintLine');
     const modeBtn = document.getElementById('modeBtn');
@@ -606,6 +752,8 @@
     const resultOverlay = document.getElementById('resultOverlay');
     const statsOverlay = document.getElementById('statsOverlay');
     const difficultyBar = document.getElementById('difficultyBar');
+    const lengthBar = document.getElementById('lengthBar');
+    const lenNote = document.getElementById('lenNote');
     const diffNote = document.getElementById('diffNote');
     const startModeLine = document.getElementById('startModeLine');
     const startModeBtn = document.getElementById('startModeBtn');
@@ -614,7 +762,7 @@
     let mode = 'daily';            // 'daily' | 'practice'
     let difficulty = 'medium';     // practice only; daily is always six guesses
     let answer = '';
-    let rows = ROWS;
+    let rows = BASE_GUESSES[DEFAULT_LEN];
     let hardMode = false;
     let guesses = [];              // committed guesses, lowercase
     let current = '';              // the row being typed
@@ -628,11 +776,31 @@
     let revealedHints = [];        // [{ pos, letter }] shown under the board
     const revealTimers = [];
 
-    // Keys used across the two modes.
-    const DAILY_KEY = 'cipherMsDaily';
-    const STATS_KEY = 'cipherMsStats';
-    const PRACTICE_KEY = 'cipherMsPractice';
+    // Storage is per word length: each length has its own daily puzzle, its own
+    // saved board and its own streak, so playing the four-letter round cannot
+    // break a five-letter streak.
+    function dailyKey(n)    { return 'cipherMsDaily_' + n; }
+    function statsKey(n)    { return 'cipherMsStats_' + n; }
+    function practiceKey(n) { return 'cipherMsPractice_' + n; }
     const DIFF_KEY = 'cipherMsDifficulty';
+    const LEN_KEY = 'cipherMsLength';
+
+    /**
+     * Before lengths existed everything was five letters and lived in unsuffixed
+     * keys. Move those across once so a long-running streak does not appear to
+     * vanish the moment this version ships.
+     */
+    (function migrateFiveLetterKeys() {
+      if (localStorage.getItem('cipherMsLenMigrated')) return;
+      [['cipherMsDaily', dailyKey(5)], ['cipherMsStats', statsKey(5)],
+       ['cipherMsPractice', practiceKey(5)]].forEach(function (pair) {
+        const old = localStorage.getItem(pair[0]);
+        if (old !== null && localStorage.getItem(pair[1]) === null) {
+          localStorage.setItem(pair[1], old);
+        }
+      });
+      localStorage.setItem('cipherMsLenMigrated', '1');
+    })();
 
     // ------------------------------------------------------- shared wraps ---
     function initAudio() { Arcade.initAudio(); }
@@ -688,7 +856,7 @@
     }
 
     function loadStats() {
-      const s = Object.assign(blankStats(), readJSON(STATS_KEY, {}));
+      const s = Object.assign(blankStats(), readJSON(statsKey(cols), {}));
       if (!Array.isArray(s.dist) || s.dist.length < 7) {
         const dist = blankStats().dist;
         if (Array.isArray(s.dist)) s.dist.forEach((v, i) => { if (i < 7) dist[i] = v | 0; });
@@ -698,12 +866,17 @@
     }
 
     function loadPractice() {
-      return Object.assign({ played: 0, wins: 0, streak: 0, maxStreak: 0 }, readJSON(PRACTICE_KEY, {}));
+      return Object.assign({ played: 0, wins: 0, streak: 0, maxStreak: 0 }, readJSON(practiceKey(cols), {}));
     }
 
     /** The number the arcade home page shows for this game. */
     function syncBestKey() {
-      const best = Math.max(loadStats().maxStreak, loadPractice().maxStreak);
+      let best = 0;
+      LENGTHS.forEach(function (n) {
+        const s = Object.assign(blankStats(), readJSON(statsKey(n), {}));
+        const pr = Object.assign({ maxStreak: 0 }, readJSON(practiceKey(n), {}));
+        best = Math.max(best, s.maxStreak | 0, pr.maxStreak | 0);
+      });
       Arcade.setBestScore('cipherMsBest', best);
       return best;
     }
@@ -756,7 +929,7 @@
       for (const g of guesses) {
         const marks = scoreGuess(g, answer);
         const seen = {};
-        for (let i = 0; i < COLS; i++) {
+        for (let i = 0; i < cols; i++) {
           if (marks[i] === 'hit' && guess[i] !== g[i]) {
             return `Huruf ${ordinal(i + 1)} mestilah ${g[i].toUpperCase()}`;
           }
@@ -785,7 +958,7 @@
     function knownPositions() {
       const known = new Set();
       guesses.forEach(g => {
-        for (let i = 0; i < COLS; i++) if (g[i] === answer[i]) known.add(i);
+        for (let i = 0; i < cols; i++) if (g[i] === answer[i]) known.add(i);
       });
       revealedHints.forEach(h => known.add(h.pos));
       return known;
@@ -799,7 +972,7 @@
       }
       const known = knownPositions();
       const options = [];
-      for (let i = 0; i < COLS; i++) if (!known.has(i)) options.push(i);
+      for (let i = 0; i < cols; i++) if (!known.has(i)) options.push(i);
       if (!options.length) {
         showToast('Semua huruf sudah anda ketahui!', '#ffb400', 1400);
         return;
@@ -844,11 +1017,12 @@
     function buildBoard() {
       board.innerHTML = '';
       board.style.setProperty('--rows', rows);
+      board.style.setProperty('--cols', cols);
       for (let r = 0; r < rows; r++) {
         const row = document.createElement('div');
         row.className = 'row';
         row.dataset.row = r;
-        for (let c = 0; c < COLS; c++) {
+        for (let c = 0; c < cols; c++) {
           const cell = document.createElement('div');
           cell.className = 'cell';
           cell.dataset.row = r;
@@ -887,7 +1061,7 @@
       for (const g of [6, 5, 4, 3]) {
         gap = g;
         cell = Math.min(56,
-          Math.floor((availW - (COLS - 1) * g) / COLS),
+          Math.floor((availW - (cols - 1) * g) / cols),
           Math.floor((availH - (rows - 1) * g) / rows));
         if (cell >= 40 || g === 3) break;
       }
@@ -901,7 +1075,7 @@
     function renderBoard(animateLastRow) {
       for (let r = 0; r < rows; r++) {
         const guess = guesses[r];
-        for (let c = 0; c < COLS; c++) {
+        for (let c = 0; c < cols; c++) {
           const cell = cellAt(r, c);
           cell.className = 'cell';
           if (guess) {
@@ -958,6 +1132,7 @@
       modeEl.textContent = mode === 'daily' ? 'Harian' : 'Latihan';
       puzzleLabel.textContent = mode === 'daily' ? 'Teka' : 'Tahap';
       puzzleEl.textContent = mode === 'daily' ? `#${dayIndex}` : DIFF_NAMES[difficulty];
+      lenEl.textContent = cols;
       streakEl.textContent = stats.streak;
       bestEl.textContent = stats.maxStreak;
       modeBtn.innerHTML = mode === 'daily'
@@ -985,7 +1160,7 @@
     }
 
     function pressLetter(ch) {
-      if (!canType() || current.length >= COLS) return;
+      if (!canType() || current.length >= cols) return;
       current += ch;
       const cell = cellAt(guesses.length, current.length - 1);
       cell.textContent = ch;
@@ -1016,7 +1191,8 @@
 
     function submitGuess() {
       if (!canType()) return;
-      if (current.length < COLS) return rejectRow('Huruf tidak cukup');
+      if (!dictReady) return rejectRow('Memuatkan senarai kata…');
+      if (current.length < cols) return rejectRow('Huruf tidak cukup');
       if (!DICT.has(current)) return rejectRow('Tiada dalam senarai kata');
       if (hardMode) {
         const err = hardModeError(current);
@@ -1043,7 +1219,7 @@
       const marks = scoreGuess(guess, answer);
       revealing = true;
 
-      for (let c = 0; c < COLS; c++) {
+      for (let c = 0; c < cols; c++) {
         const cell = cellAt(rowIndex, c);
         const delay = c * FLIP_STAGGER;
         cell.classList.remove('filled');
@@ -1059,13 +1235,13 @@
         revealing = false;
         renderKeyboard();
         finishTurn(rowIndex, guess);
-      }, (COLS - 1) * FLIP_STAGGER + FLIP_MS + 40);
+      }, (cols - 1) * FLIP_STAGGER + FLIP_MS + 40);
     }
 
     function finishTurn(rowIndex, guess) {
       if (guess === answer) {
         status = 'won';
-        for (let c = 0; c < COLS; c++) {
+        for (let c = 0; c < cols; c++) {
           const cell = cellAt(rowIndex, c);
           schedule(() => {
             cell.classList.add('dance');
@@ -1104,7 +1280,7 @@
         const isNewBest = stats.streak > stats.maxStreak;
         if (isNewBest) stats.maxStreak = stats.streak;
         stats.lastDay = dayIndex;
-        writeJSON(STATS_KEY, stats);
+        writeJSON(statsKey(cols), stats);
         newBestThisRound = won && isNewBest && stats.maxStreak > 1;
       } else {
         const p = loadPractice();
@@ -1117,7 +1293,7 @@
         }
         const isNewBest = p.streak > p.maxStreak;
         if (isNewBest) p.maxStreak = p.streak;
-        writeJSON(PRACTICE_KEY, p);
+        writeJSON(practiceKey(cols), p);
         newBestThisRound = won && isNewBest && p.maxStreak > 1;
       }
       const best = syncBestKey();
@@ -1130,7 +1306,7 @@
     /** Only the daily puzzle is resumable; practice words are throwaway. */
     function saveProgress() {
       if (mode !== 'daily') return;
-      writeJSON(DAILY_KEY, {
+      writeJSON(dailyKey(cols), {
         day: dayIndex,
         answer: answer,          // guards against the answer pool changing
         guesses: guesses,
@@ -1141,13 +1317,13 @@
     }
 
     function loadProgress() {
-      const saved = readJSON(DAILY_KEY, null);
+      const saved = readJSON(dailyKey(cols), null);
       if (!saved || saved.day !== dayIndex || !Array.isArray(saved.guesses)) return false;
       // If the answer pool shifted under a saved game, its colours would now be
       // nonsense. Older saves predate the field and are let through.
       if (saved.answer !== undefined && saved.answer !== answer) return false;
 
-      guesses = saved.guesses.filter(g => typeof g === 'string' && g.length === COLS).slice(0, rows);
+      guesses = saved.guesses.filter(g => typeof g === 'string' && g.length === cols).slice(0, rows);
       status = saved.status === 'won' || saved.status === 'lost' ? saved.status : 'playing';
       // Trust the letters, not the stored verdict: recompute the outcome.
       if (guesses[guesses.length - 1] === answer) status = 'won';
@@ -1155,7 +1331,7 @@
       else if (status !== 'playing') status = 'playing';
 
       revealedHints = (Array.isArray(saved.hints) ? saved.hints : []).filter(h =>
-        h && Number.isInteger(h.pos) && h.pos >= 0 && h.pos < COLS && h.letter === answer[h.pos]);
+        h && Number.isInteger(h.pos) && h.pos >= 0 && h.pos < cols && h.letter === answer[h.pos]);
       hintsLeft = Number.isInteger(saved.hintsLeft)
         ? Math.max(0, Math.min(hintsForRound(), saved.hintsLeft))
         : Math.max(0, hintsForRound() - revealedHints.length);
@@ -1168,6 +1344,41 @@
         .forEach(o => o.classList.add('hidden'));
     }
 
+    /** Baris di bawah butang panjang: apa sebenarnya pilihan itu beri. */
+    function LEN_NOTE(n, guesses) {
+      return n + ' huruf · ' + guesses + ' tekaan · ' + ANSWERS[n].length + ' perkataan';
+    }
+
+    function buildLengthBar() {
+      lengthBar.innerHTML = '';
+      LENGTHS.forEach(function (n) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.len = n;
+        btn.textContent = n;
+        btn.addEventListener('click', function () { setLength(n); });
+        lengthBar.appendChild(btn);
+      });
+    }
+
+    function setLength(n) {
+      if (!ANSWERS[n]) return;
+      cols = n;
+      localStorage.setItem(LEN_KEY, String(n));
+      WORDS = ANSWERS[n];
+      lengthBar.querySelectorAll('button').forEach(function (b) {
+        b.classList.toggle('active', Number(b.dataset.len) === n);
+      });
+      refreshLenNote();
+      useDict(n);                 // warm it while the overlay is still up
+    }
+
+    function refreshLenNote() {
+      const guesses = BASE_GUESSES[cols] +
+        (mode === 'daily' ? 0 : DIFFICULTIES[difficulty].extraRows);
+      lenNote.textContent = LEN_NOTE(cols, guesses);
+    }
+
     function setDifficulty(d) {
       if (!DIFFICULTIES[d]) return;
       difficulty = d;
@@ -1176,10 +1387,12 @@
         b.classList.toggle('active', b.dataset.diff === d);
       });
       diffNote.textContent = DIFFICULTIES[d].note;
+      refreshLenNote();
     }
 
     function toggleStartMode() {
       mode = mode === 'daily' ? 'practice' : 'daily';
+      refreshLenNote();
       refreshStartOverlay();
     }
 
@@ -1190,12 +1403,12 @@
       startModeBtn.textContent = isDaily ? '🎲 Mod Latihan' : '📅 Teka Harian';
 
       if (isDaily) {
-        const saved = readJSON(DAILY_KEY, null);
+        const saved = readJSON(dailyKey(cols), null);
         const done = saved && saved.day === localDayIndex() &&
           (saved.status === 'won' || saved.status === 'lost');
         startModeLine.textContent = done
-          ? `Teka #${localDayIndex()} sudah selesai — buka untuk lihat grid anda.`
-          : `Teka harian #${localDayIndex()} — satu perkataan, enam tekaan, sama untuk semua.`;
+          ? `Teka ${cols} huruf #${localDayIndex()} sudah selesai — buka untuk lihat grid anda.`
+          : `Teka harian #${localDayIndex()} ${cols} huruf — sama untuk semua, ${BASE_GUESSES[cols]} tekaan.`;
         startBtn.textContent = done ? '▶ Lihat Hari Ini' : '▶ Main';
       } else {
         startModeLine.textContent = 'Latihan — perkataan rawak, sebanyak pusingan yang anda mahu.';
@@ -1350,8 +1563,11 @@
       newBestThisRound = false;
       revealedHints = [];
 
+      WORDS = ANSWERS[cols];
+      useDict(cols);
+
       if (mode === 'daily') {
-        rows = ROWS;
+        rows = BASE_GUESSES[cols];
         hardMode = false;
         answer = answerForDay(dayIndex);
         hintsLeft = DAILY_HINTS;
@@ -1359,7 +1575,7 @@
         loadProgress();
       } else {
         const cfg = DIFFICULTIES[difficulty];
-        rows = cfg.rows;
+        rows = BASE_GUESSES[cols] + cfg.extraRows;
         hardMode = cfg.hardMode;
         hintsLeft = cfg.hints;
         answer = WORDS[Math.floor(Math.random() * WORDS.length)];
@@ -1440,6 +1656,9 @@
     // ---------------------------------------------------------------- boot ---
     const savedDiff = localStorage.getItem(DIFF_KEY);
     if (savedDiff && DIFFICULTIES[savedDiff]) difficulty = savedDiff;
+    const savedLen = parseInt(localStorage.getItem(LEN_KEY) || '', 10);
+    buildLengthBar();
+    setLength(ANSWERS[savedLen] ? savedLen : DEFAULT_LEN);
     setDifficulty(difficulty);
 
     dayIndex = localDayIndex();

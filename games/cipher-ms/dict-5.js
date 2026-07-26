@@ -1,16 +1,12 @@
 /*
- * Teka Kata Neon — kamus tekaan.
+ * Teka Kata Neon — kamus tekaan bagi perkataan 5 huruf.
  *
- * Setiap perkataan Melayu lima huruf yang diterima sebagai tekaan. Senarai ini
- * jauh lebih luas daripada kumpulan jawapan dalam index.html: jawapan dipilih
- * supaya teka harian adil, tetapi menolak perkataan yang pemain tahu betul
- * adalah perkara paling menjengkelkan dalam permainan begini.
- *
- * Diterbitkan daripada senarai kekerapan Melayu hermitdave/FrequencyWords
- * (lesen MIT, korpus OpenSubtitles), ditapis kepada lima huruf, dengan nama
- * khas dan kata lucah dibuang.
+ * Dimuatkan bila perlu: hanya panjang yang sedang dimainkan diambil.
+ * Jauh lebih luas daripada kumpulan jawapan, kerana menolak perkataan yang
+ * pemain tahu betul adalah perkara paling menjengkelkan dalam permainan ini.
+ * Daripada hermitdave/FrequencyWords (lesen MIT, korpus OpenSubtitles).
  */
-window.CIPHER_MS_DICT = `
+(window.CIPHER_MS_DICT = window.CIPHER_MS_DICT || {})[5] = `
   aaaaa aaaah aaahh aahhh aamir aarfa aargh aaron aawak aazad abadi abang abbas abbot
   abdic abdul abhay abjad abner abort about above abrar abreu absen acara accio acorn
   acuan adaka adala adalh adams adani adhel adili adios adjan adlah adler admin adnan
