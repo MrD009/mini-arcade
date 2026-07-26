@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Mini Arcade">
+  <defs>
+    <!-- userSpaceOnUse so the gradient runs across the whole joystick rather
+         than restarting inside each shape. -->
+    <linearGradient id="neon" gradientUnits="userSpaceOnUse" x1="6" y1="4" x2="26" y2="28">
+      <stop offset="0" stop-color="#00f2ff"/>
+      <stop offset="0.55" stop-color="#8a5cff"/>
+      <stop offset="1" stop-color="#ff00aa"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="32" height="32" rx="7" fill="#0d0d1a"/>
+  <rect x="1.25" y="1.25" width="29.5" height="29.5" rx="6" fill="none"
+        stroke="#00f2ff" stroke-opacity="0.35" stroke-width="1.5"/>
+
+  <!-- Joystick: base, shaft, ball top. Kept chunky so it still reads at 16px. -->
+  <rect x="6" y="22" width="20" height="5" rx="2.5" fill="url(#neon)"/>
+  <rect x="14" y="13" width="4" height="10" fill="url(#neon)"/>
+  <circle cx="16" cy="10.5" r="5.5" fill="url(#neon)"/>
+  <circle cx="14.2" cy="8.7" r="1.6" fill="#ffffff" fill-opacity="0.45"/>
+</svg>
