@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🧩 Neon Cipher | Mini Arcade</title>
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    /* Width of this game's play column; the rest of the chrome is
+       inherited from the shared arcade sheet. */
+    :root {
+      --play-max: 480px;
+      --hit: #00ff88;      /* right letter, right spot */
+      --near: #ffb400;     /* right letter, wrong spot */
+      --miss: #2a2a44;     /* letter is not in the word */
+    }
+
+    body {
+      background: radial-gradient(ellipse at top, #14142c 0%, #050510 100%);
+    }
+
+    /* This is a DOM game, so the ui-layer holds real content rather than
+       floating over a canvas — it needs to take pointer events itself. */
+    .ui-layer { pointer-events: auto; }
+
+    /* ------------------------------------------------------------ board --- */
+
+    .board-wrap {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 0;
+      padding: 4px 14px;
+    }
+
+    .board {
+      display: grid;
+      gap: var(--gap);
+      --gap: 6px;
+      --cell: 56px;
+      grid-template-rows: repeat(var(--rows), var(--cell));
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: repeat(5, var(--cell));
+      gap: var(--gap);
+    }
+
+    .cell {
+      border: 2px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: calc(var(--cell) * 0.52);
+      font-weight: bold;
+      text-transform: uppercase;
+      color: var(--text);
+      background: rgba(15, 15, 36, 0.6);
+      user-select: none;
+    }
+
+    .cell.filled {
+      border-color: rgba(0, 242, 255, 0.55);
+      animation: pop 0.12s ease-out;
+    }
+
+    @keyframes pop {
+      0% { transform: scale(0.86); }
+      100% { transform: scale(1); }
+    }
+
+    .cell.hit  { background: var(--hit);  border-color: var(--hit);  color: #04140b; }
+    .cell.near { background: var(--near); border-color: var(--near); color: #1a1200; }
+    .cell.miss { background: var(--miss); border-color: var(--miss); color: #8d8da8; }
+
+    /* Reveal flip: the tile turns edge-on, swaps colour, and turns back. The
+       colour classes are applied at the halfway point by the reveal timer. */
+    .cell.flip { animation: flip 0.5s ease forwards; }
+
+    @keyframes flip {
+      0%   { transform: rotateX(0deg); }
+      50%  { transform: rotateX(90deg); }
+      100% { transform: rotateX(0deg); }
+    }
+
+    .row.shake { animation: shake 0.4s; }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-7px); }
+      40% { transform: translateX(7px); }
+      60% { transform: translateX(-5px); }
+      80% { transform: translateX(5px); }
+    }
+
+    .cell.dance { animation: dance 0.5s ease; }
+
+    @keyframes dance {
+      0%, 100% { transform: translateY(0); }
+      40% { transform: translateY(-16px); }
+      70% { transform: translateY(4px); }
+    }
+
+    /* --------------------------------------------------------- keyboard --- */
+
+    .keyboard {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      width: 100%;
+      max-width: 460px;
+    }
+
+    .kb-row {
+      display: flex;
+      gap: 4px;
+      justify-content: center;
+    }
+
+    .key {
+      flex: 1 1 auto;
+      min-width: 0;
+      height: 44px;
+      padding: 0;
+      font-size: 0.8rem;
+      border-radius: 6px;
+      background: rgba(60, 60, 90, 0.9);
+      border: none;
+      color: var(--text);
+      text-transform: uppercase;
+    }
+
+    .key.wide {
+      flex: 1.6 1 auto;
+      font-size: 0.62rem;
+    }
+
+    .key:hover, .key:active { background: rgba(0, 242, 255, 0.3); transform: none; }
+    .key.hit  { background: var(--hit);  color: #04140b; }
+    .key.near { background: var(--near); color: #1a1200; }
+    .key.miss { background: var(--miss); color: #6c6c88; }
+
+    /* ---------------------------------------------------------- overlay --- */
+
+    .mode-line {
+      font-size: 0.72rem;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .example {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 12px 0 4px;
+      font-size: 0.72rem;
+      color: #999;
+      text-align: left;
+      max-width: 300px;
+    }
+
+    .example .row-mini {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .mini {
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(15, 15, 36, 0.6);
+      flex-shrink: 0;
+    }
+
+    .mini.hit  { background: var(--hit);  border-color: var(--hit);  color: #04140b; }
+    .mini.near { background: var(--near); border-color: var(--near); color: #1a1200; }
+    .mini.miss { background: var(--miss); border-color: var(--miss); color: #8d8da8; }
+
+    .answer-word {
+      font-size: 1.6rem;
+      font-weight: bold;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin: 6px 0 2px;
+    }
+
+    .share-grid {
+      font-size: 0.85rem;
+      line-height: 1.15;
+      letter-spacing: 2px;
+      margin: 10px 0 2px;
+      white-space: pre;
+    }
+
+    .next-in {
+      font-size: 0.72rem;
+      color: #888;
+      margin-top: 10px;
+    }
+
+    /* Guess distribution bars in the stats overlay. */
+    .dist {
+      width: 100%;
+      max-width: 280px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin: 6px 0 4px;
+    }
+
+    .dist-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.72rem;
+      color: #aaa;
+    }
+
+    .dist-bar {
+      background: rgba(0, 242, 255, 0.25);
+      border-radius: 3px;
+      min-width: 22px;
+      padding: 2px 6px;
+      text-align: right;
+      font-size: 0.68rem;
+      color: var(--text);
+      transition: width 0.3s;
+    }
+
+    .dist-row.current .dist-bar { background: var(--hit); color: #04140b; }
+
+    .stats-title {
+      font-size: 0.7rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 12px;
+    }
+
+    .overlay .stats { margin: 10px 0; }
+
+    /* The other games sit over a mostly-dark canvas, so the shared 0.92 scrim
+       is enough. A finished board here is a wall of bright green and amber,
+       which reads straight through the text — this one needs a solid backdrop. */
+    .overlay {
+      background: rgba(5, 5, 16, 0.985);
+      backdrop-filter: blur(8px);
+    }
+
+    /* Short viewports: shrink the tiles so the keyboard always fits. */
+    @media (max-height: 700px) {
+      .board { --cell: 46px; --gap: 5px; }
+      .key { height: 38px; }
+    }
+
+    @media (max-height: 600px) {
+      .board { --cell: 38px; --gap: 4px; }
+      .key { height: 33px; font-size: 0.72rem; }
+    }
+
+    @media (max-width: 380px) {
+      .board { --cell: 48px; --gap: 5px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span>Mode</span>
+        <strong id="modeEl">Daily</strong>
+      </div>
+      <div class="hud-panel">
+        <span id="puzzleLabel">Puzzle</span>
+        <strong id="puzzleEl">#1</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Streak</span>
+        <strong id="streakEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button id="modeBtn" onclick="switchMode()">🎲 Practice</button>
+      <button id="statsBtn" onclick="showStats()">📊 Stats</button>
+      <button id="helpBtn" onclick="showHelp()">❔ How</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="board-wrap">
+      <div class="board" id="board"></div>
+    </div>
+
+    <div class="bottom-bar" id="bottomBar">
+      <div class="hint-line" id="hintLine">Guess the five-letter word</div>
+      <div class="keyboard" id="keyboard"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🧩 Neon Cipher</h1>
+    <p>One five-letter word, six guesses. Every guess lights up to tell you how close you are.</p>
+
+    <div class="example">
+      <div class="row-mini">
+        <span class="mini hit">l</span><span class="mini">a</span><span class="mini">s</span><span class="mini">e</span><span class="mini">r</span>
+        <span><strong style="color:var(--hit)">L</strong> is in the word, in the right spot.</span>
+      </div>
+      <div class="row-mini">
+        <span class="mini">p</span><span class="mini near">i</span><span class="mini">l</span><span class="mini">o</span><span class="mini">t</span>
+        <span><strong style="color:var(--near)">I</strong> is in the word, wrong spot.</span>
+      </div>
+      <div class="row-mini">
+        <span class="mini">g</span><span class="mini">h</span><span class="mini">o</span><span class="mini miss">s</span><span class="mini">t</span>
+        <span><strong style="color:#8d8da8">S</strong> is not in the word at all.</span>
+      </div>
+    </div>
+
+    <p class="mode-line" id="startModeLine"></p>
+
+    <div class="difficulty-bar hidden" id="difficultyBar">
+      <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+      <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+      <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+    </div>
+    <p class="diff-note" id="diffNote"></p>
+
+    <button class="primary" id="startBtn" onclick="startGame()">▶ Play</button>
+    <div class="secondary-row">
+      <button id="startModeBtn" onclick="toggleStartMode()">🎲 Practice Mode</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="helpOverlay">
+    <h1>❔ How to Play</h1>
+    <p>Type any five-letter word and press Enter. The tiles reveal how each letter scores.</p>
+
+    <div class="example">
+      <div class="row-mini">
+        <span class="mini hit">a</span>
+        <span>Right letter, right spot.</span>
+      </div>
+      <div class="row-mini">
+        <span class="mini near">a</span>
+        <span>Right letter, wrong spot.</span>
+      </div>
+      <div class="row-mini">
+        <span class="mini miss">a</span>
+        <span>Not in the word.</span>
+      </div>
+    </div>
+
+    <p>Repeated letters only light up as many times as they appear in the answer — the extras go grey.</p>
+    <p><strong>Daily</strong> is the same word for everybody, once a day. <strong>Practice</strong> is a fresh random word any time you like.</p>
+    <p>On <strong>Hard</strong> practice, every hint you have uncovered has to appear in your next guess.</p>
+
+    <button class="primary" onclick="closeHelp()">Got It</button>
+  </div>
+
+  <div class="overlay hidden" id="resultOverlay">
+    <h1 id="resultTitle">🎉 Solved!</h1>
+    <p class="new-best" id="newBestTag">🔥 Longest Streak Yet!</p>
+    <p id="resultText">Nice work.</p>
+    <p class="answer-word" id="answerWord"></p>
+
+    <div class="share-grid" id="shareGrid"></div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="resGuesses">0</div>
+        <div class="lbl">Guesses</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="resStreak">0</div>
+        <div class="lbl">Streak</div>
+      </div>
+    </div>
+
+    <button class="primary" id="resultPrimary" onclick="resultPrimaryAction()">🎲 Practice Word</button>
+    <div class="secondary-row">
+      <button id="shareBtn" onclick="shareResult()">📋 Copy Result</button>
+      <button onclick="showStats()">📊 Stats</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+    <p class="next-in" id="nextIn"></p>
+  </div>
+
+  <div class="overlay hidden" id="statsOverlay">
+    <h1>Stats</h1>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="stPlayed">0</div>
+        <div class="lbl">Played</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="stWinPct">0%</div>
+        <div class="lbl">Win Rate</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="stStreak">0</div>
+        <div class="lbl">Streak</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="stMax">0</div>
+        <div class="lbl">Best Streak</div>
+      </div>
+    </div>
+
+    <div class="stats-title">Guess Distribution</div>
+    <div class="dist" id="distEl"></div>
+
+    <p class="mode-line" id="practiceLine"></p>
+
+    <button class="primary" onclick="closeStats()">Back</button>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    // -------------------------------------------------------------- words ---
+    // 887 common five-letter words. This doubles as the answer pool and the
+    // accepted-guess dictionary, so anything the game asks for it also takes.
+    const WORDS = `
+      about above abuse actor acute adieu admit adopt adult after again agent agree ahead
+      alarm album alert alike alive allow alone along alpha alter amber among anger angle
+      angry ankle apart apple apply arena argue arise arose array arrow aside asset audio
+      audit avoid awake award aware badge badly baker banjo basic basin basis beach beard
+      beast began begin begun being below bench berry birth black blade blame blank blast
+      blaze bleed blend bless blind blink block blood bloom blown blues blunt blush board
+      boast bonus boost booth bound brain brake brand brass brave bread break breed brick
+      bride brief bring brisk broad broke broom brown brush build built bunch burnt burst
+      buyer cabin cable canal candy cargo carry carve catch cause cease chain chair chalk
+      charm chart chase cheap cheat check cheek cheer chess chest chief child chill china
+      choir chose chunk cider cigar civic civil claim clamp clash class clean clear clerk
+      click cliff climb cling clock clone close cloth cloud clown coach coast cocoa colon
+      color comet comic coral couch cough could count court cover crack craft crane crash
+      crawl crazy cream creek creep crest crime crisp cross crowd crown crude cruel crush
+      crust curve cycle daily dairy dance dated dealt death debut decay decor delay delta
+      dense depth derby devil diary digit dirty ditch diver dizzy dogma doing donor doubt
+      dozen draft drain drama drank drawn dream dress dried drift drill drink drive drove
+      drown drunk dusty dwell eager eagle early earth eight elbow elder elect elite empty
+      enemy enjoy enter entry equal error essay event every exact exist extra faint fairy
+      faith false fancy fatal fault favor feast fence ferry fetch fever fiber field fiery
+      fifth fifty fight final first fjord flame flash fleet flesh flint float flock flood
+      floor flour flown fluid flush focus force forge forth forty forum found frame frank
+      fraud fresh front frost frown froze fruit fully funny gamma ghost giant glass gleam
+      glide globe glory glove going grace grade grain grand grant grape graph grasp grass
+      grave gravy great green greet grief grill grind groan groom gross group grove grown
+      guard guess guest guide guild guilt habit happy harsh haste hatch haven heard heart
+      heavy hedge hello hence hobby honey honor horse hotel house human humor hurry ideal
+      image imply index inner input irony issue ivory jeans jelly jewel joint jolly judge
+      juice jumbo karma kneel knelt knife knock known label labor large laser later laugh
+      layer learn lease least leave legal lemon level lever light liked limit linen liver
+      local lodge logic loose lorry lover lower loyal lucky lunar lunch lying magic major
+      maker mango maple march marsh match maybe mayor meant medal media melon mercy merge
+      merit merry metal meter midst might minor minus mixed mocha model modem moist money
+      month moral motor motto mount mouse mouth movie music nacho naked nasty naval nerve
+      never newly night ninja ninth noble noise north noted novel nurse occur ocean offer
+      often older olive omega onion opera orbit order organ other ought ounce outer owner
+      oxide paint panel panic paper party pasta patch pause peace peach pearl pedal penny
+      phase phone photo piano piece pilot pinch pitch pixel pizza place plain plane plant
+      plate plaza plead pluck plump point polar porch pound power press price pride prime
+      print prior prize probe prone proof proud prove pulse punch pupil puppy purse queen
+      query quest queue quick quiet quilt quite quote radar radio raise rally ranch range
+      rapid ratio reach react ready realm rebel refer relax relay reply rhyme ridge rifle
+      right rigid rinse rival river roast robin robot rocky roman rough round route royal
+      rugby ruler rumba rural sadly saint salad salon salsa samba sandy sauce scale scare
+      scarf scene scent scope score scout scrap screw seize sense serve seven shack shade
+      shaft shake shall shame shape share shark sharp shave sheep sheet shelf shell shift
+      shine shiny shirt shock shoot shore short shout shown siege sight sigma silly since
+      sixth sixty skill skirt slate sleep slept slice slide slope small smart smash smell
+      smile smoke snack snake sneak solar solid solve sorry sound south space spare spark
+      speak speed spell spend spent spice spike spill spine split spoke spoon sport spray
+      squad stack staff stage stain stair stake stall stamp stand stare start state steak
+      steal steam steel steep steer stern stick stiff still sting stock stole stone stood
+      stool store storm story stove strap straw strip stuck study stuff style sugar suite
+      sunny super surge swear sweat sweep sweet swell swept swift swing sword table taken
+      tango taste teach teeth tempo tense tenth thank theft their theme there these thick
+      thief thigh thing think third those three threw throw thumb tiger tight timer tired
+      title toast today token tooth topic torch total touch tough towel tower toxic trace
+      track trade trail train trait trash treat trend trial tribe trick tried truck truly
+      trunk trust truth twice twist ultra uncle under union unite unity until upper upset
+      urban usage usual vague valid value valve vapor vault venue verse video vigor villa
+      vinyl virus visit vital vivid vocal vodka voice voter wagon waist waste watch water
+      weary weigh weird whale wheat wheel where which while white whole whose widow width
+      witch woman women world worry worse worst worth would wound wrist write wrong wrote
+      yacht yield young youth zebra
+    `.trim().split(/\s+/);
+
+    // -------------------------------------------------------------- state ---
+    const ROWS = 6;
+    const COLS = 5;
+    const FLIP_MS = 500;          // one tile's flip animation
+    const FLIP_STAGGER = 260;     // gap between neighbouring tiles starting
+    const KEY_LAYOUT = [
+      'qwertyuiop'.split(''),
+      'asdfghjkl'.split(''),
+      ['enter', ...'zxcvbnm'.split(''), 'back']
+    ];
+
+    const DIFFICULTIES = {
+      easy:   { rows: 7, hardMode: false, note: 'Easy — seven guesses, no extra rules.' },
+      medium: { rows: 6, hardMode: false, note: 'Medium — six guesses, the classic game.' },
+      hard:   { rows: 6, hardMode: true,  note: 'Hard — six guesses, and every hint must be reused.' }
+    };
+
+    const board = document.getElementById('board');
+    const keyboardEl = document.getElementById('keyboard');
+    const toastEl = document.getElementById('toast');
+    const modeEl = document.getElementById('modeEl');
+    const puzzleEl = document.getElementById('puzzleEl');
+    const puzzleLabel = document.getElementById('puzzleLabel');
+    const streakEl = document.getElementById('streakEl');
+    const bestEl = document.getElementById('bestEl');
+    const hintLine = document.getElementById('hintLine');
+    const modeBtn = document.getElementById('modeBtn');
+    const startOverlay = document.getElementById('startOverlay');
+    const helpOverlay = document.getElementById('helpOverlay');
+    const resultOverlay = document.getElementById('resultOverlay');
+    const statsOverlay = document.getElementById('statsOverlay');
+    const difficultyBar = document.getElementById('difficultyBar');
+    const diffNote = document.getElementById('diffNote');
+    const startModeLine = document.getElementById('startModeLine');
+    const startModeBtn = document.getElementById('startModeBtn');
+    const startBtn = document.getElementById('startBtn');
+
+    let mode = 'daily';            // 'daily' | 'practice'
+    let difficulty = 'medium';     // practice only; daily is always six guesses
+    let answer = '';
+    let rows = ROWS;
+    let hardMode = false;
+    let guesses = [];              // committed guesses, lowercase
+    let current = '';              // the row being typed
+    let status = 'playing';        // 'playing' | 'won' | 'lost'
+    let revealing = false;         // input is locked while tiles flip
+    let dayIndex = 0;
+    let statsWasOpenedFromResult = false;
+    let newBestThisRound = false;
+    let nextInTimer = null;
+    const revealTimers = [];
+
+    // Keys used across the two modes.
+    const DAILY_KEY = 'cipherDaily';
+    const STATS_KEY = 'cipherStats';
+    const PRACTICE_KEY = 'cipherPractice';
+    const DIFF_KEY = 'cipherDifficulty';
+
+    // ------------------------------------------------------- shared wraps ---
+    function initAudio() { Arcade.initAudio(); }
+    function playTone(f, t, d, delay, v) { Arcade.playTone(f, t, d, delay, v); }
+    function showToast(text, color, ms) { Arcade.showToast(toastEl, text, color || '#00f2ff', ms || 1100); }
+    function toggleFullscreen() { Arcade.toggleFullscreen(); }
+
+    // -------------------------------------------------------- daily index ---
+    /**
+     * Puzzle number from the player's *local* calendar date. Building both
+     * dates from y/m/d components keeps the difference an exact whole number
+     * of days regardless of timezone or daylight saving.
+     */
+    function localDayIndex(now) {
+      const d = now || new Date();
+      const today = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const epoch = new Date(2026, 0, 1);
+      return Math.round((today - epoch) / 86400000);
+    }
+
+    /** Spreads consecutive days across the list instead of walking it in order. */
+    function answerForDay(n) {
+      const scrambled = ((n * 2654435761) % WORDS.length + WORDS.length) % WORDS.length;
+      return WORDS[scrambled];
+    }
+
+    function msUntilTomorrow(now) {
+      const d = now || new Date();
+      const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+      return midnight - d;
+    }
+
+    // ------------------------------------------------------------- store ---
+    function readJSON(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return fallback;
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : fallback;
+      } catch (e) {
+        return fallback;
+      }
+    }
+
+    function writeJSON(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (e) { /* private mode — the game still plays, it just forgets */ }
+    }
+
+    function blankStats() {
+      return { played: 0, wins: 0, streak: 0, maxStreak: 0, lastDay: null, dist: [0, 0, 0, 0, 0, 0, 0] };
+    }
+
+    function loadStats() {
+      const s = Object.assign(blankStats(), readJSON(STATS_KEY, {}));
+      if (!Array.isArray(s.dist) || s.dist.length < 7) {
+        const dist = blankStats().dist;
+        if (Array.isArray(s.dist)) s.dist.forEach((v, i) => { if (i < 7) dist[i] = v | 0; });
+        s.dist = dist;
+      }
+      return s;
+    }
+
+    function loadPractice() {
+      return Object.assign({ played: 0, wins: 0, streak: 0, maxStreak: 0 }, readJSON(PRACTICE_KEY, {}));
+    }
+
+    /** The number the arcade home page shows for this game. */
+    function syncBestKey() {
+      const best = Math.max(loadStats().maxStreak, loadPractice().maxStreak);
+      Arcade.setBestScore('cipherBest', best);
+      return best;
+    }
+
+    // ------------------------------------------------------------ scoring ---
+    /**
+     * Wordle scoring. Exact matches are claimed first and removed from the
+     * letter pool, so a guess with two of a letter against an answer with one
+     * gets a single colour and the spare goes grey.
+     */
+    function scoreGuess(guess, target) {
+      const result = new Array(guess.length).fill('miss');
+      const pool = {};
+      for (let i = 0; i < target.length; i++) {
+        if (guess[i] === target[i]) result[i] = 'hit';
+        else pool[target[i]] = (pool[target[i]] || 0) + 1;
+      }
+      for (let i = 0; i < guess.length; i++) {
+        if (result[i] === 'hit') continue;
+        const c = guess[i];
+        if (pool[c] > 0) {
+          result[i] = 'near';
+          pool[c]--;
+        }
+      }
+      return result;
+    }
+
+    const RANK = { miss: 0, near: 1, hit: 2 };
+
+    /** A key never downgrades: once green it stays green. */
+    function keyboardState() {
+      const state = {};
+      guesses.forEach(g => {
+        const marks = scoreGuess(g, answer);
+        for (let i = 0; i < g.length; i++) {
+          const c = g[i];
+          if (state[c] === undefined || RANK[marks[i]] > RANK[state[c]]) state[c] = marks[i];
+        }
+      });
+      return state;
+    }
+
+    /**
+     * Hard mode: greens have to stay put and ambers have to reappear somewhere.
+     * Returns an error message, or null when the guess is allowed.
+     */
+    function hardModeError(guess) {
+      const known = {};   // letter -> how many times it is known to be present
+      for (const g of guesses) {
+        const marks = scoreGuess(g, answer);
+        const seen = {};
+        for (let i = 0; i < COLS; i++) {
+          if (marks[i] === 'hit' && guess[i] !== g[i]) {
+            return `${ordinal(i + 1)} letter must be ${g[i].toUpperCase()}`;
+          }
+          if (marks[i] === 'hit' || marks[i] === 'near') seen[g[i]] = (seen[g[i]] || 0) + 1;
+        }
+        for (const c in seen) known[c] = Math.max(known[c] || 0, seen[c]);
+      }
+      for (const c in known) {
+        const have = guess.split('').filter(x => x === c).length;
+        if (have < known[c]) {
+          return known[c] > 1
+            ? `Guess must use ${known[c]} × ${c.toUpperCase()}`
+            : `Guess must contain ${c.toUpperCase()}`;
+        }
+      }
+      return null;
+    }
+
+    function ordinal(n) {
+      return ['1st', '2nd', '3rd', '4th', '5th'][n - 1] || `${n}th`;
+    }
+
+    // ------------------------------------------------------------ drawing ---
+    function buildBoard() {
+      board.innerHTML = '';
+      board.style.setProperty('--rows', rows);
+      for (let r = 0; r < rows; r++) {
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.dataset.row = r;
+        for (let c = 0; c < COLS; c++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.row = r;
+          cell.dataset.col = c;
+          row.appendChild(cell);
+        }
+        board.appendChild(row);
+      }
+    }
+
+    function cellAt(r, c) {
+      return board.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+    }
+
+    /** Repaints every tile from state — used on load, restore and reset. */
+    function renderBoard(animateLastRow) {
+      for (let r = 0; r < rows; r++) {
+        const guess = guesses[r];
+        for (let c = 0; c < COLS; c++) {
+          const cell = cellAt(r, c);
+          cell.className = 'cell';
+          if (guess) {
+            const marks = scoreGuess(guess, answer);
+            cell.textContent = guess[c];
+            cell.classList.add(marks[c]);
+          } else if (r === guesses.length) {
+            cell.textContent = current[c] || '';
+            if (current[c]) cell.classList.add('filled');
+          } else {
+            cell.textContent = '';
+          }
+        }
+      }
+      if (animateLastRow) { /* caller handles the flip separately */ }
+      renderKeyboard();
+    }
+
+    function buildKeyboard() {
+      keyboardEl.innerHTML = '';
+      KEY_LAYOUT.forEach(rowKeys => {
+        const row = document.createElement('div');
+        row.className = 'kb-row';
+        rowKeys.forEach(k => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'key' + (k.length > 1 ? ' wide' : '');
+          btn.dataset.key = k;
+          btn.textContent = k === 'back' ? '⌫' : (k === 'enter' ? 'Enter' : k);
+          btn.addEventListener('click', () => {
+            initAudio();
+            if (k === 'back') pressBackspace();
+            else if (k === 'enter') submitGuess();
+            else pressLetter(k);
+          });
+          row.appendChild(btn);
+        });
+        keyboardEl.appendChild(row);
+      });
+    }
+
+    function renderKeyboard() {
+      const state = keyboardState();
+      keyboardEl.querySelectorAll('.key').forEach(btn => {
+        const k = btn.dataset.key;
+        btn.classList.remove('hit', 'near', 'miss');
+        if (k.length === 1 && state[k]) btn.classList.add(state[k]);
+      });
+    }
+
+    function renderHud() {
+      const stats = mode === 'daily' ? loadStats() : loadPractice();
+      modeEl.textContent = mode === 'daily' ? 'Daily' : 'Practice';
+      puzzleLabel.textContent = mode === 'daily' ? 'Puzzle' : 'Level';
+      puzzleEl.textContent = mode === 'daily'
+        ? `#${dayIndex}`
+        : difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+      streakEl.textContent = stats.streak;
+      bestEl.textContent = stats.maxStreak;
+      modeBtn.textContent = mode === 'daily' ? '🎲 Practice' : '📅 Daily';
+      updateHint();
+    }
+
+    function updateHint() {
+      if (status === 'won') hintLine.textContent = 'Solved! 🎉';
+      else if (status === 'lost') hintLine.textContent = `The word was ${answer.toUpperCase()}`;
+      else if (hardMode) hintLine.textContent = 'Hard mode — reuse every hint you have found';
+      else hintLine.textContent = `Guess ${guesses.length + 1} of ${rows}`;
+    }
+
+    // -------------------------------------------------------------- input ---
+    function canType() {
+      return status === 'playing' && !revealing && !anyOverlayOpen();
+    }
+
+    function anyOverlayOpen() {
+      return [startOverlay, helpOverlay, resultOverlay, statsOverlay]
+        .some(o => !o.classList.contains('hidden'));
+    }
+
+    function pressLetter(ch) {
+      if (!canType() || current.length >= COLS) return;
+      current += ch;
+      const cell = cellAt(guesses.length, current.length - 1);
+      cell.textContent = ch;
+      cell.classList.add('filled');
+      playTone(320, 'square', 0.04, 0, 0.05);
+      updateHint();
+    }
+
+    function pressBackspace() {
+      if (!canType() || current.length === 0) return;
+      const cell = cellAt(guesses.length, current.length - 1);
+      cell.textContent = '';
+      cell.classList.remove('filled');
+      current = current.slice(0, -1);
+      playTone(200, 'square', 0.04, 0, 0.05);
+    }
+
+    function rejectRow(message) {
+      const row = board.querySelector(`.row[data-row="${guesses.length}"]`);
+      if (row) {
+        row.classList.remove('shake');
+        void row.offsetWidth;
+        row.classList.add('shake');
+      }
+      showToast(message, '#ff2a2a', 1300);
+      playTone(150, 'sawtooth', 0.15, 0, 0.08);
+    }
+
+    function submitGuess() {
+      if (!canType()) return;
+      if (current.length < COLS) return rejectRow('Not enough letters');
+      if (!WORDS.includes(current)) return rejectRow('Not in word list');
+      if (hardMode) {
+        const err = hardModeError(current);
+        if (err) return rejectRow(err);
+      }
+
+      const guess = current;
+      const rowIndex = guesses.length;
+      guesses.push(guess);
+      current = '';
+      revealGuess(rowIndex, guess);
+    }
+
+    // ------------------------------------------------------------- reveal ---
+    function clearRevealTimers() {
+      while (revealTimers.length) clearTimeout(revealTimers.pop());
+    }
+
+    function schedule(fn, ms) {
+      revealTimers.push(setTimeout(fn, ms));
+    }
+
+    function revealGuess(rowIndex, guess) {
+      const marks = scoreGuess(guess, answer);
+      revealing = true;
+
+      for (let c = 0; c < COLS; c++) {
+        const cell = cellAt(rowIndex, c);
+        const delay = c * FLIP_STAGGER;
+        cell.classList.remove('filled');
+        schedule(() => { cell.classList.add('flip'); }, delay);
+        schedule(() => {
+          cell.classList.add(marks[c]);
+          playTone(marks[c] === 'hit' ? 660 : marks[c] === 'near' ? 480 : 260, 'triangle', 0.08, 0, 0.06);
+        }, delay + FLIP_MS / 2);
+        schedule(() => { cell.classList.remove('flip'); }, delay + FLIP_MS);
+      }
+
+      schedule(() => {
+        revealing = false;
+        renderKeyboard();
+        finishTurn(rowIndex, guess);
+      }, (COLS - 1) * FLIP_STAGGER + FLIP_MS + 40);
+    }
+
+    function finishTurn(rowIndex, guess) {
+      if (guess === answer) {
+        status = 'won';
+        for (let c = 0; c < COLS; c++) {
+          const cell = cellAt(rowIndex, c);
+          schedule(() => {
+            cell.classList.add('dance');
+            schedule(() => cell.classList.remove('dance'), 520);
+          }, c * 90);
+        }
+        showToast(['Genius!', 'Superb!', 'Sharp!', 'Nice!', 'Close one!', 'Phew!', 'Phew!'][rowIndex] || 'Solved!', '#00ff88', 1400);
+        recordResult(true, guesses.length);
+        schedule(showResult, 900);
+      } else if (guesses.length >= rows) {
+        status = 'lost';
+        recordResult(false, 0);
+        schedule(showResult, 500);
+      }
+      saveProgress();
+      updateHint();
+    }
+
+    // ------------------------------------------------------------- record ---
+    function recordResult(won, usedGuesses) {
+      if (mode === 'daily') {
+        const stats = loadStats();
+        // A daily streak only survives consecutive days — miss one and it's gone.
+        if (stats.lastDay !== null && stats.lastDay !== undefined && stats.lastDay !== dayIndex - 1) {
+          stats.streak = 0;
+        }
+        stats.played++;
+        if (won) {
+          stats.wins++;
+          stats.streak++;
+          if (usedGuesses >= 1 && usedGuesses <= 7) stats.dist[usedGuesses - 1]++;
+        } else {
+          stats.streak = 0;
+        }
+        const isNewBest = stats.streak > stats.maxStreak;
+        if (isNewBest) stats.maxStreak = stats.streak;
+        stats.lastDay = dayIndex;
+        writeJSON(STATS_KEY, stats);
+        newBestThisRound = won && isNewBest && stats.maxStreak > 1;
+      } else {
+        const p = loadPractice();
+        p.played++;
+        if (won) {
+          p.wins++;
+          p.streak++;
+        } else {
+          p.streak = 0;
+        }
+        const isNewBest = p.streak > p.maxStreak;
+        if (isNewBest) p.maxStreak = p.streak;
+        writeJSON(PRACTICE_KEY, p);
+        newBestThisRound = won && isNewBest && p.maxStreak > 1;
+      }
+      const best = syncBestKey();
+      if (newBestThisRound) Arcade.playBestJingle();
+      bestEl.textContent = best;
+      renderHud();
+    }
+
+    // ----------------------------------------------------------- progress ---
+    /** Only the daily puzzle is resumable; practice words are throwaway. */
+    function saveProgress() {
+      if (mode !== 'daily') return;
+      writeJSON(DAILY_KEY, { day: dayIndex, guesses: guesses, status: status });
+    }
+
+    function loadProgress() {
+      const saved = readJSON(DAILY_KEY, null);
+      if (!saved || saved.day !== dayIndex || !Array.isArray(saved.guesses)) return false;
+      guesses = saved.guesses.filter(g => typeof g === 'string' && g.length === COLS).slice(0, rows);
+      status = saved.status === 'won' || saved.status === 'lost' ? saved.status : 'playing';
+      // Trust the letters, not the stored verdict: recompute the outcome.
+      if (guesses[guesses.length - 1] === answer) status = 'won';
+      else if (guesses.length >= rows) status = 'lost';
+      else if (status !== 'playing') status = 'playing';
+      return true;
+    }
+
+    // ----------------------------------------------------------- overlays ---
+    function hideAllOverlays() {
+      [startOverlay, helpOverlay, resultOverlay, statsOverlay]
+        .forEach(o => o.classList.add('hidden'));
+    }
+
+    function setDifficulty(d) {
+      if (!DIFFICULTIES[d]) return;
+      difficulty = d;
+      localStorage.setItem(DIFF_KEY, d);
+      difficultyBar.querySelectorAll('button').forEach(b => {
+        b.classList.toggle('active', b.dataset.diff === d);
+      });
+      diffNote.textContent = DIFFICULTIES[d].note;
+    }
+
+    function toggleStartMode() {
+      mode = mode === 'daily' ? 'practice' : 'daily';
+      refreshStartOverlay();
+    }
+
+    function refreshStartOverlay() {
+      const isDaily = mode === 'daily';
+      difficultyBar.classList.toggle('hidden', isDaily);
+      diffNote.textContent = isDaily ? '' : DIFFICULTIES[difficulty].note;
+      startModeBtn.textContent = isDaily ? '🎲 Practice Mode' : '📅 Daily Puzzle';
+
+      if (isDaily) {
+        const saved = readJSON(DAILY_KEY, null);
+        const done = saved && saved.day === localDayIndex() &&
+          (saved.status === 'won' || saved.status === 'lost');
+        startModeLine.textContent = done
+          ? `Puzzle #${localDayIndex()} is already done — open it to see your grid.`
+          : `Daily puzzle #${localDayIndex()} — one word, six guesses, same for everyone.`;
+        startBtn.textContent = done ? '▶ View Today' : '▶ Play';
+      } else {
+        startModeLine.textContent = 'Practice — a random word, as many rounds as you like.';
+        startBtn.textContent = '▶ Play';
+      }
+    }
+
+    function showHelp() {
+      helpOverlay.classList.remove('hidden');
+    }
+
+    function closeHelp() {
+      helpOverlay.classList.add('hidden');
+    }
+
+    function showStats() {
+      statsWasOpenedFromResult = !resultOverlay.classList.contains('hidden');
+      resultOverlay.classList.add('hidden');
+
+      const s = loadStats();
+      document.getElementById('stPlayed').textContent = s.played;
+      document.getElementById('stWinPct').textContent =
+        s.played ? Math.round((s.wins / s.played) * 100) + '%' : '0%';
+      document.getElementById('stStreak').textContent = s.streak;
+      document.getElementById('stMax').textContent = s.maxStreak;
+
+      const distEl = document.getElementById('distEl');
+      distEl.innerHTML = '';
+      const shown = s.dist.slice(0, 7);
+      const max = Math.max(1, ...shown);
+      const highlight = mode === 'daily' && status === 'won' ? guesses.length : -1;
+      shown.forEach((count, i) => {
+        const row = document.createElement('div');
+        row.className = 'dist-row' + (i + 1 === highlight ? ' current' : '');
+        const label = document.createElement('span');
+        label.textContent = i + 1;
+        const bar = document.createElement('div');
+        bar.className = 'dist-bar';
+        bar.style.width = Math.round((count / max) * 100) + '%';
+        bar.textContent = count;
+        row.appendChild(label);
+        row.appendChild(bar);
+        distEl.appendChild(row);
+      });
+
+      const p = loadPractice();
+      document.getElementById('practiceLine').textContent =
+        `Practice: ${p.wins}/${p.played} solved · streak ${p.streak} · best ${p.maxStreak}`;
+
+      statsOverlay.classList.remove('hidden');
+    }
+
+    function closeStats() {
+      statsOverlay.classList.add('hidden');
+      if (statsWasOpenedFromResult && status !== 'playing') {
+        resultOverlay.classList.remove('hidden');
+      }
+      statsWasOpenedFromResult = false;
+    }
+
+    // ------------------------------------------------------------- result ---
+    function shareText() {
+      const header = mode === 'daily'
+        ? `Neon Cipher #${dayIndex} ${status === 'won' ? guesses.length : 'X'}/${rows}`
+        : `Neon Cipher Practice ${status === 'won' ? guesses.length : 'X'}/${rows}`;
+      return header + '\n' + gridText();
+    }
+
+    function gridText() {
+      const glyph = { hit: '🟩', near: '🟨', miss: '⬛' };
+      return guesses
+        .map(g => scoreGuess(g, answer).map(m => glyph[m]).join(''))
+        .join('\n');
+    }
+
+    function showResult() {
+      const won = status === 'won';
+      document.getElementById('resultTitle').textContent = won ? '🎉 Solved!' : '💀 Out of Guesses';
+      document.getElementById('resultText').textContent = won
+        ? (mode === 'daily'
+          ? 'Come back tomorrow for the next cipher.'
+          : 'Another random word is one tap away.')
+        : 'Better luck on the next one.';
+      document.getElementById('answerWord').textContent = answer;
+      document.getElementById('shareGrid').textContent = gridText();
+      document.getElementById('resGuesses').textContent = won ? `${guesses.length}/${rows}` : `X/${rows}`;
+      const stats = mode === 'daily' ? loadStats() : loadPractice();
+      document.getElementById('resStreak').textContent = stats.streak;
+      document.getElementById('newBestTag').style.display = newBestThisRound ? 'block' : 'none';
+      document.getElementById('resultPrimary').textContent =
+        mode === 'daily' ? '🎲 Practice Word' : '🎲 Next Word';
+      updateNextIn();
+      resultOverlay.classList.remove('hidden');
+    }
+
+    function updateNextIn() {
+      const el = document.getElementById('nextIn');
+      clearInterval(nextInTimer);
+      if (mode !== 'daily') { el.textContent = ''; return; }
+      const tick = () => {
+        const ms = msUntilTomorrow();
+        const h = Math.floor(ms / 3600000);
+        const m = Math.floor((ms % 3600000) / 60000);
+        const s = Math.floor((ms % 60000) / 1000);
+        el.textContent = `Next puzzle in ${h}h ${m}m ${s}s`;
+      };
+      tick();
+      nextInTimer = setInterval(tick, 1000);
+    }
+
+    function resultPrimaryAction() {
+      mode = 'practice';
+      resultOverlay.classList.add('hidden');
+      clearInterval(nextInTimer);
+      startGame();
+    }
+
+    async function shareResult() {
+      const text = shareText();
+      const btn = document.getElementById('shareBtn');
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = '✅ Copied!';
+      } catch (e) {
+        btn.textContent = '⚠ Copy Failed';
+      }
+      setTimeout(() => { btn.textContent = '📋 Copy Result'; }, 1600);
+    }
+
+    // --------------------------------------------------------------- flow ---
+    function switchMode() {
+      mode = mode === 'daily' ? 'practice' : 'daily';
+      hideAllOverlays();
+      clearInterval(nextInTimer);
+      startGame();
+    }
+
+    function startGame() {
+      initAudio();
+      clearRevealTimers();
+      clearInterval(nextInTimer);
+      hideAllOverlays();
+
+      dayIndex = localDayIndex();
+      guesses = [];
+      current = '';
+      status = 'playing';
+      revealing = false;
+      newBestThisRound = false;
+
+      if (mode === 'daily') {
+        rows = ROWS;
+        hardMode = false;
+        answer = answerForDay(dayIndex);
+        buildBoard();
+        loadProgress();
+      } else {
+        const cfg = DIFFICULTIES[difficulty];
+        rows = cfg.rows;
+        hardMode = cfg.hardMode;
+        answer = WORDS[Math.floor(Math.random() * WORDS.length)];
+        buildBoard();
+      }
+
+      renderBoard();
+      renderHud();
+
+      if (status !== 'playing') showResult();
+    }
+
+    function showStartOverlay() {
+      hideAllOverlays();
+      clearInterval(nextInTimer);
+      refreshStartOverlay();
+      startOverlay.classList.remove('hidden');
+    }
+
+    // -------------------------------------------------------------- wiring ---
+    document.addEventListener('keydown', e => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      if (e.key === 'Escape') {
+        if (!helpOverlay.classList.contains('hidden')) { closeHelp(); e.preventDefault(); }
+        else if (!statsOverlay.classList.contains('hidden')) { closeStats(); e.preventDefault(); }
+        return;
+      }
+
+      if (anyOverlayOpen()) return;
+
+      initAudio();
+      if (e.key === 'Enter') { e.preventDefault(); submitGuess(); }
+      else if (e.key === 'Backspace') { e.preventDefault(); pressBackspace(); }
+      else if (/^[a-zA-Z]$/.test(e.key)) { e.preventDefault(); pressLetter(e.key.toLowerCase()); }
+    });
+
+    Arcade.wireFullscreen(document.getElementById('fullscreenBtn'));
+
+    // A word game has no simulation to freeze, but a mid-flip tab switch would
+    // otherwise land the animation callbacks all at once on return.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && revealing) {
+        clearRevealTimers();
+        revealing = false;
+        const rowIndex = guesses.length - 1;
+        renderBoard();
+        if (rowIndex >= 0) finishTurn(rowIndex, guesses[rowIndex]);
+      }
+    });
+
+    // ---------------------------------------------------------------- boot ---
+    const savedDiff = localStorage.getItem(DIFF_KEY);
+    if (savedDiff && DIFFICULTIES[savedDiff]) difficulty = savedDiff;
+    setDifficulty(difficulty);
+
+    dayIndex = localDayIndex();
+    answer = answerForDay(dayIndex);
+    buildBoard();
+    buildKeyboard();
+    renderBoard();
+    syncBestKey();
+    renderHud();
+    refreshStartOverlay();
+  </script>
+</body>
+</html>
