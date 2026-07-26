@@ -262,6 +262,7 @@
     <div class="empty"></div>
   </div>
 
+  <script src="../../shared/arcade.js"></script>
   <script>
     // ---------------------------------------------------------------
     // Constants & maze geometry
@@ -429,24 +430,11 @@
     // ---------------------------------------------------------------
     // Audio
     // ---------------------------------------------------------------
-    let audioCtx = null;
-    function initAudio() {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-    }
+    // Audio, toast, best scores and fullscreen come from shared/arcade.js.
+    const initAudio = Arcade.initAudio;
 
     function playTone(freq, type, duration, delay = 0, vol = 0.1) {
-      if (!audioCtx) return;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
-      gain.gain.setValueAtTime(vol, audioCtx.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start(audioCtx.currentTime + delay);
-      osc.stop(audioCtx.currentTime + delay + duration);
+      Arcade.playTone(freq, type, duration, delay, vol);
     }
 
     const sfx = {

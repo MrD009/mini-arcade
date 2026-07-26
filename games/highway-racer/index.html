@@ -4,278 +4,145 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>🏎️ Neon Highway Racer | Mini Arcade</title>
+  <link rel="stylesheet" href="../../shared/arcade.css">
   <style>
-    :root {
-      --bg: #050510;
-      --panel: #0f0f24;
-      --accent: #00f2ff;
-      --accent2: #ff00aa;
-      --gold: #ffd700;
-      --red: #ff2a2a;
-      --green: #00ff88;
-      --text: #f5f5f5;
-    }
+    /* Width of this game's play column; the rest of the chrome is
+       inherited from the shared arcade sheet. */
+    :root { --play-max: 600px; }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; touch-action: none; }
-
-    html, body {
-      height: 100%;
-      overflow: hidden;
-      background: var(--bg);
-    }
-
-    body {
-      font-family: 'Segoe UI', Tahoma, sans-serif;
-      color: var(--text);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      height: 100vh;
-      width: 100vw;
-      position: relative;
-    }
-
+    /* Places this game deliberately differs from the shared defaults. */
     #gameCanvas {
-      position: absolute;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 100%;
-      height: 100%;
-      max-width: 600px;
-      background: #0a0a14;
-      display: block;
-      z-index: 1;
-    }
-
-    .ui-layer {
-      position: absolute;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 100%;
-      max-width: 600px;
-      height: 100%;
-      z-index: 10;
-      pointer-events: none;
-      display: flex;
-      flex-direction: column;
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    height: 100%;
+    max-width: 600px;
+    background: #0a0a14;
+    display: block;
+    z-index: 1;
     }
 
     .hud {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      padding: 10px 14px;
-      gap: 8px;
-      pointer-events: auto;
-      flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 10px 14px;
+    gap: 8px;
+    pointer-events: auto;
+    flex-shrink: 0;
     }
 
     .hud-panel {
-      background: rgba(15, 15, 36, 0.75);
-      border: 1px solid rgba(0, 242, 255, 0.25);
-      border-radius: 10px;
-      padding: 6px 10px;
-      font-size: 0.75rem;
-      min-width: 62px;
-      text-align: center;
-      backdrop-filter: blur(4px);
+    background: rgba(15, 15, 36, 0.75);
+    border: 1px solid rgba(0, 242, 255, 0.25);
+    border-radius: 10px;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    min-width: 62px;
+    text-align: center;
+    backdrop-filter: blur(4px);
     }
 
     .hud-panel span {
-      display: block;
-      font-size: 0.62rem;
-      color: #888;
-      margin-bottom: 1px;
+    display: block;
+    font-size: 0.62rem;
+    color: #888;
+    margin-bottom: 1px;
     }
 
     .hud-panel strong {
-      color: var(--accent);
-      font-size: 0.95rem;
+    color: var(--accent);
+    font-size: 0.95rem;
     }
-
-    .hud-panel.shield-active strong { color: var(--green); }
 
     .controls-bar {
-      position: absolute;
-      bottom: calc(10px + env(safe-area-inset-bottom));
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 20;
-      display: flex;
-      gap: 8px;
-      pointer-events: auto;
-      background: rgba(15, 15, 36, 0.9);
-      border: 1px solid rgba(0, 242, 255, 0.25);
-      border-radius: 12px;
-      padding: 8px 12px;
-      backdrop-filter: blur(6px);
-      box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+    position: absolute;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    display: flex;
+    /* The shared strip wraps and right-aligns; this pill is a single row. */
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 8px;
+    pointer-events: auto;
+    background: rgba(15, 15, 36, 0.9);
+    border: 1px solid rgba(0, 242, 255, 0.25);
+    border-radius: 12px;
+    padding: 8px 12px;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
     }
 
-    button {
-      background: var(--accent2);
-      color: white;
-      border: none;
+    /* The bar above is a floating pill of full-size buttons rather than the
+       compact in-flow strip the shared sheet assumes, so opt back out of the
+       shared .controls-bar button styling. */
+    .controls-bar button {
       padding: 8px 14px;
-      border-radius: 6px;
       font-size: 0.75rem;
-      font-weight: bold;
-      cursor: pointer;
-      transition: transform 0.15s, background 0.15s;
-      white-space: nowrap;
+      background: var(--accent2);
+      border: none;
+      backdrop-filter: none;
     }
 
-    button:hover, button:active {
+    .controls-bar button:hover, .controls-bar button:active {
       background: var(--accent);
-      transform: scale(1.05);
-    }
-
-    .overlay {
-      position: absolute;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 100%;
-      max-width: 600px;
-      height: 100%;
-      background: rgba(5, 5, 16, 0.92);
-      z-index: 30;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 30px 20px;
-      pointer-events: auto;
-      overflow-y: auto;
     }
 
     .overlay h1 {
-      font-size: clamp(1.6rem, 6.5vw, 2.6rem);
-      background: linear-gradient(90deg, var(--accent), var(--accent2));
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      text-shadow: 0 0 30px rgba(0, 242, 255, 0.3);
-      margin-bottom: 10px;
-    }
-
-    .overlay p {
-      color: #aaa;
-      font-size: 0.9rem;
-      margin-bottom: 6px;
-      max-width: 320px;
-    }
-
-    .difficulty-bar {
-      display: flex;
-      gap: 6px;
-      margin: 14px 0 6px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    .difficulty-bar button {
-      padding: 8px 16px;
-      font-size: 0.78rem;
-      background: var(--panel);
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-
-    .difficulty-bar button.active {
-      background: rgba(0, 242, 255, 0.15);
-      border-color: var(--accent);
-      box-shadow: 0 0 10px rgba(0,242,255,0.25);
+    font-size: clamp(1.6rem, 6.5vw, 2.6rem);
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 0 30px rgba(0, 242, 255, 0.3);
+    margin-bottom: 10px;
     }
 
     .legend {
-      display: flex;
-      gap: 14px;
-      flex-wrap: wrap;
-      justify-content: center;
-      font-size: 0.75rem;
-      color: #999;
-      margin: 10px 0 4px;
-    }
-
-    .overlay .stats {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
-      margin: 18px 0;
-      width: 100%;
-      max-width: 280px;
-    }
-
-    .overlay .stat {
-      background: rgba(255,255,255,0.05);
-      padding: 12px;
-      border-radius: 10px;
-    }
-
-    .overlay .stat .num { font-size: 1.2rem; color: var(--accent); font-weight: bold; }
-    .overlay .stat .lbl { font-size: 0.68rem; color: #888; }
-
-    .new-best {
-      color: var(--gold);
-      font-weight: bold;
-      font-size: 0.85rem;
-      margin-top: -8px;
-      margin-bottom: 8px;
-      display: none;
-    }
-
-    .overlay button.primary {
-      padding: 12px 28px;
-      font-size: 1rem;
-      margin-top: 6px;
-    }
-
-    .overlay .secondary-row {
-      display: flex;
-      gap: 8px;
-      margin-top: 10px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    .hidden { display: none !important; }
-
-    .mobile-hint {
-      position: absolute;
-      bottom: 70px;
-      left: 50%;
-      transform: translateX(-50%);
-      color: rgba(255,255,255,0.5);
-      font-size: 0.7rem;
-      text-align: center;
-      z-index: 5;
-      pointer-events: none;
-      width: 100%;
-      max-width: 600px;
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+    font-size: 0.75rem;
+    color: #999;
+    margin: 10px 0 4px;
     }
 
     .toast {
-      position: absolute;
-      top: 32%;
-      left: 50%;
-      transform: translate(-50%, -50%) scale(0);
-      font-size: clamp(1.3rem, 5.5vw, 2rem);
-      font-weight: bold;
-      color: var(--gold);
-      text-shadow: 0 0 25px rgba(255,215,0,0.6);
-      z-index: 15;
-      pointer-events: none;
-      transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.35s;
-      opacity: 0;
-      white-space: nowrap;
+    position: absolute;
+    top: 32%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    font-size: clamp(1.3rem, 5.5vw, 2rem);
+    font-weight: bold;
+    color: var(--gold);
+    text-shadow: 0 0 25px rgba(255,215,0,0.6);
+    z-index: 15;
+    pointer-events: none;
+    transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.35s;
+    opacity: 0;
+    white-space: nowrap;
     }
 
-    .toast.show {
-      transform: translate(-50%, -50%) scale(1);
-      opacity: 1;
+    /* Specific to this game. */
+    .hud-panel.shield-active strong { color: var(--green); }
+
+    .mobile-hint {
+    position: absolute;
+    bottom: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.5);
+    font-size: 0.7rem;
+    text-align: center;
+    z-index: 5;
+    pointer-events: none;
+    width: 100%;
+    max-width: 600px;
     }
   </style>
 </head>
@@ -364,6 +231,7 @@
     </div>
   </div>
 
+  <script src="../../shared/arcade.js"></script>
   <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
@@ -417,24 +285,11 @@
     let animationId;
 
     // Audio
-    let audioCtx = null;
-    function initAudio() {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
-    }
+    // Audio, toast, best scores and fullscreen come from shared/arcade.js.
+    const initAudio = Arcade.initAudio;
 
     function playTone(freq, type, duration, delay = 0, vol = 0.12) {
-      if (!audioCtx) return;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, audioCtx.currentTime + delay);
-      gain.gain.setValueAtTime(vol, audioCtx.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start(audioCtx.currentTime + delay);
-      osc.stop(audioCtx.currentTime + delay + duration);
+      Arcade.playTone(freq, type, duration, delay, vol);
     }
 
     function playCrashSound() {
@@ -767,14 +622,7 @@
     }
 
     function showToast(text, color) {
-      toast.textContent = text;
-      toast.style.color = color;
-      toast.style.textShadow = `0 0 25px ${color}`;
-      toast.classList.remove('show');
-      void toast.offsetWidth;
-      toast.classList.add('show');
-      clearTimeout(showToast._t);
-      showToast._t = setTimeout(() => toast.classList.remove('show'), 1000);
+      Arcade.showToast(toast, text, color, 1000);
     }
 
     // Drawing
@@ -1050,9 +898,7 @@
     }
 
     // Don't keep the race running while the tab is in the background.
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden && gameRunning && !gamePaused) togglePause();
-    });
+    Arcade.wireAutoPause(() => gameRunning && !gamePaused, togglePause);
 
     // Hide mobile hint if not touch device
     if (!('ontouchstart' in window)) {
