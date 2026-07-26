@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🔢 Neon 2048 | Mini Arcade</title>
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    /* Width of this game's play column; the rest of the chrome is
+       inherited from the shared arcade sheet. */
+    :root { --play-max: 520px; }
+
+    #gameCanvas {
+      background: radial-gradient(ellipse at top, #14142c 0%, #050510 100%);
+    }
+
+    /* Specific to this game. */
+    .hud-panel.tile strong { color: var(--gold); }
+
+    .d-pad {
+      display: grid;
+      grid-template-columns: repeat(3, 46px);
+      gap: 6px;
+      justify-content: center;
+    }
+
+    .pad-btn {
+      width: 46px;
+      height: 42px;
+      border-radius: 10px;
+      background: rgba(15, 15, 36, 0.85);
+      border: 1px solid rgba(0, 242, 255, 0.3);
+      color: #fff;
+      font-size: 1.05rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .pad-btn:active { background: rgba(0, 242, 255, 0.28); }
+    .d-pad .empty { visibility: hidden; }
+
+    @media (pointer: fine) {
+      .d-pad { display: none; }
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    button:disabled:hover {
+      background: rgba(15, 15, 36, 0.8);
+      transform: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span>Score</span>
+        <strong id="scoreEl">0</strong>
+      </div>
+      <div class="hud-panel tile">
+        <span>Best Tile</span>
+        <strong id="tileEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Moves</span>
+        <strong id="movesEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button id="startBtn" onclick="showStartOverlay()">Restart</button>
+      <button id="undoBtn" onclick="undoMove()">↩ Undo (3)</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar" id="bottomBar">
+      <div class="hint-line" id="hintLine">Swipe to slide the tiles</div>
+      <div class="d-pad" id="dPad">
+        <div class="empty"></div>
+        <button type="button" class="pad-btn" id="btnUp">▲</button>
+        <div class="empty"></div>
+        <button type="button" class="pad-btn" id="btnLeft">◀</button>
+        <button type="button" class="pad-btn" id="btnUndo">↩</button>
+        <button type="button" class="pad-btn" id="btnRight">▶</button>
+        <div class="empty"></div>
+        <button type="button" class="pad-btn" id="btnDown">▼</button>
+        <div class="empty"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">2048!</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🔢 Neon 2048</h1>
+    <p>Slide the board to merge matching tiles. Every merge doubles the number — get one to 2048.</p>
+
+    <div class="difficulty-bar" id="difficultyBar">
+      <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+      <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+      <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+    </div>
+    <p class="diff-note" id="diffNote"></p>
+
+    <div class="legend">
+      <span>⬅➡⬆⬇ Slide</span>
+      <span>✨ Merge to Double</span>
+      <span>↩ 3 Undos</span>
+    </div>
+
+    <button class="primary" onclick="startGame()">▶ Start Game</button>
+  </div>
+
+  <div class="overlay hidden" id="wonOverlay">
+    <h1>🏆 2048!</h1>
+    <p class="new-best" id="wonBestTag">🏆 New Best Score!</p>
+    <p>You built the 2048 tile. Keep sliding for a bigger one, or bank it here.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="wonScore">0</div>
+        <div class="lbl">Score</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="wonMoves">0</div>
+        <div class="lbl">Moves</div>
+      </div>
+    </div>
+    <button class="primary" onclick="keepGoing()">▶ Keep Going</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">New Game</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <h1>🧱 No Moves Left</h1>
+    <p class="new-best" id="newBestTag">🏆 New Best Score!</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalScore">0</div>
+        <div class="lbl">Score</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalTile">0</div>
+        <div class="lbl">Best Tile</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalMoves">0</div>
+        <div class="lbl">Moves</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBest">0</div>
+        <div class="lbl">Best</div>
+      </div>
+    </div>
+    <button class="primary" onclick="startGame()">Try Again</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Difficulty</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('scoreEl');
+    const tileEl = document.getElementById('tileEl');
+    const movesEl = document.getElementById('movesEl');
+    const bestEl = document.getElementById('bestEl');
+    const undoBtn = document.getElementById('undoBtn');
+    const startOverlay = document.getElementById('startOverlay');
+    const wonOverlay = document.getElementById('wonOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const finalScore = document.getElementById('finalScore');
+    const finalTile = document.getElementById('finalTile');
+    const finalMoves = document.getElementById('finalMoves');
+    const finalBest = document.getElementById('finalBest');
+    const newBestTag = document.getElementById('newBestTag');
+    const wonBestTag = document.getElementById('wonBestTag');
+    const wonScore = document.getElementById('wonScore');
+    const wonMoves = document.getElementById('wonMoves');
+    const diffNote = document.getElementById('diffNote');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.getElementById('bottomBar');
+
+    const WIN_TILE = 2048;
+    const MAX_UNDOS = 3;
+    const SLIDE_MS = 110;
+    const POP_MS = 130;
+
+    const DIFFICULTIES = {
+      easy:   { size: 5, fourChance: 0.10, note: '🌱 A roomier 5×5 board.' },
+      medium: { size: 4, fourChance: 0.10, note: '🔢 The classic 4×4.' },
+      hard:   { size: 4, fourChance: 0.30, note: '🔥 4×4, and far more 4s — the board fills fast.' }
+    };
+
+    // Neon ramp: cool for the small numbers, hot as they climb.
+    const TILE_COLORS = {
+      2:    { bg: '#16324a', fg: '#8fdcff' },
+      4:    { bg: '#12455c', fg: '#a9e8ff' },
+      8:    { bg: '#0d6f80', fg: '#e6ffff' },
+      16:   { bg: '#00a5b8', fg: '#04121a' },
+      32:   { bg: '#00d9e8', fg: '#04121a' },
+      64:   { bg: '#00f2ff', fg: '#04121a' },
+      128:  { bg: '#7a6bff', fg: '#ffffff' },
+      256:  { bg: '#a94bff', fg: '#ffffff' },
+      512:  { bg: '#ff00aa', fg: '#ffffff' },
+      1024: { bg: '#ff6a00', fg: '#ffffff' },
+      2048: { bg: '#ffd700', fg: '#2a1c00' }
+    };
+    const BIG_TILE = { bg: '#00ff88', fg: '#04211a' };
+
+    let currentDifficulty = 'easy';
+    let size = 5;
+    let grid = [];
+    let score = 0;
+    let moves = 0;
+    let undosLeft = MAX_UNDOS;
+    let history = [];
+    let bestTile = 0;
+    let reachedWin = false;
+    let runStartBest = 0;
+    let gameRunning = false;
+    let animationId = null;
+    let lastTime = 0;
+
+    // Animation state: while a slide is playing we draw the moving tiles rather
+    // than the committed grid, so merges visibly travel into each other.
+    let slide = null;      // { t, moves: [{v, fr, fc, tr, tc}] }
+    let pops = [];         // { r, c, t, kind }
+
+    let cellSize = 60;
+    let boardX = 0, boardY = 0, boardPx = 0, gapPx = 8;
+
+    // Audio, toast, best scores and fullscreen come from shared/arcade.js.
+    const initAudio = Arcade.initAudio;
+    function playTone(freq, type, duration, delay = 0, vol = 0.12) {
+      Arcade.playTone(freq, type, duration, delay, vol);
+    }
+
+    function playSlideSound()  { playTone(180, 'square', 0.04, 0, 0.05); }
+    function playMergeSound(v) {
+      const step = Math.min(Math.log2(v), 11);
+      playTone(220 + step * 70, 'sine', 0.09, 0, 0.09);
+      playTone(330 + step * 90, 'sine', 0.07, 0.05, 0.05);
+    }
+    function playUndoSound()   { playTone(420, 'triangle', 0.09, 0, 0.07); playTone(300, 'triangle', 0.09, 0.06, 0.05); }
+    function playBlockedSound(){ playTone(120, 'square', 0.06, 0, 0.05); }
+    function playWinSound()    { [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => playTone(f, 'sine', 0.28, i * 0.11)); }
+    function playGameOverSound() {
+      playTone(440, 'sawtooth', 0.2);
+      playTone(330, 'sawtooth', 0.25, 0.15);
+      playTone(220, 'sawtooth', 0.35, 0.3);
+    }
+
+    function showToast(text, color) {
+      Arcade.showToast(toast, text, color, 1100);
+    }
+
+    function toggleFullscreen() {
+      Arcade.toggleFullscreen();
+    }
+
+    // ---------------------------------------------------------------- board ---
+    function emptyGrid(n) {
+      return Array.from({ length: n }, () => new Array(n).fill(0));
+    }
+
+    function freeCells() {
+      const out = [];
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) if (grid[r][c] === 0) out.push({ r, c });
+      }
+      return out;
+    }
+
+    function spawnTile() {
+      const cells = freeCells();
+      if (!cells.length) return null;
+      const spot = cells[Math.floor(Math.random() * cells.length)];
+      const cfg = DIFFICULTIES[currentDifficulty];
+      grid[spot.r][spot.c] = Math.random() < cfg.fourChance ? 4 : 2;
+      return spot;
+    }
+
+    /** Grid coordinates of position k along a line, for the given direction. */
+    function lineCoord(dir, line, k) {
+      if (dir === 'left')  return { r: line, c: k };
+      if (dir === 'right') return { r: line, c: size - 1 - k };
+      if (dir === 'up')    return { r: k, c: line };
+      return { r: size - 1 - k, c: line };            // down
+    }
+
+    /**
+     * Slide and merge the whole board one step. Returns the resulting grid, the
+     * per-tile movements (for animation), the cells where a merge landed, and
+     * the points scored. Each tile may merge at most once per move, which is the
+     * rule that stops 4-4-4-4 collapsing straight to 16.
+     */
+    function planMove(dir, source) {
+      const next = emptyGrid(size);
+      const movements = [];
+      const merges = [];
+      let gained = 0;
+      let moved = false;
+
+      for (let line = 0; line < size; line++) {
+        const tiles = [];
+        for (let k = 0; k < size; k++) {
+          const { r, c } = lineCoord(dir, line, k);
+          if (source[r][c] !== 0) tiles.push({ v: source[r][c], r, c });
+        }
+
+        let out = 0;
+        for (let i = 0; i < tiles.length; i++) {
+          const here = tiles[i];
+          const partner = tiles[i + 1];
+          const dest = lineCoord(dir, line, out);
+          if (partner && partner.v === here.v) {
+            const merged = here.v * 2;
+            next[dest.r][dest.c] = merged;
+            movements.push({ v: here.v, fr: here.r, fc: here.c, tr: dest.r, tc: dest.c });
+            movements.push({ v: partner.v, fr: partner.r, fc: partner.c, tr: dest.r, tc: dest.c });
+            merges.push({ r: dest.r, c: dest.c, v: merged });
+            gained += merged;
+            moved = true;
+            i++;                                    // partner is consumed
+          } else {
+            next[dest.r][dest.c] = here.v;
+            movements.push({ v: here.v, fr: here.r, fc: here.c, tr: dest.r, tc: dest.c });
+            if (here.r !== dest.r || here.c !== dest.c) moved = true;
+          }
+          out++;
+        }
+      }
+      return { next, movements, merges, gained, moved };
+    }
+
+    function hasMoves() {
+      if (freeCells().length) return true;
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          const v = grid[r][c];
+          if (c + 1 < size && grid[r][c + 1] === v) return true;
+          if (r + 1 < size && grid[r + 1][c] === v) return true;
+        }
+      }
+      return false;
+    }
+
+    function highestTile() {
+      let best = 0;
+      for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) best = Math.max(best, grid[r][c]);
+      return best;
+    }
+
+    function move(dir) {
+      if (!gameRunning || slide) return false;
+      const plan = planMove(dir, grid);
+      if (!plan.moved) {
+        playBlockedSound();
+        return false;
+      }
+
+      // Snapshot before committing, so Undo can step back.
+      history.push({ grid: grid.map(row => row.slice()), score, moves, bestTile, reachedWin });
+      if (history.length > MAX_UNDOS) history.shift();
+
+      grid = plan.next;
+      score += plan.gained;
+      moves++;
+      slide = { t: 0, movements: plan.movements, merges: plan.merges };
+      playSlideSound();
+      updateHUD();
+      return true;
+    }
+
+    /** Runs when the slide animation finishes: land merges, spawn, then judge. */
+    function settleMove() {
+      const merges = slide.merges;
+      slide = null;
+
+      merges.forEach(m => {
+        pops.push({ r: m.r, c: m.c, t: 0, kind: 'merge' });
+        playMergeSound(m.v);
+      });
+
+      const spot = spawnTile();
+      if (spot) pops.push({ r: spot.r, c: spot.c, t: 0, kind: 'spawn' });
+
+      const top = highestTile();
+      if (top > bestTile) {
+        bestTile = top;
+        if ([256, 512, 1024].includes(top)) showToast(`${top}!`, '#00f2ff');
+      }
+      updateHUD();
+
+      if (!reachedWin && top >= WIN_TILE) {
+        reachedWin = true;
+        winGame();
+        return;
+      }
+      if (!hasMoves()) gameOver();
+    }
+
+    function undoMove() {
+      if (!gameRunning || slide || !history.length || undosLeft <= 0) return;
+      const prev = history.pop();
+      grid = prev.grid;
+      score = prev.score;
+      moves = prev.moves;
+      bestTile = prev.bestTile;
+      reachedWin = prev.reachedWin;
+      undosLeft--;
+      pops = [];
+      playUndoSound();
+      updateHUD();
+    }
+
+    // ------------------------------------------------------------- rendering ---
+    function resizeCanvas() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      const topOffset = Math.max(0, controlsBar.getBoundingClientRect().bottom - rect.top) + 10;
+      const bottomOffset = Math.max(0, rect.bottom - bottomBar.getBoundingClientRect().top) + 10;
+      const availW = rect.width * 0.92;
+      const availH = Math.max(120, rect.height - topOffset - bottomOffset);
+
+      boardPx = Math.min(availW, availH);
+      gapPx = Math.max(5, boardPx * 0.022);
+      cellSize = (boardPx - gapPx * (size + 1)) / size;
+      boardX = (rect.width - boardPx) / 2;
+      boardY = topOffset + Math.max(0, (availH - boardPx) / 2);
+      render();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function cellRect(r, c) {
+      return {
+        x: boardX + gapPx + c * (cellSize + gapPx),
+        y: boardY + gapPx + r * (cellSize + gapPx)
+      };
+    }
+
+    function tileStyle(v) {
+      return TILE_COLORS[v] || BIG_TILE;
+    }
+
+    function drawTile(x, y, v, scale) {
+      const style = tileStyle(v);
+      const s = cellSize * scale;
+      const off = (cellSize - s) / 2;
+      ctx.save();
+      ctx.shadowBlur = v >= 128 ? 18 : 8;
+      ctx.shadowColor = style.bg;
+      ctx.fillStyle = style.bg;
+      ctx.beginPath();
+      ctx.roundRect(x + off, y + off, s, s, Math.max(4, s * 0.14));
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      const digits = String(v).length;
+      const fontSize = s * (digits <= 2 ? 0.44 : digits === 3 ? 0.36 : digits === 4 ? 0.29 : 0.24);
+      ctx.fillStyle = style.fg;
+      ctx.font = `bold ${fontSize}px 'Segoe UI', Tahoma, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(v), x + cellSize / 2, y + cellSize / 2 + fontSize * 0.03);
+      ctx.restore();
+    }
+
+    function render() {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      if (!grid.length) return;
+
+      // board tray
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.04)';
+      ctx.strokeStyle = 'rgba(0,242,255,0.35)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(boardX, boardY, boardPx, boardPx, Math.max(8, boardPx * 0.03));
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+
+      // empty cells
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          const { x, y } = cellRect(r, c);
+          ctx.fillStyle = 'rgba(255,255,255,0.045)';
+          ctx.beginPath();
+          ctx.roundRect(x, y, cellSize, cellSize, Math.max(4, cellSize * 0.14));
+          ctx.fill();
+        }
+      }
+
+      if (slide) {
+        // Mid-slide: draw the travelling tiles at their interpolated positions.
+        const p = Math.min(1, slide.t / SLIDE_MS);
+        const ease = 1 - Math.pow(1 - p, 3);
+        slide.movements.forEach(m => {
+          const from = cellRect(m.fr, m.fc);
+          const to = cellRect(m.tr, m.tc);
+          drawTile(from.x + (to.x - from.x) * ease, from.y + (to.y - from.y) * ease, m.v, 1);
+        });
+      } else {
+        for (let r = 0; r < size; r++) {
+          for (let c = 0; c < size; c++) {
+            const v = grid[r][c];
+            if (!v) continue;
+            const { x, y } = cellRect(r, c);
+            const pop = pops.find(p => p.r === r && p.c === c);
+            let scale = 1;
+            if (pop) {
+              const t = Math.min(1, pop.t / POP_MS);
+              scale = pop.kind === 'spawn'
+                ? 0.35 + 0.65 * t
+                : 1 + 0.18 * Math.sin(t * Math.PI);
+            }
+            drawTile(x, y, v, scale);
+          }
+        }
+      }
+    }
+
+    function updateHUD() {
+      scoreEl.textContent = score;
+      tileEl.textContent = bestTile;
+      movesEl.textContent = moves;
+      undoBtn.textContent = `↩ Undo (${undosLeft})`;
+      undoBtn.disabled = undosLeft <= 0 || !history.length || !gameRunning;
+    }
+
+    function gameLoop(timestamp) {
+      if (!gameRunning) return;
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min(timestamp - lastTime, 50);
+      lastTime = timestamp;
+
+      if (slide) {
+        slide.t += dt;
+        if (slide.t >= SLIDE_MS) settleMove();
+      }
+      for (let i = pops.length - 1; i >= 0; i--) {
+        pops[i].t += dt;
+        if (pops[i].t >= POP_MS) pops.splice(i, 1);
+      }
+
+      render();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    // ------------------------------------------------------------ best score ---
+    function getBestScore() {
+      return Arcade.bestScore(`n2048Best_${currentDifficulty}`);
+    }
+
+    function saveBestScore() {
+      if (score > runStartBest) {
+        Arcade.setBestScore(`n2048Best_${currentDifficulty}`, score);
+        return true;
+      }
+      return false;
+    }
+
+    function setDifficulty(diff) {
+      currentDifficulty = diff;
+      document.querySelectorAll('#difficultyBar button').forEach(btn =>
+        btn.classList.toggle('active', btn.dataset.diff === diff));
+      diffNote.textContent = DIFFICULTIES[diff].note;
+      bestEl.textContent = getBestScore();
+    }
+
+    // ------------------------------------------------------------------ flow ---
+    function showStartOverlay() {
+      gameRunning = false;
+      cancelAnimationFrame(animationId);
+      gameOverOverlay.classList.add('hidden');
+      wonOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+    }
+
+    function startGame() {
+      initAudio();
+      cancelAnimationFrame(animationId);
+
+      size = DIFFICULTIES[currentDifficulty].size;
+      grid = emptyGrid(size);
+      score = 0;
+      moves = 0;
+      undosLeft = MAX_UNDOS;
+      history = [];
+      bestTile = 0;
+      reachedWin = false;
+      slide = null;
+      pops = [];
+      runStartBest = getBestScore();
+
+      spawnTile();
+      spawnTile();
+      bestTile = highestTile();
+
+      bestEl.textContent = runStartBest;
+      updateHUD();
+
+      startOverlay.classList.add('hidden');
+      wonOverlay.classList.add('hidden');
+      gameOverOverlay.classList.add('hidden');
+      document.getElementById('startBtn').textContent = 'Restart';
+
+      gameRunning = true;
+      lastTime = 0;
+      resizeCanvas();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function winGame() {
+      const isNewBest = saveBestScore();
+      playWinSound();
+      wonScore.textContent = score;
+      wonMoves.textContent = moves;
+      wonBestTag.style.display = isNewBest ? 'block' : 'none';
+      bestEl.textContent = getBestScore();
+      wonOverlay.classList.remove('hidden');
+    }
+
+    /** Dismiss the win overlay and carry on with the same board. */
+    function keepGoing() {
+      wonOverlay.classList.add('hidden');
+      lastTime = 0;
+      if (!hasMoves()) gameOver();
+    }
+
+    function gameOver() {
+      gameRunning = false;
+      cancelAnimationFrame(animationId);
+      playGameOverSound();
+      const isNewBest = saveBestScore();
+
+      finalScore.textContent = score;
+      finalTile.textContent = bestTile;
+      finalMoves.textContent = moves;
+      finalBest.textContent = getBestScore();
+      bestEl.textContent = getBestScore();
+      newBestTag.style.display = isNewBest ? 'block' : 'none';
+      if (isNewBest) setTimeout(() => Arcade.playBestJingle(), 300);
+
+      render();
+      updateHUD();
+      gameOverOverlay.classList.remove('hidden');
+    }
+
+    // ----------------------------------------------------------------- input ---
+    const NAV_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '];
+    document.addEventListener('keydown', e => {
+      if (NAV_KEYS.includes(e.key)) e.preventDefault();
+      initAudio();
+      switch (e.key) {
+        case 'ArrowUp': case 'w': case 'W': move('up'); break;
+        case 'ArrowDown': case 's': case 'S': move('down'); break;
+        case 'ArrowLeft': case 'a': case 'A': move('left'); break;
+        case 'ArrowRight': case 'd': case 'D': move('right'); break;
+        case 'z': case 'Z': case 'u': case 'U': undoMove(); break;
+      }
+    });
+
+    function bindPad(id, fn) {
+      document.getElementById(id).addEventListener('pointerdown', e => {
+        e.preventDefault();
+        initAudio();
+        fn();
+      });
+    }
+    bindPad('btnUp', () => move('up'));
+    bindPad('btnDown', () => move('down'));
+    bindPad('btnLeft', () => move('left'));
+    bindPad('btnRight', () => move('right'));
+    bindPad('btnUndo', undoMove);
+
+    let touchStartX = 0, touchStartY = 0;
+    canvas.addEventListener('touchstart', e => {
+      initAudio();
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    canvas.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      if (Math.hypot(dx, dy) < 24) return;
+      if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 'right' : 'left');
+      else move(dy > 0 ? 'down' : 'up');
+    }, { passive: true });
+
+    Arcade.wireFullscreen(fullscreenBtn, resizeCanvas);
+
+    if (!('ontouchstart' in window)) {
+      hintLine.textContent = '← → ↑ ↓ or WASD to slide • Z to undo';
+    }
+
+    try {
+      setDifficulty('easy');
+      size = DIFFICULTIES.easy.size;
+      grid = emptyGrid(size);
+      spawnTile();
+      spawnTile();
+      updateHUD();
+      resizeCanvas();
+    } catch (err) {
+      console.error('Neon 2048 init failed:', err);
+    }
+  </script>
+</body>
+</html>
