@@ -43,7 +43,11 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* 100vh on a phone means "the viewport with the address bar retracted", so a
+     browser showing its chrome pushes the bottom of the page off screen. dvh is
+     the height actually visible right now; vh stays as the fallback. */
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
   position: relative;
 }
