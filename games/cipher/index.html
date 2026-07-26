@@ -301,15 +301,24 @@
       .btn-label { display: none; }
     }
 
-    /* Short viewports: shrink the tiles so the keyboard always fits. */
-    @media (max-height: 700px) {
+    /* Short viewports. layoutBoard() sets --cell and --gap inline from the space
+       actually measured, which wins over these; they are the sensible starting
+       point for the first paint and the fallback if the script never runs. The
+       key heights are not JS-driven, so those rules do the real work. */
+    @media (max-height: 760px) {
       .board { --cell: 46px; --gap: 5px; }
       .key { height: 38px; }
     }
 
-    @media (max-height: 600px) {
+    @media (max-height: 640px) {
       .board { --cell: 38px; --gap: 4px; }
       .key { height: 33px; font-size: 0.72rem; }
+    }
+
+    @media (max-height: 560px) {
+      .board { --cell: 30px; --gap: 3px; }
+      .key { height: 28px; font-size: 0.66rem; }
+      .hint-line { font-size: 0.62rem; }
     }
 
     @media (max-width: 380px) {
@@ -870,6 +879,40 @@
       return board.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
     }
 
+    /**
+     * Sizes the tiles from the space actually left over for the board.
+     *
+     * The CSS height breakpoints can only guess: seven rows plus a keyboard fits
+     * a 727px-tall viewport and not a 700px one, and a phone browser showing its
+     * address bar lands right between the two. .board-wrap is the flex child that
+     * absorbs the leftover height, so measuring it gives the real budget whatever
+     * the chrome, the orientation or the row count is doing.
+     */
+    function layoutBoard() {
+      const wrap = board.parentElement;
+      const box = wrap.getBoundingClientRect();
+      if (!box.height || !box.width) return;
+
+      const style = getComputedStyle(wrap);
+      const availW = box.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      const availH = box.height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+
+      // Solve for the largest cell that fits both ways, letting the gap shrink
+      // with it, then clamp so it is neither oversized nor unreadably small.
+      let cell = 56, gap = 6;
+      for (const g of [6, 5, 4, 3]) {
+        gap = g;
+        cell = Math.min(56,
+          Math.floor((availW - (COLS - 1) * g) / COLS),
+          Math.floor((availH - (rows - 1) * g) / rows));
+        if (cell >= 40 || g === 3) break;
+      }
+      cell = Math.max(22, cell);
+
+      board.style.setProperty('--cell', cell + 'px');
+      board.style.setProperty('--gap', gap + 'px');
+    }
+
     /** Repaints every tile from state — used on load, restore and reset. */
     function renderBoard(animateLastRow) {
       for (let r = 0; r < rows; r++) {
@@ -891,6 +934,7 @@
       }
       if (animateLastRow) { /* caller handles the flip separately */ }
       renderKeyboard();
+      layoutBoard();
     }
 
     function buildKeyboard() {
@@ -1379,7 +1423,25 @@
       btn.innerHTML = document.fullscreenElement
         ? '⤢<span class="btn-label"> Exit</span>'
         : '⛶<span class="btn-label"> Full</span>';
+      layoutBoard();
     });
+
+    // Re-measure whenever the space can change. visualViewport is the one that
+    // fires when a phone browser slides its address bar in or out — a plain
+    // window resize does not always follow.
+    let layoutPending = false;
+    function requestLayout() {
+      if (layoutPending) return;
+      layoutPending = true;
+      requestAnimationFrame(() => { layoutPending = false; layoutBoard(); });
+    }
+
+    window.addEventListener('resize', requestLayout);
+    window.addEventListener('orientationchange', requestLayout);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', requestLayout);
+      window.visualViewport.addEventListener('scroll', requestLayout);
+    }
 
     // A word game has no simulation to freeze, but a mid-flip tab switch would
     // otherwise land the animation callbacks all at once on return.
