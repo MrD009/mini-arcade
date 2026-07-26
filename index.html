@@ -152,6 +152,7 @@
     .game-card:nth-child(10) { animation-delay: 1.45s; }
     .game-card:nth-child(11) { animation-delay: 1.6s; }
     .game-card:nth-child(12) { animation-delay: 1.75s; }
+    .game-card:nth-child(13) { animation-delay: 1.9s; }
 
     .game-card::before {
       content: '';
@@ -493,7 +494,21 @@
       <div class="card-content">
         <span class="game-icon">🧩</span>
         <h2 class="game-title">Neon Cipher</h2>
-        <p class="game-desc">A new five-letter word every day, six guesses to crack it — with a hint in your pocket. Endless practice rounds too.</p>
+        <p class="game-desc">A new word every day at 3, 4, 5 or 6 letters — each length with its own puzzle, streak and hint. Endless practice rounds too.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
+
+    <a href="games/cipher-ms/index.html" class="game-card" data-game="cipher-ms">
+      <span class="favorite-tag">🔥 Favorite</span>
+      <div class="card-content">
+        <span class="game-icon">🌺</span>
+        <h2 class="game-title">Teka Kata Neon</h2>
+        <p class="game-desc">Neon Cipher in Bahasa Melayu — satu perkataan baharu setiap hari, pilih 3, 4, 5 atau 6 huruf.</p>
         <div class="card-meta">
           <span class="meta-chip best-chip">🏆 Not played yet</span>
           <span class="meta-chip plays-chip">▶ 0 plays</span>
@@ -632,7 +647,8 @@
       n2048: () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
         parseInt(localStorage.getItem(`n2048Best_${d}`) || '0', 10))),
       // Cipher's "best" is its longest streak, mirrored into one key by the game.
-      cipher: () => parseInt(localStorage.getItem('cipherBest') || '0', 10)
+      cipher: () => parseInt(localStorage.getItem('cipherBest') || '0', 10),
+      'cipher-ms': () => parseInt(localStorage.getItem('cipherMsBest') || '0', 10)
     };
 
     // ---- Play counts ----

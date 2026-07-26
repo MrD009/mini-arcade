@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ms">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>🧩 Neon Cipher | Mini Arcade</title>
+  <title>🌺 Teka Kata Neon | Mini Arcade</title>
   <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
   <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
   <link rel="stylesheet" href="../../shared/arcade.css">
@@ -357,35 +357,35 @@
   <div class="ui-layer">
     <div class="hud" id="hud">
       <div class="hud-panel">
-        <span>Mode</span>
-        <strong id="modeEl">Daily</strong>
+        <span>Mod</span>
+        <strong id="modeEl">Harian</strong>
       </div>
       <div class="hud-panel">
-        <span id="puzzleLabel">Puzzle</span>
+        <span id="puzzleLabel">Teka</span>
         <strong id="puzzleEl">#1</strong>
       </div>
       <div class="hud-panel">
-        <span>Letters</span>
+        <span>Huruf</span>
         <strong id="lenEl">5</strong>
       </div>
       <div class="hud-panel">
-        <span>Streak</span>
+        <span>Rentetan</span>
         <strong id="streakEl">0</strong>
       </div>
       <div class="hud-panel">
-        <span>Best</span>
+        <span>Terbaik</span>
         <strong id="bestEl">0</strong>
       </div>
     </div>
 
     <div class="controls-bar" id="controlsBar">
-      <button id="modeBtn" onclick="switchMode()">🎲<span class="btn-label"> Practice</span></button>
-      <button id="hintBtn" onclick="useHint()">💡<span class="btn-label"> Hint</span> (1)</button>
-      <button id="statsBtn" onclick="showStats()">📊<span class="btn-label"> Stats</span></button>
-      <button id="helpBtn" onclick="showHelp()">❔<span class="btn-label"> How</span></button>
-      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶<span class="btn-label"> Full</span></button>
+      <button id="modeBtn" onclick="switchMode()">🎲<span class="btn-label"> Latihan</span></button>
+      <button id="hintBtn" onclick="useHint()">💡<span class="btn-label"> Petunjuk</span> (1)</button>
+      <button id="statsBtn" onclick="showStats()">📊<span class="btn-label"> Statistik</span></button>
+      <button id="helpBtn" onclick="showHelp()">❔<span class="btn-label"> Cara</span></button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶<span class="btn-label"> Penuh</span></button>
       <a href="../../index.html" style="text-decoration:none;">
-        <button type="button">🏠<span class="btn-label"> Home</span></button>
+        <button type="button">🏠<span class="btn-label"> Utama</span></button>
       </a>
     </div>
 
@@ -395,7 +395,7 @@
 
     <div class="bottom-bar" id="bottomBar">
       <div class="hint-strip hidden" id="hintStrip"></div>
-      <div class="hint-line" id="hintLine">Guess the five-letter word</div>
+      <div class="hint-line" id="hintLine">Teka perkataan lima huruf</div>
       <div class="keyboard" id="keyboard"></div>
     </div>
   </div>
@@ -403,21 +403,21 @@
   <div class="toast" id="toast"></div>
 
   <div class="overlay" id="startOverlay">
-    <h1>🧩 Neon Cipher</h1>
-    <p>One hidden word — pick its length below. Every guess lights up to tell you how close you are.</p>
+    <h1>🌺 Teka Kata Neon</h1>
+    <p>Satu perkataan tersembunyi — pilih panjangnya di bawah. Setiap tekaan akan menyala untuk menunjukkan sejauh mana anda hampir.</p>
 
     <div class="example">
       <div class="row-mini">
-        <span class="mini hit">l</span><span class="mini">a</span><span class="mini">s</span><span class="mini">e</span><span class="mini">r</span>
-        <span><strong style="color:var(--hit)">L</strong> is in the word, in the right spot.</span>
+        <span class="mini hit">l</span><span class="mini">a</span><span class="mini">m</span><span class="mini">p</span><span class="mini">u</span>
+        <span><strong style="color:var(--hit)">L</strong> ada dalam perkataan, pada tempat yang betul.</span>
       </div>
       <div class="row-mini">
-        <span class="mini">p</span><span class="mini near">i</span><span class="mini">l</span><span class="mini">o</span><span class="mini">t</span>
-        <span><strong style="color:var(--near)">I</strong> is in the word, wrong spot.</span>
+        <span class="mini">p</span><span class="mini near">i</span><span class="mini">n</span><span class="mini">t</span><span class="mini">u</span>
+        <span><strong style="color:var(--near)">I</strong> ada dalam perkataan, salah tempat.</span>
       </div>
       <div class="row-mini">
-        <span class="mini">g</span><span class="mini">h</span><span class="mini">o</span><span class="mini miss">s</span><span class="mini">t</span>
-        <span><strong style="color:#8d8da8">S</strong> is not in the word at all.</span>
+        <span class="mini">p</span><span class="mini">a</span><span class="mini">s</span><span class="mini miss">i</span><span class="mini">r</span>
+        <span><strong style="color:#8d8da8">I</strong> tiada langsung dalam perkataan.</span>
       </div>
     </div>
 
@@ -427,54 +427,54 @@
     <p class="diff-note" id="lenNote"></p>
 
     <div class="difficulty-bar hidden" id="difficultyBar">
-      <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
-      <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
-      <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+      <button data-diff="easy" onclick="setDifficulty('easy')">Mudah</button>
+      <button data-diff="medium" onclick="setDifficulty('medium')">Sederhana</button>
+      <button data-diff="hard" onclick="setDifficulty('hard')">Sukar</button>
     </div>
     <p class="diff-note" id="diffNote"></p>
 
-    <button class="primary" id="startBtn" onclick="startGame()">▶ Play</button>
+    <button class="primary" id="startBtn" onclick="startGame()">▶ Main</button>
     <div class="secondary-row">
-      <button id="startModeBtn" onclick="toggleStartMode()">🎲 Practice Mode</button>
+      <button id="startModeBtn" onclick="toggleStartMode()">🎲 Mod Latihan</button>
       <a href="../../index.html" style="text-decoration:none;">
-        <button type="button">🏠 Arcade Home</button>
+        <button type="button">🏠 Laman Utama</button>
       </a>
     </div>
   </div>
 
   <div class="overlay hidden" id="helpOverlay">
-    <h1>❔ How to Play</h1>
-    <p>Type any real word of the right length and press Enter. The tiles reveal how each letter scores.</p>
+    <h1>❔ Cara Bermain</h1>
+    <p>Taip mana-mana perkataan Melayu sepanjang yang betul dan tekan Enter. Jubin akan menunjukkan markah setiap huruf.</p>
 
     <div class="example">
       <div class="row-mini">
         <span class="mini hit">a</span>
-        <span>Right letter, right spot.</span>
+        <span>Huruf betul, tempat betul.</span>
       </div>
       <div class="row-mini">
         <span class="mini near">a</span>
-        <span>Right letter, wrong spot.</span>
+        <span>Huruf betul, salah tempat.</span>
       </div>
       <div class="row-mini">
         <span class="mini miss">a</span>
-        <span>Not in the word.</span>
+        <span>Tiada dalam perkataan.</span>
       </div>
     </div>
 
-    <p>Pick a word length — <strong>3, 4, 5 or 6</strong> letters. Shorter is not easier: three letters tell a guess very little, so the short rounds get extra guesses. Each length keeps its own daily puzzle and its own streak.</p>
-    <p>Repeated letters only light up as many times as they appear in the answer — the extras go grey.</p>
-    <p>Stuck? <strong>💡 Hint</strong> reveals one letter in its real position. The daily gets one; Easy practice gets two.</p>
-    <p>Any real five-letter word is a legal guess — you are not limited to the words that can be answers.</p>
-    <p><strong>Daily</strong> is the same word for everybody, once a day. <strong>Practice</strong> is a fresh random word any time you like.</p>
-    <p>On <strong>Hard</strong> practice there are no hints, and every clue you have uncovered has to appear in your next guess.</p>
+    <p>Pilih panjang perkataan — <strong>3, 4, 5 atau 6</strong> huruf. Lebih pendek bukan lebih mudah: tiga huruf memberi sangat sedikit maklumat, jadi pusingan pendek dapat tekaan tambahan. Setiap panjang ada teka harian dan rentetannya sendiri.</p>
+    <p>Huruf berulang hanya menyala sebanyak kali ia muncul dalam jawapan — lebihannya bertukar kelabu.</p>
+    <p>Buntu? <strong>💡 Petunjuk</strong> mendedahkan satu huruf pada tempat sebenarnya. Teka harian dapat satu; latihan Mudah dapat dua.</p>
+    <p>Mana-mana perkataan Melayu sepanjang itu boleh diteka — anda tidak terhad kepada perkataan yang boleh menjadi jawapan.</p>
+    <p><strong>Harian</strong> ialah perkataan yang sama untuk semua orang, sekali sehari. <strong>Latihan</strong> ialah perkataan rawak baharu bila-bila masa.</p>
+    <p>Dalam latihan <strong>Sukar</strong> tiada petunjuk, dan setiap petunjuk yang anda temui mesti muncul dalam tekaan seterusnya.</p>
 
-    <button class="primary" onclick="closeHelp()">Got It</button>
+    <button class="primary" onclick="closeHelp()">Faham</button>
   </div>
 
   <div class="overlay hidden" id="resultOverlay">
-    <h1 id="resultTitle">🎉 Solved!</h1>
-    <p class="new-best" id="newBestTag">🔥 Longest Streak Yet!</p>
-    <p id="resultText">Nice work.</p>
+    <h1 id="resultTitle">🎉 Berjaya!</h1>
+    <p class="new-best" id="newBestTag">🔥 Rentetan Terpanjang Setakat Ini!</p>
+    <p id="resultText">Syabas.</p>
     <p class="answer-word" id="answerWord"></p>
 
     <div class="share-grid" id="shareGrid"></div>
@@ -482,294 +482,176 @@
     <div class="stats">
       <div class="stat">
         <div class="num" id="resGuesses">0</div>
-        <div class="lbl">Guesses</div>
+        <div class="lbl">Tekaan</div>
       </div>
       <div class="stat">
         <div class="num" id="resStreak">0</div>
-        <div class="lbl">Streak</div>
+        <div class="lbl">Rentetan</div>
       </div>
     </div>
 
-    <button class="primary" id="resultPrimary" onclick="resultPrimaryAction()">🎲 Practice Word</button>
+    <button class="primary" id="resultPrimary" onclick="resultPrimaryAction()">🎲 Perkataan Latihan</button>
     <div class="secondary-row">
-      <button id="shareBtn" onclick="shareResult()">📋 Copy Result</button>
-      <button onclick="showStats()">📊 Stats</button>
+      <button id="shareBtn" onclick="shareResult()">📋 Salin Keputusan</button>
+      <button onclick="showStats()">📊 Statistik</button>
       <a href="../../index.html" style="text-decoration:none;">
-        <button type="button">🏠 Home</button>
+        <button type="button">🏠 Utama</button>
       </a>
     </div>
     <p class="next-in" id="nextIn"></p>
   </div>
 
   <div class="overlay hidden" id="statsOverlay">
-    <h1>Stats</h1>
+    <h1>Statistik</h1>
     <div class="stats">
       <div class="stat">
         <div class="num" id="stPlayed">0</div>
-        <div class="lbl">Played</div>
+        <div class="lbl">Dimain</div>
       </div>
       <div class="stat">
         <div class="num" id="stWinPct">0%</div>
-        <div class="lbl">Win Rate</div>
+        <div class="lbl">Kadar Menang</div>
       </div>
       <div class="stat">
         <div class="num" id="stStreak">0</div>
-        <div class="lbl">Streak</div>
+        <div class="lbl">Rentetan</div>
       </div>
       <div class="stat">
         <div class="num" id="stMax">0</div>
-        <div class="lbl">Best Streak</div>
+        <div class="lbl">Rentetan Terbaik</div>
       </div>
     </div>
 
-    <div class="stats-title">Guess Distribution</div>
+    <div class="stats-title">Taburan Tekaan</div>
     <div class="dist" id="distEl"></div>
 
     <p class="mode-line" id="practiceLine"></p>
 
-    <button class="primary" onclick="closeStats()">Back</button>
+    <button class="primary" onclick="closeStats()">Kembali</button>
   </div>
 
   <script src="../../shared/arcade.js"></script>
   <script>
     // --------------------------------------------------------------- words ---
-    // Answer pools, one per word length. Kept apart from the accepted-guess
-    // dictionaries in dict-<n>.js, because the two jobs pull in opposite
-    // directions: answers should be words everybody knows, while guesses should
-    // almost never be refused.
+    // Kumpulan jawapan, satu bagi setiap panjang perkataan, dalam ejaan Melayu
+    // Malaysia baku. Berasingan daripada kamus tekaan dalam dict-<n>.js kerana
+    // dua tugas itu bertentangan arah: jawapan patut perkataan yang semua orang
+    // tahu, manakala tekaan hampir tidak sepatutnya ditolak.
     //
-    // The pools are deliberately different sizes. Short words are *harder*, not
-    // easier — three letters give each guess very little to work with, and a wide
-    // pool of them turns the endgame into a coin flip. Measured with a solver at
-    // the guess count the game grants, a full 639-word three-letter pool failed
-    // 38% of the time even on six guesses, so that pool is capped tight. Every
-    // pool below solves at its own count.
+    // Dipilih dengan tangan, bukan diambil terus dari senarai kekerapan, kerana
+    // korpusnya sarikata filem: ia mencampurkan bentuk Indonesia dengan Melayu
+    // (pikir/fikir, menit/minit, musik/muzik, kabar/khabar) dan penuh nama watak.
+    // Setiap perkataan disemak semula terhadap korpus itu, jadi tiada jawapan
+    // yang tidak pernah digunakan orang.
+    //
+    // Perkataan pendek lebih SUKAR, bukan lebih mudah — tiga huruf memberi
+    // sangat sedikit maklumat setiap tekaan, jadi kumpulan tiga huruf sengaja
+    // kecil; perbendaharaan Melayu tiga huruf pun tipis.
     const ANSWER_POOLS = {
       3: `
-        act add ads age ago aid aim air all and any are art ask ass ave bad bag bar bay bed
-        ben bid big bin bit bob box boy bug bus but buy can cap car cat cum cup cut day did
-        die doc dog don dry due eat end eye far fat fax fee few fit fix fly for fun gas get
-        god got guy had has hat her hey him hip his hit hot how ice ink inn its job joe key
-        lab las law led let log lot low mac man map mar men met mid mix mom mon net new nor
-        not now off oil old one our out own pay per pic pin pop pro put raw red rom run sat
-        saw say sea sec see set sex she six ski sky son spa sub sun tag tax tea ten the tip
-        tom too top toy try two ups use via war was way web wed wet who why win won yes yet
-        you zip
+        abu ada air ais aku apa api bab bar bas bau beg bil bom bot bui but cap cek cip dah
+        dam dan dia doa dua ela esa gam gas gua hak hal ibu ini isi isu itu jag jam kad kal
+        kan kau kek kem kes kod kos lif lot mak nak nil pam pil pos pun rak roh sah sel sen
+        set sup tab tag tak tar tau tim tin ton tua tut ubi uji zon
       `,
       4: `
-        able acid acre acts adds aged ages aids aims alan also anal anti aqua arch area arms
-        army arts asks atom auto away axis babe baby back bags ball band bang bank bare bars
-        base bass bath beam bean bear beat beds beef been beer belt bend best beta bias bids
-        bike bind bios bits blow blue boat body bold bomb bond bone boob book boom boot born
-        boss both bowl boys brad buck bugs bulk bull burn bush busy butt buzz cafe cake call
-        calm came camp cams cant cape caps card care carl cars cart case cash cast cats cave
-        cell cent chat chef chip ciao cite city clan clay clip club coal coat code coin cold
-        cole come comp cons cook cool copy cord core corn cost crap crew crop cube cups cure
-        cute cuts damn dare dark data date days dead deal dean dear debt deck deep deer demo
-        desk dial died dies diet dirt disc dish disk dive docs does dogs done door dose down
-        drag draw drew drop drug drum dual duck duke dump dust duty each earl earn ears ease
-        east easy echo edge edit eggs ends epic euro even ever evil exam exit eyed eyes face
-        fact fail fair fake fall fame fans farm fast fate fear feed feel fees feet fell felt
-        file fill film find fine fire firm fish fist fits five flag flat flip flow foam fold
-        folk font food fool foot ford fork form fort four free frog from fuel full fund funk
-        gain game gang gate gave gear geek gets gift girl give goal gods goes gold golf gone
-        good grab grew grey grid grip grow gulf guns guys hack hair half hall hand hang hard
-        harm hart hate hats have hawk head hear heat held hell help here hero hide high hill
-        hire hits hold hole holy home hong hood hook horn hose host hour huge hull hung hunt
-        hurt icon idea inch info into iron item jack jail java jazz jeep jews jobs john join
-        joke josh jump junk jury just keep kent kept keys kick kids kill kind king kiss knee
-        knew know labs lace lack lady laid lake lamb lamp land lang last late lawn laws lead
-        leaf left legs lens less lets lies life lift like line link lion lips list lite live
-        load loan lock logo logs long look loop lord lose loss lost lots loud love lows luck
-        lung made mail main make male mall many maps marc mark mars mart mask mass mate math
-        matt meal mean meat meet memo menu mere mesa mesh mess mice mike mild mile milk mill
-        mind mine mini mint miss mode moms mono mood moon more most move much must nail name
-        navy near neck need news next nice nick nine node none noon nose note nova nude nuke
-        null nuts odds oils okay once ones only onto oops open oral orgy oval oven over pace
-        pack pads paid pain pair palm para park part pass past path pays peak peer pest pets
-        pick pill pine pink pins pipe piss plan play plot plug plus poem poet pole poll polo
-        poly pond pool poor pope porn port post pour pray prep pros pull pump punk pure push
-        puts quit quiz race rack raid rail rain rand rank rape rare rate rats read real rear
-        reed reef reel rely rent rest rice rich rick ride ring ripe rise risk road rock role
-        roll roof room root rope rows rule runs rush safe sage said sake sale salt same sand
-        sans save says scan seal seat seed seek seem seen sees self sell semi send sent sets
-        sexy shaw shed ship shoe shop shot show shut sick side sign silk sims sing sink site
-        size skin skip slim slip slot slow snap snow soap sofa soft soil sold sole solo some
-        song sons soon sort soul soup span spin spot stat stay stem step stop stud such suck
-        suit sure surf swap swim sync tabs tags tail take tale talk tall tank tape task taxi
-        team teen tell temp tend tent term test text than that thee them then they thin this
-        thou thru thus tide tied tier ties tile till time tiny tips tire told toll tone tons
-        took tool tops tour town toys trap tray tree trek trim trio trip troy true tube tune
-        turn twin type ugly unit unto upon used user uses vary vast very vice view visa void
-        volt vote wage wait wake walk wall want ward warm wars wash watt wave ways weak wear
-        week well went were west what when whom wide wife wild will wind wine wing wins wire
-        wise wish with wolf wood wool word work worn wrap yard yeah year yoga your zero zone
-        zoom
+        abad adik adil aduh agak agar agen ahli ajak ajar akal akan aksi akui alam alat alih
+        aman amat anak anda aneh arah arak asal asap asas asli atas atau atuk awak awal awam
+        awan awas ayah ayam ayat ayuh babi baca bagi baik baju bang bank bapa baru batu bawa
+        bayi beli beri besi beta biar bila bina biru blok bola buah buat budi buka buku bulu
+        bumi cina cium cuba cucu cuma curi cuti dada data daun daya debu demi desa dewa diam
+        diri dosa duit dulu ejen ekor elok emak emas enak enam esok fail foto gaji gaun gaya
+        geng gila gula guna guru hari hati helo hero idea ikan ikat ikut ilmu inci ipar izin
+        jadi jaga jala jari jasa jauh jika jiwa jual juga juri juta kaca kain kaki kaku kali
+        kami kamu kata kaum kaya kayu keju kena kera khas kini kita kopi kota krim kuat kubu
+        kuda kuih kuil kuku labu laci lagi lagu lain laju laku lalu lama laut lawa lega lena
+        liar lidi lima luar luas lucu luka lupa maaf madu mahu main maju maka malu mana mari
+        masa mata mati maut mega meja misi muat muda muka mula nada naga naik nama nasi nota
+        okey oleh otak otot pada padi pagi paha paip paku pala para pasu paus pena peti pita
+        puak puan puas pula raja rasa ratu raut raya rela ribu roti rugi rupa rusa saat saiz
+        saja sama sana sang sapu satu saya segi seni sewa sial siap sila sini sisa sisi situ
+        soal suci sudi suhu suka suku susu tadi tahu tali tamu tapi tebu teka temu tepi tiap
+        tiba tiga tipu tiru tong topi trak tuan tugu tuju ubah ubat ucap ular umum umur unik
+        unit upah usah usia wain waja wang wira yang
       `,
       5: `
-        about above abuse actor acute adieu admit adopt adult after again agent agree ahead
-        alarm album alert alike alive allow alone along alpha alter amber among anger angle
-        angry ankle apart apple apply arena argue arise arose array arrow aside asset audio
-        audit avoid awake award aware badge badly baker banjo basic basin basis beach beard
-        beast began begin begun being below bench birth black blade blame blank blast blaze
-        bleed blend bless blind blink block blood bloom blown blues blunt blush board boast
-        bonus boost booth brain brake brand brass brave bread break breed brick bride brief
-        bring brisk broad broke broom brown brush build built bunch burnt burst buyer cabin
-        cable canal candy cargo carry carve cause cease chain chair chalk charm chart chase
-        cheap cheat check cheek cheer chess chest chief child chill china choir chose chunk
-        cider cigar civic civil claim clamp clash class clean clear clerk click cliff climb
-        cling clock clone close cloth cloud clown coach coast cocoa colon color comet comic
-        coral couch cough could count court cover crack craft crane crash crawl crazy cream
-        creek creep crest crime crisp cross crowd crown crude cruel crush crust curve cycle
-        daily dairy dance dated dealt death debut decay decor delay delta dense depth derby
-        devil diary digit dirty diver dizzy dogma doing donor doubt dozen draft drain drama
-        drank drawn dream dress dried drift drill drink drive drove drown drunk dusty dwell
-        eager eagle early earth elbow elder elect elite empty enemy enjoy enter entry equal
-        error essay event every exact exist extra faint fairy faith false fancy fatal fault
-        favor feast fence fetch fever fiber field fiery fifth fifty final first fjord flame
-        flash fleet flesh flint float flock flood floor flour flown fluid flush focus force
-        forge forth forty forum frame frank fraud fresh front frost frown froze fruit fully
-        funny gamma ghost giant glass gleam glide globe glory glove going grace grade grain
-        grand grant grape graph grasp grass grave gravy great green greet grief grill grind
-        groan groom gross group grove grown guard guess guest guide guild guilt habit happy
-        harsh haven heard heart heavy hedge hello hence hobby honey honor horse hotel human
-        humor hurry ideal image imply index inner input irony issue ivory jeans jewel joint
-        judge juice jumbo karma kneel knelt knife knock known label labor large laser laugh
-        layer learn lease least leave legal lemon level lever liked limit linen liver local
-        lodge logic loose lorry lover lower loyal lucky lunar lunch lying magic major maker
-        mango maple march marsh maybe mayor meant medal media melon mercy merge merit metal
-        meter midst minor minus mixed mocha model modem moist money month moral motor motto
-        mount mouth movie music nacho naked nasty naval nerve never newly ninja ninth noble
-        noise north noted novel nurse occur ocean offer often older olive omega onion opera
-        orbit order organ other ought ounce outer owner oxide paint panel panic paper party
-        pasta pause peace peach pearl pedal penny phase phone photo piano piece pilot pinch
-        pixel pizza place plain plane plant plate plaza plead pluck plump point polar porch
-        power press price pride prime print prior prize probe prone proof proud prove pulse
-        punch pupil puppy purse queen query quest queue quick quiet quilt quite quote radar
-        radio raise rally ranch range rapid ratio reach react ready realm rebel refer relax
-        relay reply rhyme ridge rifle rigid rinse rival river roast robin robot rocky roman
-        rough route royal rugby ruler rumba rural sadly saint salad salon salsa samba sandy
-        sauce scale scare scarf scene scent scope score scout scrap screw seize sense serve
-        seven shack shaft shall shark sharp sheep sheet shelf shell shift shine shiny shirt
-        shock shoot shore short shout shown siege sigma silly since sixth sixty skill skirt
-        slate sleep slept slice slide slope small smart smash smell smile smoke snack snake
-        sneak solar solid solve sorry south space spare spark speak speed spell spend spent
-        spice spike spill spine split spoke spoon sport spray squad stack staff stain stair
-        stall stamp stand start steak steal steam steel steep steer stern stick stiff still
-        sting stock stole stone stood stool store storm story stove strap straw strip stuck
-        study stuff style sugar suite sunny super surge swear sweat sweep sweet swell swept
-        swift swing sword table taken tango teach teeth tempo tense tenth thank theft their
-        theme there these thick thief thigh thing think third those three threw throw thumb
-        tiger timer tired title toast today token tooth topic torch total touch tough towel
-        tower toxic trace track trade trail train trait trash treat trend trial tribe trick
-        tried truck truly trunk trust truth twice twist ultra uncle under union unite unity
-        until upper upset urban usage usual vague valid value valve vapor vault venue verse
-        video vigor villa vinyl virus visit vital vivid vocal vodka voice voter wagon waist
-        weary weigh weird whale wheat wheel where which while white whole whose widow width
-        woman women world worry worse worst worth would wrist write wrong wrote yacht yield
-        young youth zebra
+        abadi abang aduan agama agung ajaib akaun akhir akses aktif alami ambil ampun andai
+        angin angka angsa arnab artis asing askar asyik atlet babak badai badan badut bagus
+        bahan bakar bakat balai balas balik bantu basah basuh batas batuk bawah bayar beban
+        bebas bedah bekas belas belok belon belum benar benci benda benih beras berat beruk
+        besar besok betul biasa bibir bijak bilik bocor bodoh boleh bomba bosan botak botol
+        buang budak bukan bukit bukti bulan bulat buluh bunga bunuh bunyi buruk busuk busur
+        cabar cabut cacat cakap calon catur cawan cekap cemas cepat cerah ceria cikgu cinta
+        cipta comel corak cuaca cukai cukup cukur culik dadah dalam damai dapat dapur darab
+        darah darat dasar datuk degil dekat demam denda depan detik dewan duduk dungu dunia
+        emosi empat encik enjin entah faham fakta fasal fikir filem fizik fokus gadai gadis
+        gagah gagal gajah ganas ganda ganti garaj garam garis garpu gelap gelar gelas gempa
+        gemuk gerak getah ghaib gigit gitar gosok gugup gurun gusti habis hadir hafal hajat
+        hakim halau halus hantu hanya haram harap harga harta harus hasil hayat hebat helah
+        henti hidup hijau hirup hisap hitam hodoh hujan hukum huruf hutan iaitu ialah iblis
+        iklan indah ingat ingin isnin jahat jahit jaket jalan jalur jambu jamin janji jarak
+        jarum jatuh jawab jejak jelas jenis jerit jijik jiran juara jubah jujur julai jumpa
+        jurus kabel kabin kabur kacak kadar kagum kakak kalah kalau kalis kanan kapak kapal
+        kargo karut karya kasar kasih kasut katak katil kawal kawan kebal kebun kecil kedai
+        kedua kejam kejap kejar kekal kelab kelas kemas kenal kerap keras kerja kesal kesan
+        ketam ketat ketua ketuk kicap kilat kimia kirim kisah kitab koboi kolam kolej komen
+        kotak kotor kuali kuasa kubur kukuh kulit kunci lahir lalat laman lampu lanun lapan
+        lapar lapor latar lawak lawan layan layar lazat lebah lebar lebih leher lekas lemah
+        lemas lembu lepas lesen letak letih lewat licik lidah lihat lilin litar logam logik
+        lukis lulus lumba lurus lutut mabuk macam magik mahal mahir makam makan makin makna
+        malah malam malas mampu mandi manis marah masak masam masih masin masuk mayat medan
+        merah mesej mesin mesra mesti mewah milik mimpi minat minit minta minum mirip mitos
+        modal moden mohon mudah mulai mulia mulut murah murid musim musuh muzik nafas nafsu
+        nakal namun nanti nasib nenek nilai nipis nyata nyawa objek ombak orang padam padan
+        pagar pahit pakai pakar pakej paksa palsu panah panas pandu panik papan parti paruh
+        parut pasal pasar pasir pasti patah patik patuh patut payah pecah pecat pedas pekak
+        pekan pelan pelik peluk penat penuh perak pergi perlu perut pesan pesta petik petir
+        piala pihak pilih pintu pisah pisau poket pokok polis pucat puisi pukul pulau pulih
+        puluh punca punya purba pusat putar putih putus racun rajin rakam rakan rakit ramah
+        ramai rapat rasmi ratus rawak rehat rekod retak riang ribut rindu risau roket rokok
+        rosak ruang rumah rumit rusuk sabar sabtu saham sakit saksi salah salam salji saman
+        saraf sawah sayap sayur sebab sebut sedap sedar sedia sedih segar sejak sejam sejuk
+        selam semak semua semut sepak serah seram serta sesak sesat setia siang siapa sibuk
+        sifar sifat sihat sihir sikap sikat sikit silam silap sinar singa siput skala skrin
+        solek sopan sosej suami suara suatu subuh sudah sudut sukan sukar sulit sunyi surat
+        suruh susah tabik tahan tahap tahun tajam tajuk takut tamak taman tamat tanah tanam
+        tanda tanpa tanya tapak tarik tasik tayar tebal tegas tekak tekan teksi telah telan
+        teluk telur teman tenis tentu teori tepat tepuk teruk terus tetap tewas tiada tidak
+        tidur tikam tiket tikus tilam timur tipis titik tolak tolol topik tuala tubuh tugas
+        tuhan tujuh tukar tulen tulis tumit tunai tupai turun turut tutup udang udara ujian
+        ulang umpan undur untuk upaya usaha utama utara versi wabak wahai wajah wajar wakil
+        waktu walau wangi waran waras warga waris warna watak wujud yakin yatim zaman
       `,
       6: `
-        abroad absent accent accept access across acting action active actors actual adding
-        adjust adults advert advice advise aerial affair affect afford afraid agency agenda
-        agents agreed agrees alaska albums alerts allows almost alpine alumni always amazon
-        amount anchor angels animal annual answer anyone anyway apache apollo appeal appear
-        arcade arctic argued around arrest arrive artist asking aspect assess assets assign
-        assist assume assure asthma atomic attach attack attend august author autumn avatar
-        avenue awards babies backed backup bailey baking ballet ballot banana banned banner
-        barely barrel basics basket batman battle beauty beaver became become before begins
-        behalf behind beings belief belong berlin beside better beyond bidder bigger bikini
-        binary bishop blacks blades blocks blonde bloody boards bodies border boring boston
-        bottle bottom bought boxing brakes branch brazil breach breaks breast breath breeds
-        bridal bridge briefs bright brings broken broker bronze browse brutal bubble budget
-        buffer builds bullet bumper bundle burden bureau buried burner burton butler butter
-        button buyers buying cables called camera campus cancel cancer candle cannon canvas
-        canyon carbon career caring carpet carter casino castle casual cattle caught caused
-        causes cayman cement census center centre chains chairs chance change chapel charge
-        charms charts cheats checks cheers cheese cheque chicks choice choose chorus chosen
-        chrome chubby church cinema circle circus cities claims clause clicks client clinic
-        clocks closed closer closes clouds cloudy coding coffee collar colony colors column
-        combat comedy comics coming commit common comply condos cooked cooler cooper copied
-        copies copper corner cotton counts county couple coupon course courts covers cowboy
-        crafts create credit crimes crisis cruise curves custom cycles cyprus damage danger
-        danish dating deadly dealer deaths debate decade decent decide deemed deeper deeply
-        defeat defend define degree delays delete deluxe demand denial denied dental depend
-        deputy desert design desire detail detect device diesel differ digest dining dinner
-        direct dishes divide divine diving doctor dollar domain donate donors dosage double
-        dozens dragon dreams drinks driven driver drives during duties eagles earned easier
-        easily eating edited editor effect effort either eleven empire employ enable ending
-        energy engage engine enough ensure entire entity enzyme equity erotic errors escape
-        escort essays estate ethics ethnic events exceed except excess excuse exempt exists
-        exotic expand expect expert export extend extent extras fabric facial facing factor
-        failed fairly fallen family famous farmer faster father favors fellow female fetish
-        fields figure filing filled filter finals finder finest finger finish fisher fitted
-        flavor fleece flight floors floppy floral flower flying folder follow forced forces
-        forest forget forgot formal format formed former fossil foster fought fourth framed
-        frames freely freeze french fridge friend frozen fruits fucked funded fusion future
-        gained galaxy garage garden garlic gather gender genius genome gentle gently german
-        giants gibson giving glance global gloves golden gospel gossip gothic gotten grades
-        graham granny grants graphs groove ground groups growth guards guests guided guides
-        guilty guinea guitar habits hacker hammer handed handle happen harbor harder hardly
-        harper having hazard headed header health hearts heated heater heaven height helmet
-        helped herald herbal hereby herein heroes hidden higher highly hiking hiring hockey
-        holder hollow honest honors hoping horror horses hosted hostel hotels hourly houses
-        humans hunger hungry hunter hybrid ignore images immune impact import incest inches
-        income indeed indoor infant inform injury insert inside intake intend intent invest
-        invite island issued issues itself jacket jaguar jersey johnny joined joseph judges
-        jungle junior kidney killed killer knight knives labels ladder ladies lambda laptop
-        larger lately latest latino latter launch lawyer layers layout leader league leaves
-        legacy legend length lenses lesser lesson letter levels liable lights likely limits
-        linear linked liquid listed listen little living loaded locale locate locked logged
-        lonely longer looked losing losses lounge lovely lovers loving lowest luxury lyrics
-        magnet mailed mainly makers makeup making manage manner manual marble margin marine
-        marked marker market martin marvel master matrix matter mature medium member memory
-        mental mentor merely merger metals meters method metric middle mighty miller mining
-        minute mirror missed mixing mobile models modern module moment monkey months morris
-        mostly motels mother motion motors movers movies moving murder murphy muscle museum
-        mutual myself namely narrow nation native nature nearby nearly needed needle nelson
-        neural newest newton nickel nights nipple nobody normal notice notify notion novels
-        nudist nudity number nurses object obtain occurs offers office offset oldest opened
-        option oracle orange orders orgasm origin others outlet owners oxford oxygen packed
-        packet palace palmer panama panels papers parade parent parish parker partly passed
-        passes pastor patent patrol payday paying peeing pencil people pepper period permit
-        person petite phases phones photos phrase picked pickup picnic pieces pierce pillow
-        pixels placed places plains planes planet plants plasma plates played player please
-        pledge plenty pocket poetry points police policy polish portal porter posing postal
-        posted poster potato potter pounds powder powers praise prayer prefer prefix pretty
-        priced prices priest prince prints prison prizes profit prompt proper proved proven
-        public pulled pupils purple pursue pushed puzzle queens quoted quotes rabbit racial
-        racing radios radius raised raises random ranges rapids rarely rather rating reader
-        really realty reason rebate recall recent recipe record redeem reduce refers reform
-        refund refuse regard reggae regime region reject relate relief reload remain remark
-        remedy remind remote remove render rental repair repeat report rescue resort result
-        resume retail retain return reveal review reward rhythm ribbon riders riding rights
-        rising rivers robots robust rocket rogers rolled roller roster rotary rounds router
-        routes rubber ruling runner sacred safari safely safety saints salary salmon sample
-        saving saying scales scenes scenic scheme school scored scores scotia screen script
-        scroll sealed search season second secret sector secure seeing seeker seemed select
-        seller senate sender senior sensor serial series served server serves settle severe
-        sewing sexual shadow shaped shapes shared shares shaved sheets shield shirts shorts
-        should showed shower sierra signal signed silent silver simple simply singer single
-        sister skiing skills skirts sleeps sleeve slides slight slowly smooth soccer social
-        socket sodium solely solved sorted sought sounds source soviet spaces speaks spears
-        speech speeds sphere spider spirit spoken sports spouse spread spring sprint square
-        squirt stable stages stamps stands starts stated states static status stayed steady
-        stereo sticks sticky stocks stolen stones stored stores strain strand stream street
-        stress strict strike string strips stroke strong struck studio stupid styles submit
-        sudden suffer suited suites summer summit sunset superb supply surely survey switch
-        symbol system tables tablet tackle tagged taking talent talked target tattoo taught
-        temple tenant tender tennis terror tested thanks themes theory thesis things thinks
-        thirty thongs though thread threat throat thrown throws thumbs ticket tigers timber
-        timely timing tissue titans titles toilet tomato tongue topics totals toward towers
-        tracks trader trades trails trains trance trauma travel treaty trends trials tribal
-        tricks triple troops trucks trusts trying tuning tunnel turkey turned turner turtle
-        twelve twenty typing unable unions unique united unless unlike unlock update upload
-        urgent useful vacuum vagina valley valued values valves varied varies vector vendor
-        venues verbal verify versus vessel victim victor videos viewed viewer villas violin
-        virgin vision visits visual vocals voices volume voters voting voyeur waiver walked
-        walker wallet walnut wanted warned warner warren washer waters wealth weapon weekly
-        weight wheels whilst wicked window winner winter wiring wisdom wishes within wizard
-        wonder wooden worked worker worlds worthy wright writer writes yellow yields zoning
+        adakah adalah adanya afrika akhbar akibat alamak alamat alasan almari amaran anggap
+        angkat anjing antara apakah arahan bahasa bahawa bahaya bahkan bandar bangga bangsa
+        bangun banyak barang batang bateri begini begitu beliau bentuk berada berani berapa
+        berasa berbau berdoa berdua berhak berita bersih betapa bicara bidang bimbit bising
+        bisnes bohong burung butang cahaya campur cantik cedera celaka cerita cermin cincin
+        ciuman coklat daerah daftar daging dahulu darjah datang dendam dengan dengar dewasa
+        diberi dibina dibuat dibuka dicuri dijual dingin doktor enggan engkau eropah gambar
+        ganggu genius gereja gudang gunung hadapi hadiah haiwan hampir hancur hangat hantar
+        hargai hendak hidung hilang hingga hormat hujung hutang ikatan impian istana isteri
+        jadual jangan jangka jarang jemput jenaka jerman jumlah kahwin kaitan kajian kalian
+        kamera kapten kecewa keldai keliru keluar kenapa kepada kepala kerana kereta kering
+        kertas kerusi ketawa ketiga ketika khabar khusus kilang kiraan kongsi korang korban
+        kosong kredit kucing kuning kurang ladang laluan lambat lancar langit lantai lautan
+        lelaki lembut lengan lokasi lompat lorong lubang mainan majlis makcik makmal maksud
+        malang mangsa markas memang memori menang menara menari menipu menuju merasa merayu
+        mereka miliki minggu minyak miskin monyet muncul muntah musnah nampak negara negeri
+        neraka nombor normal padang paderi pakcik paling pandai pantai pantas pasang patung
+        pedang peduli pegang peguam peluru pemain pemuda penari pendek penipu pentas perahu
+        perang pernah petang pindah pingat pinjam pintar pistol planet potong projek proses
+        pulang puncak pusing putera puteri rahsia rakyat rambut rantai rasuah remaja rendah
+        ringan risiko sahaja saling sambil sampah sampai sangat sangka sarang sarjan sarkas
+        sayang sebaik sebuah secara sedang seekor segala segera sehari sejati sejauh sekali
+        selagi selain selalu selama selesa seluar semasa sembuh semoga sempat semula senang
+        sentuh senyap senyum sepupu serang sering serius sertai sesuai setiap setuju seumur
+        siaran siasat simbol simpan sistem soalan stabil stesen subjek sultan sumber sumpah
+        sungai supaya suspek syarat syurga takdir takkan talian tambah tampak tandas tangan
+        tangga tangki tarian tarikh teknik tembak tembok tempat tempoh tenaga tenang tengah
+        tengok terang terasa terima terjun teruja tetamu tetapi tinggi tolong topeng tuanku
+        tujuan tukang tulang tumbuh tunduk tunggu tunjuk ucapan ulangi urusan wanita
       `
     };
 
@@ -805,7 +687,7 @@
         };
         const s = document.createElement('script');
         s.src = 'dict-' + n + '.js';
-        s.onload = () => finish((window.CIPHER_DICT || {})[n]);
+        s.onload = () => finish((window.CIPHER_MS_DICT || {})[n]);
         s.onerror = () => finish(null);
         document.head.appendChild(s);
       });
@@ -846,12 +728,13 @@
     // extraRows adds to BASE_GUESSES for the chosen length, so a tier means
     // the same thing whichever word size the player picks.
     const DIFFICULTIES = {
-      easy:   { extraRows: 1, hints: 2, hardMode: false, note: 'Easy — one extra guess and two hints.' },
-      medium: { extraRows: 0, hints: 1, hardMode: false, note: 'Medium — the standard count for this length, one hint.' },
-      hard:   { extraRows: 0, hints: 0, hardMode: true,  note: 'Hard — standard count, no hints, and every clue must be reused.' }
+      easy:   { extraRows: 1, hints: 2, hardMode: false, note: 'Mudah — satu tekaan tambahan dan dua petunjuk.' },
+      medium: { extraRows: 0, hints: 1, hardMode: false, note: 'Sederhana — bilangan biasa bagi panjang ini, satu petunjuk.' },
+      hard:   { extraRows: 0, hints: 0, hardMode: true,  note: 'Sukar — bilangan biasa, tiada petunjuk, dan setiap petunjuk mesti diguna semula.' }
     };
 
-    const DAILY_HINTS = 1;        // the daily always gets exactly one
+    const DAILY_HINTS = 1;        // teka harian sentiasa dapat satu
+    const DIFF_NAMES = { easy: 'Mudah', medium: 'Sederhana', hard: 'Sukar' };
 
     const board = document.getElementById('board');
     const keyboardEl = document.getElementById('keyboard');
@@ -896,11 +779,11 @@
     // Storage is per word length: each length has its own daily puzzle, its own
     // saved board and its own streak, so playing the four-letter round cannot
     // break a five-letter streak.
-    function dailyKey(n)    { return 'cipherDaily_' + n; }
-    function statsKey(n)    { return 'cipherStats_' + n; }
-    function practiceKey(n) { return 'cipherPractice_' + n; }
-    const DIFF_KEY = 'cipherDifficulty';
-    const LEN_KEY = 'cipherLength';
+    function dailyKey(n)    { return 'cipherMsDaily_' + n; }
+    function statsKey(n)    { return 'cipherMsStats_' + n; }
+    function practiceKey(n) { return 'cipherMsPractice_' + n; }
+    const DIFF_KEY = 'cipherMsDifficulty';
+    const LEN_KEY = 'cipherMsLength';
 
     /**
      * Before lengths existed everything was five letters and lived in unsuffixed
@@ -908,15 +791,15 @@
      * vanish the moment this version ships.
      */
     (function migrateFiveLetterKeys() {
-      if (localStorage.getItem('cipherLenMigrated')) return;
-      [['cipherDaily', dailyKey(5)], ['cipherStats', statsKey(5)],
-       ['cipherPractice', practiceKey(5)]].forEach(function (pair) {
+      if (localStorage.getItem('cipherMsLenMigrated')) return;
+      [['cipherMsDaily', dailyKey(5)], ['cipherMsStats', statsKey(5)],
+       ['cipherMsPractice', practiceKey(5)]].forEach(function (pair) {
         const old = localStorage.getItem(pair[0]);
         if (old !== null && localStorage.getItem(pair[1]) === null) {
           localStorage.setItem(pair[1], old);
         }
       });
-      localStorage.setItem('cipherLenMigrated', '1');
+      localStorage.setItem('cipherMsLenMigrated', '1');
     })();
 
     // ------------------------------------------------------- shared wraps ---
@@ -994,7 +877,7 @@
         const pr = Object.assign({ maxStreak: 0 }, readJSON(practiceKey(n), {}));
         best = Math.max(best, s.maxStreak | 0, pr.maxStreak | 0);
       });
-      Arcade.setBestScore('cipherBest', best);
+      Arcade.setBestScore('cipherMsBest', best);
       return best;
     }
 
@@ -1048,7 +931,7 @@
         const seen = {};
         for (let i = 0; i < cols; i++) {
           if (marks[i] === 'hit' && guess[i] !== g[i]) {
-            return `${ordinal(i + 1)} letter must be ${g[i].toUpperCase()}`;
+            return `Huruf ${ordinal(i + 1)} mestilah ${g[i].toUpperCase()}`;
           }
           if (marks[i] === 'hit' || marks[i] === 'near') seen[g[i]] = (seen[g[i]] || 0) + 1;
         }
@@ -1058,15 +941,15 @@
         const have = guess.split('').filter(x => x === c).length;
         if (have < known[c]) {
           return known[c] > 1
-            ? `Guess must use ${known[c]} × ${c.toUpperCase()}`
-            : `Guess must contain ${c.toUpperCase()}`;
+            ? `Tekaan mesti guna ${known[c]} × ${c.toUpperCase()}`
+            : `Tekaan mesti ada ${c.toUpperCase()}`;
         }
       }
       return null;
     }
 
     function ordinal(n) {
-      return ['1st', '2nd', '3rd', '4th', '5th'][n - 1] || `${n}th`;
+      return ['pertama', 'kedua', 'ketiga', 'keempat', 'kelima'][n - 1] || `ke-${n}`;
     }
 
     // --------------------------------------------------------------- hints ---
@@ -1084,14 +967,14 @@
     function useHint() {
       if (status !== 'playing' || revealing || anyOverlayOpen()) return;
       if (hintsLeft <= 0) {
-        showToast(hintsForRound() === 0 ? 'No hints on Hard' : 'No hints left', '#ff2a2a', 1200);
+        showToast(hintsForRound() === 0 ? 'Tiada petunjuk dalam Sukar' : 'Petunjuk sudah habis', '#ff2a2a', 1200);
         return;
       }
       const known = knownPositions();
       const options = [];
       for (let i = 0; i < cols; i++) if (!known.has(i)) options.push(i);
       if (!options.length) {
-        showToast('You already have every letter!', '#ffb400', 1400);
+        showToast('Semua huruf sudah anda ketahui!', '#ffb400', 1400);
         return;
       }
       const pos = options[Math.floor(Math.random() * options.length)];
@@ -1100,7 +983,7 @@
       initAudio();
       playTone(880, 'sine', 0.18, 0, 0.1);
       playTone(1174, 'sine', 0.18, 0.1, 0.08);
-      showToast(`${ordinal(pos + 1)} letter is ${answer[pos].toUpperCase()}`, '#ffd700', 1800);
+      showToast(`Huruf ${ordinal(pos + 1)} ialah ${answer[pos].toUpperCase()}`, '#ffd700', 1800);
       renderHints();
       updateHintButton();
       saveProgress();
@@ -1116,7 +999,7 @@
       const sorted = revealedHints.slice().sort((a, b) => a.pos - b.pos);
       sorted.forEach(h => {
         const el = document.createElement('span');
-        el.textContent = `${ordinal(h.pos + 1)} = ${h.letter.toUpperCase()}`;
+        el.textContent = `Huruf ${h.pos + 1}: ${h.letter.toUpperCase()}`;
         strip.appendChild(el);
       });
       strip.classList.toggle('hidden', sorted.length === 0);
@@ -1126,7 +1009,7 @@
       const btn = document.getElementById('hintBtn');
       // Keep the .btn-label span: the narrow-screen media query hides it to keep
       // the control bar on one row, so plain textContent would break that.
-      btn.innerHTML = `💡<span class="btn-label"> Hint</span> (${hintsLeft})`;
+      btn.innerHTML = `💡<span class="btn-label"> Petunjuk</span> (${hintsLeft})`;
       btn.disabled = hintsLeft <= 0 || status !== 'playing';
     }
 
@@ -1246,26 +1129,24 @@
 
     function renderHud() {
       const stats = mode === 'daily' ? loadStats() : loadPractice();
-      modeEl.textContent = mode === 'daily' ? 'Daily' : 'Practice';
-      puzzleLabel.textContent = mode === 'daily' ? 'Puzzle' : 'Level';
-      puzzleEl.textContent = mode === 'daily'
-        ? `#${dayIndex}`
-        : difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+      modeEl.textContent = mode === 'daily' ? 'Harian' : 'Latihan';
+      puzzleLabel.textContent = mode === 'daily' ? 'Teka' : 'Tahap';
+      puzzleEl.textContent = mode === 'daily' ? `#${dayIndex}` : DIFF_NAMES[difficulty];
       lenEl.textContent = cols;
       streakEl.textContent = stats.streak;
       bestEl.textContent = stats.maxStreak;
       modeBtn.innerHTML = mode === 'daily'
-        ? '🎲<span class="btn-label"> Practice</span>'
-        : '📅<span class="btn-label"> Daily</span>';
+        ? '🎲<span class="btn-label"> Latihan</span>'
+        : '📅<span class="btn-label"> Harian</span>';
       updateHintButton();
       updateHint();
     }
 
     function updateHint() {
-      if (status === 'won') hintLine.textContent = 'Solved! 🎉';
-      else if (status === 'lost') hintLine.textContent = `The word was ${answer.toUpperCase()}`;
-      else if (hardMode) hintLine.textContent = 'Hard mode — reuse every hint you have found';
-      else hintLine.textContent = `Guess ${guesses.length + 1} of ${rows}`;
+      if (status === 'won') hintLine.textContent = 'Berjaya! 🎉';
+      else if (status === 'lost') hintLine.textContent = `Perkataannya ialah ${answer.toUpperCase()}`;
+      else if (hardMode) hintLine.textContent = 'Mod sukar — guna semula setiap petunjuk yang ditemui';
+      else hintLine.textContent = `Tekaan ${guesses.length + 1} daripada ${rows}`;
     }
 
     // -------------------------------------------------------------- input ---
@@ -1310,9 +1191,9 @@
 
     function submitGuess() {
       if (!canType()) return;
-      if (!dictReady) return rejectRow('Loading word list…');
-      if (current.length < cols) return rejectRow('Not enough letters');
-      if (!DICT.has(current)) return rejectRow('Not in word list');
+      if (!dictReady) return rejectRow('Memuatkan senarai kata…');
+      if (current.length < cols) return rejectRow('Huruf tidak cukup');
+      if (!DICT.has(current)) return rejectRow('Tiada dalam senarai kata');
       if (hardMode) {
         const err = hardModeError(current);
         if (err) return rejectRow(err);
@@ -1367,7 +1248,7 @@
             schedule(() => cell.classList.remove('dance'), 520);
           }, c * 90);
         }
-        showToast(['Genius!', 'Superb!', 'Sharp!', 'Nice!', 'Close one!', 'Phew!', 'Phew!'][rowIndex] || 'Solved!', '#00ff88', 1400);
+        showToast(['Genius!', 'Hebat!', 'Tajam!', 'Bagus!', 'Nyaris!', 'Lega!', 'Lega!'][rowIndex] || 'Berjaya!', '#00ff88', 1400);
         recordResult(true, guesses.length);
         schedule(showResult, 900);
       } else if (guesses.length >= rows) {
@@ -1463,9 +1344,9 @@
         .forEach(o => o.classList.add('hidden'));
     }
 
-    /** The line under the length buttons: what this choice actually gives you. */
+    /** Baris di bawah butang panjang: apa sebenarnya pilihan itu beri. */
     function LEN_NOTE(n, guesses) {
-      return n + ' letters · ' + guesses + ' guesses · ' + ANSWERS[n].length + ' possible words';
+      return n + ' huruf · ' + guesses + ' tekaan · ' + ANSWERS[n].length + ' perkataan';
     }
 
     function buildLengthBar() {
@@ -1519,19 +1400,19 @@
       const isDaily = mode === 'daily';
       difficultyBar.classList.toggle('hidden', isDaily);
       diffNote.textContent = isDaily ? '' : DIFFICULTIES[difficulty].note;
-      startModeBtn.textContent = isDaily ? '🎲 Practice Mode' : '📅 Daily Puzzle';
+      startModeBtn.textContent = isDaily ? '🎲 Mod Latihan' : '📅 Teka Harian';
 
       if (isDaily) {
         const saved = readJSON(dailyKey(cols), null);
         const done = saved && saved.day === localDayIndex() &&
           (saved.status === 'won' || saved.status === 'lost');
         startModeLine.textContent = done
-          ? `The ${cols}-letter puzzle #${localDayIndex()} is done — open it to see your grid.`
-          : `Daily #${localDayIndex()} at ${cols} letters — same word for everyone, ${BASE_GUESSES[cols]} guesses.`;
-        startBtn.textContent = done ? '▶ View Today' : '▶ Play';
+          ? `Teka ${cols} huruf #${localDayIndex()} sudah selesai — buka untuk lihat grid anda.`
+          : `Teka harian #${localDayIndex()} ${cols} huruf — sama untuk semua, ${BASE_GUESSES[cols]} tekaan.`;
+        startBtn.textContent = done ? '▶ Lihat Hari Ini' : '▶ Main';
       } else {
-        startModeLine.textContent = 'Practice — a random word, as many rounds as you like.';
-        startBtn.textContent = '▶ Play';
+        startModeLine.textContent = 'Latihan — perkataan rawak, sebanyak pusingan yang anda mahu.';
+        startBtn.textContent = '▶ Main';
       }
     }
 
@@ -1575,7 +1456,7 @@
 
       const p = loadPractice();
       document.getElementById('practiceLine').textContent =
-        `Practice: ${p.wins}/${p.played} solved · streak ${p.streak} · best ${p.maxStreak}`;
+        `Latihan: ${p.wins}/${p.played} berjaya · rentetan ${p.streak} · terbaik ${p.maxStreak}`;
 
       statsOverlay.classList.remove('hidden');
     }
@@ -1594,8 +1475,8 @@
       // A star keeps a hinted win honest when the grid is shared.
       const star = revealedHints.length ? '*' : '';
       const header = mode === 'daily'
-        ? `Neon Cipher #${dayIndex} ${score}${star}`
-        : `Neon Cipher Practice ${score}${star}`;
+        ? `Teka Kata Neon #${dayIndex} ${score}${star}`
+        : `Teka Kata Neon Latihan ${score}${star}`;
       return header + '\n' + gridText();
     }
 
@@ -1608,12 +1489,12 @@
 
     function showResult() {
       const won = status === 'won';
-      document.getElementById('resultTitle').textContent = won ? '🎉 Solved!' : '💀 Out of Guesses';
+      document.getElementById('resultTitle').textContent = won ? '🎉 Berjaya!' : '💀 Tekaan Habis';
       document.getElementById('resultText').textContent = won
         ? (mode === 'daily'
-          ? 'Come back tomorrow for the next cipher.'
-          : 'Another random word is one tap away.')
-        : 'Better luck on the next one.';
+          ? 'Datang semula esok untuk teka seterusnya.'
+          : 'Satu lagi perkataan rawak hanya sekali tekan.')
+        : 'Semoga berjaya pada yang seterusnya.';
       document.getElementById('answerWord').textContent = answer;
       document.getElementById('shareGrid').textContent = gridText();
       document.getElementById('resGuesses').textContent = won ? `${guesses.length}/${rows}` : `X/${rows}`;
@@ -1621,7 +1502,7 @@
       document.getElementById('resStreak').textContent = stats.streak;
       document.getElementById('newBestTag').style.display = newBestThisRound ? 'block' : 'none';
       document.getElementById('resultPrimary').textContent =
-        mode === 'daily' ? '🎲 Practice Word' : '🎲 Next Word';
+        mode === 'daily' ? '🎲 Perkataan Latihan' : '🎲 Perkataan Seterusnya';
       updateNextIn();
       resultOverlay.classList.remove('hidden');
     }
@@ -1635,7 +1516,7 @@
         const h = Math.floor(ms / 3600000);
         const m = Math.floor((ms % 3600000) / 60000);
         const s = Math.floor((ms % 60000) / 1000);
-        el.textContent = `Next puzzle in ${h}h ${m}m ${s}s`;
+        el.textContent = `Teka seterusnya dalam ${h}j ${m}m ${s}s`;
       };
       tick();
       nextInTimer = setInterval(tick, 1000);
@@ -1653,11 +1534,11 @@
       const btn = document.getElementById('shareBtn');
       try {
         await navigator.clipboard.writeText(text);
-        btn.textContent = '✅ Copied!';
+        btn.textContent = '✅ Disalin!';
       } catch (e) {
-        btn.textContent = '⚠ Copy Failed';
+        btn.textContent = '⚠ Gagal Menyalin';
       }
-      setTimeout(() => { btn.textContent = '📋 Copy Result'; }, 1600);
+      setTimeout(() => { btn.textContent = '📋 Salin Keputusan'; }, 1600);
     }
 
     // --------------------------------------------------------------- flow ---
@@ -1738,8 +1619,8 @@
     Arcade.wireFullscreen(document.getElementById('fullscreenBtn'), () => {
       const btn = document.getElementById('fullscreenBtn');
       btn.innerHTML = document.fullscreenElement
-        ? '⤢<span class="btn-label"> Exit</span>'
-        : '⛶<span class="btn-label"> Full</span>';
+        ? '⤢<span class="btn-label"> Keluar</span>'
+        : '⛶<span class="btn-label"> Penuh</span>';
       layoutBoard();
     });
 
