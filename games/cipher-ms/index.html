@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🌺 Teka Kata Neon | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    /* Width of this game's play column; the rest of the chrome is
+       inherited from the shared arcade sheet. */
+    :root {
+      --play-max: 480px;
+      --hit: #00ff88;      /* right letter, right spot */
+      --near: #ffb400;     /* right letter, wrong spot */
+      --miss: #2a2a44;     /* letter is not in the word */
+    }
+
+    body {
+      background: radial-gradient(ellipse at top, #14142c 0%, #050510 100%);
+    }
+
+    /* This is a DOM game, so the ui-layer holds real content rather than
+       floating over a canvas — it needs to take pointer events itself. */
+    .ui-layer { pointer-events: auto; }
+
+    /* ------------------------------------------------------------ board --- */
+
+    .board-wrap {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 0;
+      padding: 4px 14px;
+    }
+
+    .board {
+      display: grid;
+      gap: var(--gap);
+      --gap: 6px;
+      --cell: 56px;
+      grid-template-rows: repeat(var(--rows), var(--cell));
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: repeat(5, var(--cell));
+      gap: var(--gap);
+    }
+
+    .cell {
+      border: 2px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: calc(var(--cell) * 0.52);
+      font-weight: bold;
+      text-transform: uppercase;
+      color: var(--text);
+      background: rgba(15, 15, 36, 0.6);
+      user-select: none;
+    }
+
+    .cell.filled {
+      border-color: rgba(0, 242, 255, 0.55);
+      animation: pop 0.12s ease-out;
+    }
+
+    @keyframes pop {
+      0% { transform: scale(0.86); }
+      100% { transform: scale(1); }
+    }
+
+    .cell.hit  { background: var(--hit);  border-color: var(--hit);  color: #04140b; }
+    .cell.near { background: var(--near); border-color: var(--near); color: #1a1200; }
+    .cell.miss { background: var(--miss); border-color: var(--miss); color: #8d8da8; }
+
+    /* Reveal flip: the tile turns edge-on, swaps colour, and turns back. The
+       colour classes are applied at the halfway point by the reveal timer. */
+    .cell.flip { animation: flip 0.5s ease forwards; }
+
+    @keyframes flip {
+      0%   { transform: rotateX(0deg); }
+      50%  { transform: rotateX(90deg); }
+      100% { transform: rotateX(0deg); }
+    }
+
+    .row.shake { animation: shake 0.4s; }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-7px); }
+      40% { transform: translateX(7px); }
+      60% { transform: translateX(-5px); }
+      80% { transform: translateX(5px); }
+    }
+
+    .cell.dance { animation: dance 0.5s ease; }
+
+    @keyframes dance {
+      0%, 100% { transform: translateY(0); }
+      40% { transform: translateY(-16px); }
+      70% { transform: translateY(4px); }
+    }
+
+    /* --------------------------------------------------------- keyboard --- */
+
+    .keyboard {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      width: 100%;
+      max-width: 460px;
+    }
+
+    .kb-row {
+      display: flex;
+      gap: 4px;
+      justify-content: center;
+    }
+
+    .key {
+      flex: 1 1 auto;
+      min-width: 0;
+      height: 44px;
+      padding: 0;
+      font-size: 0.8rem;
+      border-radius: 6px;
+      background: rgba(60, 60, 90, 0.9);
+      border: none;
+      color: var(--text);
+      text-transform: uppercase;
+    }
+
+    .key.wide {
+      flex: 1.6 1 auto;
+      font-size: 0.62rem;
+    }
+
+    .key:hover, .key:active { background: rgba(0, 242, 255, 0.3); transform: none; }
+    .key.hit  { background: var(--hit);  color: #04140b; }
+    .key.near { background: var(--near); color: #1a1200; }
+    .key.miss { background: var(--miss); color: #6c6c88; }
+
+    /* Revealed hints, pinned above the keyboard so a hint stays useful after
+       the toast that announced it has gone. */
+    .hint-strip {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      flex-wrap: wrap;
+      font-size: 0.68rem;
+      color: var(--gold);
+      margin-bottom: 2px;
+    }
+
+    .hint-strip span {
+      background: rgba(255, 215, 0, 0.12);
+      border: 1px solid rgba(255, 215, 0, 0.35);
+      border-radius: 10px;
+      padding: 2px 8px;
+    }
+
+    /* ---------------------------------------------------------- overlay --- */
+
+    .mode-line {
+      font-size: 0.72rem;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .example {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 12px 0 4px;
+      font-size: 0.72rem;
+      color: #999;
+      text-align: left;
+      max-width: 300px;
+    }
+
+    .example .row-mini {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .mini {
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: bold;
+      text-transform: uppercase;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(15, 15, 36, 0.6);
+      flex-shrink: 0;
+    }
+
+    .mini.hit  { background: var(--hit);  border-color: var(--hit);  color: #04140b; }
+    .mini.near { background: var(--near); border-color: var(--near); color: #1a1200; }
+    .mini.miss { background: var(--miss); border-color: var(--miss); color: #8d8da8; }
+
+    .answer-word {
+      font-size: 1.6rem;
+      font-weight: bold;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin: 6px 0 2px;
+    }
+
+    .share-grid {
+      font-size: 0.85rem;
+      line-height: 1.15;
+      letter-spacing: 2px;
+      margin: 10px 0 2px;
+      white-space: pre;
+    }
+
+    .next-in {
+      font-size: 0.72rem;
+      color: #888;
+      margin-top: 10px;
+    }
+
+    /* Guess distribution bars in the stats overlay. */
+    .dist {
+      width: 100%;
+      max-width: 280px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin: 6px 0 4px;
+    }
+
+    .dist-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.72rem;
+      color: #aaa;
+    }
+
+    .dist-bar {
+      background: rgba(0, 242, 255, 0.25);
+      border-radius: 3px;
+      min-width: 22px;
+      padding: 2px 6px;
+      text-align: right;
+      font-size: 0.68rem;
+      color: var(--text);
+      transition: width 0.3s;
+    }
+
+    .dist-row.current .dist-bar { background: var(--hit); color: #04140b; }
+
+    .stats-title {
+      font-size: 0.7rem;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 12px;
+    }
+
+    .overlay .stats { margin: 10px 0; }
+
+    /* The other games sit over a mostly-dark canvas, so the shared 0.92 scrim
+       is enough. A finished board here is a wall of bright green and amber,
+       which reads straight through the text — this one needs a solid backdrop. */
+    .overlay {
+      background: rgba(5, 5, 16, 0.985);
+      backdrop-filter: blur(8px);
+    }
+
+    /* The shared toast is bare text, which is fine floating over a dark canvas
+       but unreadable over a board full of bright tiles. Give it a pill. */
+    .toast {
+      font-size: clamp(0.95rem, 4vw, 1.3rem);
+      background: rgba(5, 5, 16, 0.94);
+      border: 1px solid rgba(255, 215, 0, 0.35);
+      border-radius: 14px;
+      padding: 8px 16px;
+      max-width: calc(100% - 32px);
+      white-space: normal;
+      text-align: center;
+    }
+
+    /* Six control buttons do not fit one row on a phone, and a second row eats
+       board space. Drop to icons only and keep them on one line. */
+    @media (max-width: 460px) {
+      .controls-bar { justify-content: center; flex-wrap: nowrap; }
+      .controls-bar button { padding: 6px 8px; }
+      .btn-label { display: none; }
+    }
+
+    /* Short viewports. layoutBoard() sets --cell and --gap inline from the space
+       actually measured, which wins over these; they are the sensible starting
+       point for the first paint and the fallback if the script never runs. The
+       key heights are not JS-driven, so those rules do the real work. */
+    @media (max-height: 760px) {
+      .board { --cell: 46px; --gap: 5px; }
+      .key { height: 38px; }
+    }
+
+    @media (max-height: 640px) {
+      .board { --cell: 38px; --gap: 4px; }
+      .key { height: 33px; font-size: 0.72rem; }
+    }
+
+    @media (max-height: 560px) {
+      .board { --cell: 30px; --gap: 3px; }
+      .key { height: 28px; font-size: 0.66rem; }
+      .hint-line { font-size: 0.62rem; }
+    }
+
+    @media (max-width: 380px) {
+      .board { --cell: 48px; --gap: 5px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span>Mod</span>
+        <strong id="modeEl">Harian</strong>
+      </div>
+      <div class="hud-panel">
+        <span id="puzzleLabel">Teka</span>
+        <strong id="puzzleEl">#1</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Rentetan</span>
+        <strong id="streakEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Terbaik</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button id="modeBtn" onclick="switchMode()">🎲<span class="btn-label"> Latihan</span></button>
+      <button id="hintBtn" onclick="useHint()">💡<span class="btn-label"> Petunjuk</span> (1)</button>
+      <button id="statsBtn" onclick="showStats()">📊<span class="btn-label"> Statistik</span></button>
+      <button id="helpBtn" onclick="showHelp()">❔<span class="btn-label"> Cara</span></button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶<span class="btn-label"> Penuh</span></button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠<span class="btn-label"> Utama</span></button>
+      </a>
+    </div>
+
+    <div class="board-wrap">
+      <div class="board" id="board"></div>
+    </div>
+
+    <div class="bottom-bar" id="bottomBar">
+      <div class="hint-strip hidden" id="hintStrip"></div>
+      <div class="hint-line" id="hintLine">Teka perkataan lima huruf</div>
+      <div class="keyboard" id="keyboard"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🌺 Teka Kata Neon</h1>
+    <p>Satu perkataan lima huruf, enam tekaan. Setiap tekaan akan menyala untuk menunjukkan sejauh mana anda hampir.</p>
+
+    <div class="example">
+      <div class="row-mini">
+        <span class="mini hit">l</span><span class="mini">a</span><span class="mini">m</span><span class="mini">p</span><span class="mini">u</span>
+        <span><strong style="color:var(--hit)">L</strong> ada dalam perkataan, pada tempat yang betul.</span>
+      </div>
+      <div class="row-mini">
+        <span class="mini">p</span><span class="mini near">i</span><span class="mini">n</span><span class="mini">t</span><span class="mini">u</span>
+        <span><strong style="color:var(--near)">I</strong> ada dalam perkataan, salah tempat.</span>
+      </div>
+      <div class="row-mini">
+        <span class="mini">p</span><span class="mini">a</span><span class="mini">s</span><span class="mini miss">i</span><span class="mini">r</span>
+        <span><strong style="color:#8d8da8">I</strong> tiada langsung dalam perkataan.</span>
+      </div>
+    </div>
+
+    <p class="mode-line" id="startModeLine"></p>
+
+    <div class="difficulty-bar hidden" id="difficultyBar">
+      <button data-diff="easy" onclick="setDifficulty('easy')">Mudah</button>
+      <button data-diff="medium" onclick="setDifficulty('medium')">Sederhana</button>
+      <button data-diff="hard" onclick="setDifficulty('hard')">Sukar</button>
+    </div>
+    <p class="diff-note" id="diffNote"></p>
+
+    <button class="primary" id="startBtn" onclick="startGame()">▶ Main</button>
+    <div class="secondary-row">
+      <button id="startModeBtn" onclick="toggleStartMode()">🎲 Mod Latihan</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Laman Utama</button>
+      </a>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="helpOverlay">
+    <h1>❔ Cara Bermain</h1>
+    <p>Taip mana-mana perkataan lima huruf dan tekan Enter. Jubin akan menunjukkan markah setiap huruf.</p>
+
+    <div class="example">
+      <div class="row-mini">
+        <span class="mini hit">a</span>
+        <span>Huruf betul, tempat betul.</span>
+      </div>
+      <div class="row-mini">
+        <span class="mini near">a</span>
+        <span>Huruf betul, salah tempat.</span>
+      </div>
+      <div class="row-mini">
+        <span class="mini miss">a</span>
+        <span>Tiada dalam perkataan.</span>
+      </div>
+    </div>
+
+    <p>Huruf berulang hanya menyala sebanyak kali ia muncul dalam jawapan — lebihannya bertukar kelabu.</p>
+    <p>Buntu? <strong>💡 Petunjuk</strong> mendedahkan satu huruf pada tempat sebenarnya. Teka harian dapat satu; latihan Mudah dapat dua.</p>
+    <p>Mana-mana perkataan Melayu lima huruf boleh diteka — anda tidak terhad kepada perkataan yang boleh menjadi jawapan.</p>
+    <p><strong>Harian</strong> ialah perkataan yang sama untuk semua orang, sekali sehari. <strong>Latihan</strong> ialah perkataan rawak baharu bila-bila masa.</p>
+    <p>Dalam latihan <strong>Sukar</strong> tiada petunjuk, dan setiap petunjuk yang anda temui mesti muncul dalam tekaan seterusnya.</p>
+
+    <button class="primary" onclick="closeHelp()">Faham</button>
+  </div>
+
+  <div class="overlay hidden" id="resultOverlay">
+    <h1 id="resultTitle">🎉 Berjaya!</h1>
+    <p class="new-best" id="newBestTag">🔥 Rentetan Terpanjang Setakat Ini!</p>
+    <p id="resultText">Syabas.</p>
+    <p class="answer-word" id="answerWord"></p>
+
+    <div class="share-grid" id="shareGrid"></div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="resGuesses">0</div>
+        <div class="lbl">Tekaan</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="resStreak">0</div>
+        <div class="lbl">Rentetan</div>
+      </div>
+    </div>
+
+    <button class="primary" id="resultPrimary" onclick="resultPrimaryAction()">🎲 Perkataan Latihan</button>
+    <div class="secondary-row">
+      <button id="shareBtn" onclick="shareResult()">📋 Salin Keputusan</button>
+      <button onclick="showStats()">📊 Statistik</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Utama</button>
+      </a>
+    </div>
+    <p class="next-in" id="nextIn"></p>
+  </div>
+
+  <div class="overlay hidden" id="statsOverlay">
+    <h1>Statistik</h1>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="stPlayed">0</div>
+        <div class="lbl">Dimain</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="stWinPct">0%</div>
+        <div class="lbl">Kadar Menang</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="stStreak">0</div>
+        <div class="lbl">Rentetan</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="stMax">0</div>
+        <div class="lbl">Rentetan Terbaik</div>
+      </div>
+    </div>
+
+    <div class="stats-title">Taburan Tekaan</div>
+    <div class="dist" id="distEl"></div>
+
+    <p class="mode-line" id="practiceLine"></p>
+
+    <button class="primary" onclick="closeStats()">Kembali</button>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script src="dictionary.js"></script>
+  <script>
+    // -------------------------------------------------------------- words ---
+    // The answer pool: 643 everyday Malay five-letter words, in standard
+    // Malaysian spelling. Kept separate from the much larger accepted-guess
+    // dictionary in dictionary.js, because the two jobs pull in opposite
+    // directions — answers should be words everybody knows, while guesses
+    // should almost never be refused.
+    //
+    // Hand-picked rather than taken off the top of the frequency list, because
+    // the corpus behind it is film subtitles: it mixes Indonesian forms in with
+    // Malay ones (pikir/fikir, menit/minit, musik/muzik, kabar/khabar), and it
+    // is thick with character names. Every word here was then checked back
+    // against that corpus, so nothing in the pool is a word nobody actually
+    // uses. No answer has more than three same-pattern neighbours inside the
+    // pool, so no puzzle comes down to a blind pick.
+    const WORDS = `
+      abadi abang aduan agama agung ajaib akaun akhir akses aktif alami ambil ampun andai
+      angin angka angsa arnab artis asing askar asyik atlet babak badai badan badut bagus
+      bahan bakar bakat balai balas balik bantu basah basuh batas batuk bawah bayar beban
+      bebas bedah bekas belas belok belon belum benar benci benda benih beras berat beruk
+      besar besok betul biasa bibir bijak bilik bocor bodoh boleh bomba bosan botak botol
+      buang budak bukan bukit bukti bulan bulat buluh bunga bunuh bunyi buruk busuk busur
+      cabar cabut cacat cakap calon catur cawan cekap cemas cepat cerah ceria cikgu cinta
+      cipta comel corak cuaca cukai cukup cukur culik dadah dalam damai dapat dapur darab
+      darah darat dasar datuk degil dekat demam denda depan detik dewan duduk dungu dunia
+      emosi empat encik enjin entah faham fakta fasal fikir filem fizik fokus gadai gadis
+      gagah gagal gajah ganas ganda ganti garaj garam garis garpu gelap gelar gelas gempa
+      gemuk gerak getah ghaib gigit gitar gosok gugup gurun gusti habis hadir hafal hajat
+      hakim halau halus hantu hanya haram harap harga harta harus hasil hayat hebat helah
+      henti hidup hijau hirup hisap hitam hodoh hujan hukum huruf hutan iaitu ialah iblis
+      iklan indah ingat ingin isnin jahat jahit jaket jalan jalur jambu jamin janji jarak
+      jarum jatuh jawab jejak jelas jenis jerit jijik jiran juara jubah jujur julai jumpa
+      jurus kabel kabin kabur kacak kadar kagum kakak kalah kalau kalis kanan kapak kapal
+      kargo karut karya kasar kasih kasut katak katil kawal kawan kebal kebun kecil kedai
+      kedua kejam kejap kejar kekal kelab kelas kemas kenal kerap keras kerja kesal kesan
+      ketam ketat ketua ketuk kicap kilat kimia kirim kisah kitab koboi kolam kolej komen
+      kotak kotor kuali kuasa kubur kukuh kulit kunci lahir lalat laman lampu lanun lapan
+      lapar lapor latar lawak lawan layan layar lazat lebah lebar lebih leher lekas lemah
+      lemas lembu lepas lesen letak letih lewat licik lidah lihat lilin litar logam logik
+      lukis lulus lumba lurus lutut mabuk macam magik mahal mahir makam makan makin makna
+      malah malam malas mampu mandi manis marah masak masam masih masin masuk mayat medan
+      merah mesej mesin mesra mesti mewah milik mimpi minat minit minta minum mirip mitos
+      modal moden mohon mudah mulai mulia mulut murah murid musim musuh muzik nafas nafsu
+      nakal namun nanti nasib nenek nilai nipis nyata nyawa objek ombak orang padam padan
+      pagar pahit pakai pakar pakej paksa palsu panah panas pandu panik papan parti paruh
+      parut pasal pasar pasir pasti patah patik patuh patut payah pecah pecat pedas pekak
+      pekan pelan pelik peluk penat penuh perak pergi perlu perut pesan pesta petik petir
+      piala pihak pilih pintu pisah pisau poket pokok polis pucat puisi pukul pulau pulih
+      puluh punca punya purba pusat putar putih putus racun rajin rakam rakan rakit ramah
+      ramai rapat rasmi ratus rawak rehat rekod retak riang ribut rindu risau roket rokok
+      rosak ruang rumah rumit rusuk sabar sabtu saham sakit saksi salah salam salji saman
+      saraf sawah sayap sayur sebab sebut sedap sedar sedia sedih segar sejak sejam sejuk
+      selam semak semua semut sepak serah seram serta sesak sesat setia siang siapa sibuk
+      sifar sifat sihat sihir sikap sikat sikit silam silap sinar singa siput skala skrin
+      solek sopan sosej suami suara suatu subuh sudah sudut sukan sukar sulit sunyi surat
+      suruh susah tabik tahan tahap tahun tajam tajuk takut tamak taman tamat tanah tanam
+      tanda tanpa tanya tapak tarik tasik tayar tebal tegas tekak tekan teksi telah telan
+      teluk telur teman tenis tentu teori tepat tepuk teruk terus tetap tewas tiada tidak
+      tidur tikam tiket tikus tilam timur tipis titik tolak tolol topik tuala tubuh tugas
+      tuhan tujuh tukar tulen tulis tumit tunai tupai turun turut tutup udang udara ujian
+      ulang umpan undur untuk upaya usaha utama utara versi wabak wahai wajah wajar wakil
+      waktu walau wangi waran waras warga waris warna watak wujud yakin yatim zaman
+    `.trim().split(/\s+/);
+
+    /**
+     * Everything the game will accept as a guess. dictionary.js is a plain
+     * script rather than a module, so if it ever fails to load the game still
+     * runs — it just falls back to accepting the answer pool only.
+     */
+    const DICT = new Set(Array.isArray(window.CIPHER_MS_DICT) ? window.CIPHER_MS_DICT : WORDS);
+    WORDS.forEach(w => DICT.add(w));
+
+    // -------------------------------------------------------------- state ---
+    const ROWS = 6;
+    const COLS = 5;
+    const FLIP_MS = 500;          // one tile's flip animation
+    const FLIP_STAGGER = 260;     // gap between neighbouring tiles starting
+    const KEY_LAYOUT = [
+      'qwertyuiop'.split(''),
+      'asdfghjkl'.split(''),
+      ['enter', ...'zxcvbnm'.split(''), 'back']
+    ];
+
+    const DIFFICULTIES = {
+      easy:   { rows: 7, hints: 2, hardMode: false, note: 'Mudah — tujuh tekaan dan dua petunjuk.' },
+      medium: { rows: 6, hints: 1, hardMode: false, note: 'Sederhana — enam tekaan, satu petunjuk.' },
+      hard:   { rows: 6, hints: 0, hardMode: true,  note: 'Sukar — enam tekaan, tiada petunjuk, dan setiap petunjuk mesti diguna semula.' }
+    };
+
+    const DAILY_HINTS = 1;        // teka harian sentiasa dapat satu
+    const DIFF_NAMES = { easy: 'Mudah', medium: 'Sederhana', hard: 'Sukar' };
+
+    const board = document.getElementById('board');
+    const keyboardEl = document.getElementById('keyboard');
+    const toastEl = document.getElementById('toast');
+    const modeEl = document.getElementById('modeEl');
+    const puzzleEl = document.getElementById('puzzleEl');
+    const puzzleLabel = document.getElementById('puzzleLabel');
+    const streakEl = document.getElementById('streakEl');
+    const bestEl = document.getElementById('bestEl');
+    const hintLine = document.getElementById('hintLine');
+    const modeBtn = document.getElementById('modeBtn');
+    const startOverlay = document.getElementById('startOverlay');
+    const helpOverlay = document.getElementById('helpOverlay');
+    const resultOverlay = document.getElementById('resultOverlay');
+    const statsOverlay = document.getElementById('statsOverlay');
+    const difficultyBar = document.getElementById('difficultyBar');
+    const diffNote = document.getElementById('diffNote');
+    const startModeLine = document.getElementById('startModeLine');
+    const startModeBtn = document.getElementById('startModeBtn');
+    const startBtn = document.getElementById('startBtn');
+
+    let mode = 'daily';            // 'daily' | 'practice'
+    let difficulty = 'medium';     // practice only; daily is always six guesses
+    let answer = '';
+    let rows = ROWS;
+    let hardMode = false;
+    let guesses = [];              // committed guesses, lowercase
+    let current = '';              // the row being typed
+    let status = 'playing';        // 'playing' | 'won' | 'lost'
+    let revealing = false;         // input is locked while tiles flip
+    let dayIndex = 0;
+    let statsWasOpenedFromResult = false;
+    let newBestThisRound = false;
+    let nextInTimer = null;
+    let hintsLeft = 0;
+    let revealedHints = [];        // [{ pos, letter }] shown under the board
+    const revealTimers = [];
+
+    // Keys used across the two modes.
+    const DAILY_KEY = 'cipherMsDaily';
+    const STATS_KEY = 'cipherMsStats';
+    const PRACTICE_KEY = 'cipherMsPractice';
+    const DIFF_KEY = 'cipherMsDifficulty';
+
+    // ------------------------------------------------------- shared wraps ---
+    function initAudio() { Arcade.initAudio(); }
+    function playTone(f, t, d, delay, v) { Arcade.playTone(f, t, d, delay, v); }
+    function showToast(text, color, ms) { Arcade.showToast(toastEl, text, color || '#00f2ff', ms || 1100); }
+    function toggleFullscreen() { Arcade.toggleFullscreen(); }
+
+    // -------------------------------------------------------- daily index ---
+    /**
+     * Puzzle number from the player's *local* calendar date. Building both
+     * dates from y/m/d components keeps the difference an exact whole number
+     * of days regardless of timezone or daylight saving.
+     */
+    function localDayIndex(now) {
+      const d = now || new Date();
+      const today = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const epoch = new Date(2026, 0, 1);
+      return Math.round((today - epoch) / 86400000);
+    }
+
+    /** Spreads consecutive days across the list instead of walking it in order. */
+    function answerForDay(n) {
+      const scrambled = ((n * 2654435761) % WORDS.length + WORDS.length) % WORDS.length;
+      return WORDS[scrambled];
+    }
+
+    function msUntilTomorrow(now) {
+      const d = now || new Date();
+      const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+      return midnight - d;
+    }
+
+    // ------------------------------------------------------------- store ---
+    function readJSON(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return fallback;
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : fallback;
+      } catch (e) {
+        return fallback;
+      }
+    }
+
+    function writeJSON(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (e) { /* private mode — the game still plays, it just forgets */ }
+    }
+
+    function blankStats() {
+      return { played: 0, wins: 0, streak: 0, maxStreak: 0, lastDay: null, dist: [0, 0, 0, 0, 0, 0, 0] };
+    }
+
+    function loadStats() {
+      const s = Object.assign(blankStats(), readJSON(STATS_KEY, {}));
+      if (!Array.isArray(s.dist) || s.dist.length < 7) {
+        const dist = blankStats().dist;
+        if (Array.isArray(s.dist)) s.dist.forEach((v, i) => { if (i < 7) dist[i] = v | 0; });
+        s.dist = dist;
+      }
+      return s;
+    }
+
+    function loadPractice() {
+      return Object.assign({ played: 0, wins: 0, streak: 0, maxStreak: 0 }, readJSON(PRACTICE_KEY, {}));
+    }
+
+    /** The number the arcade home page shows for this game. */
+    function syncBestKey() {
+      const best = Math.max(loadStats().maxStreak, loadPractice().maxStreak);
+      Arcade.setBestScore('cipherMsBest', best);
+      return best;
+    }
+
+    // ------------------------------------------------------------ scoring ---
+    /**
+     * Wordle scoring. Exact matches are claimed first and removed from the
+     * letter pool, so a guess with two of a letter against an answer with one
+     * gets a single colour and the spare goes grey.
+     */
+    function scoreGuess(guess, target) {
+      const result = new Array(guess.length).fill('miss');
+      const pool = {};
+      for (let i = 0; i < target.length; i++) {
+        if (guess[i] === target[i]) result[i] = 'hit';
+        else pool[target[i]] = (pool[target[i]] || 0) + 1;
+      }
+      for (let i = 0; i < guess.length; i++) {
+        if (result[i] === 'hit') continue;
+        const c = guess[i];
+        if (pool[c] > 0) {
+          result[i] = 'near';
+          pool[c]--;
+        }
+      }
+      return result;
+    }
+
+    const RANK = { miss: 0, near: 1, hit: 2 };
+
+    /** A key never downgrades: once green it stays green. */
+    function keyboardState() {
+      const state = {};
+      guesses.forEach(g => {
+        const marks = scoreGuess(g, answer);
+        for (let i = 0; i < g.length; i++) {
+          const c = g[i];
+          if (state[c] === undefined || RANK[marks[i]] > RANK[state[c]]) state[c] = marks[i];
+        }
+      });
+      return state;
+    }
+
+    /**
+     * Hard mode: greens have to stay put and ambers have to reappear somewhere.
+     * Returns an error message, or null when the guess is allowed.
+     */
+    function hardModeError(guess) {
+      const known = {};   // letter -> how many times it is known to be present
+      for (const g of guesses) {
+        const marks = scoreGuess(g, answer);
+        const seen = {};
+        for (let i = 0; i < COLS; i++) {
+          if (marks[i] === 'hit' && guess[i] !== g[i]) {
+            return `Huruf ${ordinal(i + 1)} mestilah ${g[i].toUpperCase()}`;
+          }
+          if (marks[i] === 'hit' || marks[i] === 'near') seen[g[i]] = (seen[g[i]] || 0) + 1;
+        }
+        for (const c in seen) known[c] = Math.max(known[c] || 0, seen[c]);
+      }
+      for (const c in known) {
+        const have = guess.split('').filter(x => x === c).length;
+        if (have < known[c]) {
+          return known[c] > 1
+            ? `Tekaan mesti guna ${known[c]} × ${c.toUpperCase()}`
+            : `Tekaan mesti ada ${c.toUpperCase()}`;
+        }
+      }
+      return null;
+    }
+
+    function ordinal(n) {
+      return ['pertama', 'kedua', 'ketiga', 'keempat', 'kelima'][n - 1] || `ke-${n}`;
+    }
+
+    // --------------------------------------------------------------- hints ---
+    /** Positions the player already knows for certain, so a hint never wastes
+     *  itself on something already on the board. */
+    function knownPositions() {
+      const known = new Set();
+      guesses.forEach(g => {
+        for (let i = 0; i < COLS; i++) if (g[i] === answer[i]) known.add(i);
+      });
+      revealedHints.forEach(h => known.add(h.pos));
+      return known;
+    }
+
+    function useHint() {
+      if (status !== 'playing' || revealing || anyOverlayOpen()) return;
+      if (hintsLeft <= 0) {
+        showToast(hintsForRound() === 0 ? 'Tiada petunjuk dalam Sukar' : 'Petunjuk sudah habis', '#ff2a2a', 1200);
+        return;
+      }
+      const known = knownPositions();
+      const options = [];
+      for (let i = 0; i < COLS; i++) if (!known.has(i)) options.push(i);
+      if (!options.length) {
+        showToast('Semua huruf sudah anda ketahui!', '#ffb400', 1400);
+        return;
+      }
+      const pos = options[Math.floor(Math.random() * options.length)];
+      revealedHints.push({ pos: pos, letter: answer[pos] });
+      hintsLeft--;
+      initAudio();
+      playTone(880, 'sine', 0.18, 0, 0.1);
+      playTone(1174, 'sine', 0.18, 0.1, 0.08);
+      showToast(`Huruf ${ordinal(pos + 1)} ialah ${answer[pos].toUpperCase()}`, '#ffd700', 1800);
+      renderHints();
+      updateHintButton();
+      saveProgress();
+    }
+
+    function hintsForRound() {
+      return mode === 'daily' ? DAILY_HINTS : DIFFICULTIES[difficulty].hints;
+    }
+
+    function renderHints() {
+      const strip = document.getElementById('hintStrip');
+      strip.innerHTML = '';
+      const sorted = revealedHints.slice().sort((a, b) => a.pos - b.pos);
+      sorted.forEach(h => {
+        const el = document.createElement('span');
+        el.textContent = `Huruf ${h.pos + 1}: ${h.letter.toUpperCase()}`;
+        strip.appendChild(el);
+      });
+      strip.classList.toggle('hidden', sorted.length === 0);
+    }
+
+    function updateHintButton() {
+      const btn = document.getElementById('hintBtn');
+      // Keep the .btn-label span: the narrow-screen media query hides it to keep
+      // the control bar on one row, so plain textContent would break that.
+      btn.innerHTML = `💡<span class="btn-label"> Petunjuk</span> (${hintsLeft})`;
+      btn.disabled = hintsLeft <= 0 || status !== 'playing';
+    }
+
+    // ------------------------------------------------------------ drawing ---
+    function buildBoard() {
+      board.innerHTML = '';
+      board.style.setProperty('--rows', rows);
+      for (let r = 0; r < rows; r++) {
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.dataset.row = r;
+        for (let c = 0; c < COLS; c++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.row = r;
+          cell.dataset.col = c;
+          row.appendChild(cell);
+        }
+        board.appendChild(row);
+      }
+    }
+
+    function cellAt(r, c) {
+      return board.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+    }
+
+    /**
+     * Sizes the tiles from the space actually left over for the board.
+     *
+     * The CSS height breakpoints can only guess: seven rows plus a keyboard fits
+     * a 727px-tall viewport and not a 700px one, and a phone browser showing its
+     * address bar lands right between the two. .board-wrap is the flex child that
+     * absorbs the leftover height, so measuring it gives the real budget whatever
+     * the chrome, the orientation or the row count is doing.
+     */
+    function layoutBoard() {
+      const wrap = board.parentElement;
+      const box = wrap.getBoundingClientRect();
+      if (!box.height || !box.width) return;
+
+      const style = getComputedStyle(wrap);
+      const availW = box.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      const availH = box.height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+
+      // Solve for the largest cell that fits both ways, letting the gap shrink
+      // with it, then clamp so it is neither oversized nor unreadably small.
+      let cell = 56, gap = 6;
+      for (const g of [6, 5, 4, 3]) {
+        gap = g;
+        cell = Math.min(56,
+          Math.floor((availW - (COLS - 1) * g) / COLS),
+          Math.floor((availH - (rows - 1) * g) / rows));
+        if (cell >= 40 || g === 3) break;
+      }
+      cell = Math.max(22, cell);
+
+      board.style.setProperty('--cell', cell + 'px');
+      board.style.setProperty('--gap', gap + 'px');
+    }
+
+    /** Repaints every tile from state — used on load, restore and reset. */
+    function renderBoard(animateLastRow) {
+      for (let r = 0; r < rows; r++) {
+        const guess = guesses[r];
+        for (let c = 0; c < COLS; c++) {
+          const cell = cellAt(r, c);
+          cell.className = 'cell';
+          if (guess) {
+            const marks = scoreGuess(guess, answer);
+            cell.textContent = guess[c];
+            cell.classList.add(marks[c]);
+          } else if (r === guesses.length) {
+            cell.textContent = current[c] || '';
+            if (current[c]) cell.classList.add('filled');
+          } else {
+            cell.textContent = '';
+          }
+        }
+      }
+      if (animateLastRow) { /* caller handles the flip separately */ }
+      renderKeyboard();
+      layoutBoard();
+    }
+
+    function buildKeyboard() {
+      keyboardEl.innerHTML = '';
+      KEY_LAYOUT.forEach(rowKeys => {
+        const row = document.createElement('div');
+        row.className = 'kb-row';
+        rowKeys.forEach(k => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'key' + (k.length > 1 ? ' wide' : '');
+          btn.dataset.key = k;
+          btn.textContent = k === 'back' ? '⌫' : (k === 'enter' ? 'Enter' : k);
+          btn.addEventListener('click', () => {
+            initAudio();
+            if (k === 'back') pressBackspace();
+            else if (k === 'enter') submitGuess();
+            else pressLetter(k);
+          });
+          row.appendChild(btn);
+        });
+        keyboardEl.appendChild(row);
+      });
+    }
+
+    function renderKeyboard() {
+      const state = keyboardState();
+      keyboardEl.querySelectorAll('.key').forEach(btn => {
+        const k = btn.dataset.key;
+        btn.classList.remove('hit', 'near', 'miss');
+        if (k.length === 1 && state[k]) btn.classList.add(state[k]);
+      });
+    }
+
+    function renderHud() {
+      const stats = mode === 'daily' ? loadStats() : loadPractice();
+      modeEl.textContent = mode === 'daily' ? 'Harian' : 'Latihan';
+      puzzleLabel.textContent = mode === 'daily' ? 'Teka' : 'Tahap';
+      puzzleEl.textContent = mode === 'daily' ? `#${dayIndex}` : DIFF_NAMES[difficulty];
+      streakEl.textContent = stats.streak;
+      bestEl.textContent = stats.maxStreak;
+      modeBtn.innerHTML = mode === 'daily'
+        ? '🎲<span class="btn-label"> Latihan</span>'
+        : '📅<span class="btn-label"> Harian</span>';
+      updateHintButton();
+      updateHint();
+    }
+
+    function updateHint() {
+      if (status === 'won') hintLine.textContent = 'Berjaya! 🎉';
+      else if (status === 'lost') hintLine.textContent = `Perkataannya ialah ${answer.toUpperCase()}`;
+      else if (hardMode) hintLine.textContent = 'Mod sukar — guna semula setiap petunjuk yang ditemui';
+      else hintLine.textContent = `Tekaan ${guesses.length + 1} daripada ${rows}`;
+    }
+
+    // -------------------------------------------------------------- input ---
+    function canType() {
+      return status === 'playing' && !revealing && !anyOverlayOpen();
+    }
+
+    function anyOverlayOpen() {
+      return [startOverlay, helpOverlay, resultOverlay, statsOverlay]
+        .some(o => !o.classList.contains('hidden'));
+    }
+
+    function pressLetter(ch) {
+      if (!canType() || current.length >= COLS) return;
+      current += ch;
+      const cell = cellAt(guesses.length, current.length - 1);
+      cell.textContent = ch;
+      cell.classList.add('filled');
+      playTone(320, 'square', 0.04, 0, 0.05);
+      updateHint();
+    }
+
+    function pressBackspace() {
+      if (!canType() || current.length === 0) return;
+      const cell = cellAt(guesses.length, current.length - 1);
+      cell.textContent = '';
+      cell.classList.remove('filled');
+      current = current.slice(0, -1);
+      playTone(200, 'square', 0.04, 0, 0.05);
+    }
+
+    function rejectRow(message) {
+      const row = board.querySelector(`.row[data-row="${guesses.length}"]`);
+      if (row) {
+        row.classList.remove('shake');
+        void row.offsetWidth;
+        row.classList.add('shake');
+      }
+      showToast(message, '#ff2a2a', 1300);
+      playTone(150, 'sawtooth', 0.15, 0, 0.08);
+    }
+
+    function submitGuess() {
+      if (!canType()) return;
+      if (current.length < COLS) return rejectRow('Huruf tidak cukup');
+      if (!DICT.has(current)) return rejectRow('Tiada dalam senarai kata');
+      if (hardMode) {
+        const err = hardModeError(current);
+        if (err) return rejectRow(err);
+      }
+
+      const guess = current;
+      const rowIndex = guesses.length;
+      guesses.push(guess);
+      current = '';
+      revealGuess(rowIndex, guess);
+    }
+
+    // ------------------------------------------------------------- reveal ---
+    function clearRevealTimers() {
+      while (revealTimers.length) clearTimeout(revealTimers.pop());
+    }
+
+    function schedule(fn, ms) {
+      revealTimers.push(setTimeout(fn, ms));
+    }
+
+    function revealGuess(rowIndex, guess) {
+      const marks = scoreGuess(guess, answer);
+      revealing = true;
+
+      for (let c = 0; c < COLS; c++) {
+        const cell = cellAt(rowIndex, c);
+        const delay = c * FLIP_STAGGER;
+        cell.classList.remove('filled');
+        schedule(() => { cell.classList.add('flip'); }, delay);
+        schedule(() => {
+          cell.classList.add(marks[c]);
+          playTone(marks[c] === 'hit' ? 660 : marks[c] === 'near' ? 480 : 260, 'triangle', 0.08, 0, 0.06);
+        }, delay + FLIP_MS / 2);
+        schedule(() => { cell.classList.remove('flip'); }, delay + FLIP_MS);
+      }
+
+      schedule(() => {
+        revealing = false;
+        renderKeyboard();
+        finishTurn(rowIndex, guess);
+      }, (COLS - 1) * FLIP_STAGGER + FLIP_MS + 40);
+    }
+
+    function finishTurn(rowIndex, guess) {
+      if (guess === answer) {
+        status = 'won';
+        for (let c = 0; c < COLS; c++) {
+          const cell = cellAt(rowIndex, c);
+          schedule(() => {
+            cell.classList.add('dance');
+            schedule(() => cell.classList.remove('dance'), 520);
+          }, c * 90);
+        }
+        showToast(['Genius!', 'Hebat!', 'Tajam!', 'Bagus!', 'Nyaris!', 'Lega!', 'Lega!'][rowIndex] || 'Berjaya!', '#00ff88', 1400);
+        recordResult(true, guesses.length);
+        schedule(showResult, 900);
+      } else if (guesses.length >= rows) {
+        status = 'lost';
+        recordResult(false, 0);
+        schedule(showResult, 500);
+      }
+      saveProgress();
+      updateHint();
+      updateHintButton();
+    }
+
+    // ------------------------------------------------------------- record ---
+    function recordResult(won, usedGuesses) {
+      if (mode === 'daily') {
+        const stats = loadStats();
+        // A daily streak only survives consecutive days — miss one and it's gone.
+        if (stats.lastDay !== null && stats.lastDay !== undefined && stats.lastDay !== dayIndex - 1) {
+          stats.streak = 0;
+        }
+        stats.played++;
+        if (won) {
+          stats.wins++;
+          stats.streak++;
+          if (usedGuesses >= 1 && usedGuesses <= 7) stats.dist[usedGuesses - 1]++;
+        } else {
+          stats.streak = 0;
+        }
+        const isNewBest = stats.streak > stats.maxStreak;
+        if (isNewBest) stats.maxStreak = stats.streak;
+        stats.lastDay = dayIndex;
+        writeJSON(STATS_KEY, stats);
+        newBestThisRound = won && isNewBest && stats.maxStreak > 1;
+      } else {
+        const p = loadPractice();
+        p.played++;
+        if (won) {
+          p.wins++;
+          p.streak++;
+        } else {
+          p.streak = 0;
+        }
+        const isNewBest = p.streak > p.maxStreak;
+        if (isNewBest) p.maxStreak = p.streak;
+        writeJSON(PRACTICE_KEY, p);
+        newBestThisRound = won && isNewBest && p.maxStreak > 1;
+      }
+      const best = syncBestKey();
+      if (newBestThisRound) Arcade.playBestJingle();
+      bestEl.textContent = best;
+      renderHud();
+    }
+
+    // ----------------------------------------------------------- progress ---
+    /** Only the daily puzzle is resumable; practice words are throwaway. */
+    function saveProgress() {
+      if (mode !== 'daily') return;
+      writeJSON(DAILY_KEY, {
+        day: dayIndex,
+        answer: answer,          // guards against the answer pool changing
+        guesses: guesses,
+        status: status,
+        hints: revealedHints,
+        hintsLeft: hintsLeft
+      });
+    }
+
+    function loadProgress() {
+      const saved = readJSON(DAILY_KEY, null);
+      if (!saved || saved.day !== dayIndex || !Array.isArray(saved.guesses)) return false;
+      // If the answer pool shifted under a saved game, its colours would now be
+      // nonsense. Older saves predate the field and are let through.
+      if (saved.answer !== undefined && saved.answer !== answer) return false;
+
+      guesses = saved.guesses.filter(g => typeof g === 'string' && g.length === COLS).slice(0, rows);
+      status = saved.status === 'won' || saved.status === 'lost' ? saved.status : 'playing';
+      // Trust the letters, not the stored verdict: recompute the outcome.
+      if (guesses[guesses.length - 1] === answer) status = 'won';
+      else if (guesses.length >= rows) status = 'lost';
+      else if (status !== 'playing') status = 'playing';
+
+      revealedHints = (Array.isArray(saved.hints) ? saved.hints : []).filter(h =>
+        h && Number.isInteger(h.pos) && h.pos >= 0 && h.pos < COLS && h.letter === answer[h.pos]);
+      hintsLeft = Number.isInteger(saved.hintsLeft)
+        ? Math.max(0, Math.min(hintsForRound(), saved.hintsLeft))
+        : Math.max(0, hintsForRound() - revealedHints.length);
+      return true;
+    }
+
+    // ----------------------------------------------------------- overlays ---
+    function hideAllOverlays() {
+      [startOverlay, helpOverlay, resultOverlay, statsOverlay]
+        .forEach(o => o.classList.add('hidden'));
+    }
+
+    function setDifficulty(d) {
+      if (!DIFFICULTIES[d]) return;
+      difficulty = d;
+      localStorage.setItem(DIFF_KEY, d);
+      difficultyBar.querySelectorAll('button').forEach(b => {
+        b.classList.toggle('active', b.dataset.diff === d);
+      });
+      diffNote.textContent = DIFFICULTIES[d].note;
+    }
+
+    function toggleStartMode() {
+      mode = mode === 'daily' ? 'practice' : 'daily';
+      refreshStartOverlay();
+    }
+
+    function refreshStartOverlay() {
+      const isDaily = mode === 'daily';
+      difficultyBar.classList.toggle('hidden', isDaily);
+      diffNote.textContent = isDaily ? '' : DIFFICULTIES[difficulty].note;
+      startModeBtn.textContent = isDaily ? '🎲 Mod Latihan' : '📅 Teka Harian';
+
+      if (isDaily) {
+        const saved = readJSON(DAILY_KEY, null);
+        const done = saved && saved.day === localDayIndex() &&
+          (saved.status === 'won' || saved.status === 'lost');
+        startModeLine.textContent = done
+          ? `Teka #${localDayIndex()} sudah selesai — buka untuk lihat grid anda.`
+          : `Teka harian #${localDayIndex()} — satu perkataan, enam tekaan, sama untuk semua.`;
+        startBtn.textContent = done ? '▶ Lihat Hari Ini' : '▶ Main';
+      } else {
+        startModeLine.textContent = 'Latihan — perkataan rawak, sebanyak pusingan yang anda mahu.';
+        startBtn.textContent = '▶ Main';
+      }
+    }
+
+    function showHelp() {
+      helpOverlay.classList.remove('hidden');
+    }
+
+    function closeHelp() {
+      helpOverlay.classList.add('hidden');
+    }
+
+    function showStats() {
+      statsWasOpenedFromResult = !resultOverlay.classList.contains('hidden');
+      resultOverlay.classList.add('hidden');
+
+      const s = loadStats();
+      document.getElementById('stPlayed').textContent = s.played;
+      document.getElementById('stWinPct').textContent =
+        s.played ? Math.round((s.wins / s.played) * 100) + '%' : '0%';
+      document.getElementById('stStreak').textContent = s.streak;
+      document.getElementById('stMax').textContent = s.maxStreak;
+
+      const distEl = document.getElementById('distEl');
+      distEl.innerHTML = '';
+      const shown = s.dist.slice(0, 7);
+      const max = Math.max(1, ...shown);
+      const highlight = mode === 'daily' && status === 'won' ? guesses.length : -1;
+      shown.forEach((count, i) => {
+        const row = document.createElement('div');
+        row.className = 'dist-row' + (i + 1 === highlight ? ' current' : '');
+        const label = document.createElement('span');
+        label.textContent = i + 1;
+        const bar = document.createElement('div');
+        bar.className = 'dist-bar';
+        bar.style.width = Math.round((count / max) * 100) + '%';
+        bar.textContent = count;
+        row.appendChild(label);
+        row.appendChild(bar);
+        distEl.appendChild(row);
+      });
+
+      const p = loadPractice();
+      document.getElementById('practiceLine').textContent =
+        `Latihan: ${p.wins}/${p.played} berjaya · rentetan ${p.streak} · terbaik ${p.maxStreak}`;
+
+      statsOverlay.classList.remove('hidden');
+    }
+
+    function closeStats() {
+      statsOverlay.classList.add('hidden');
+      if (statsWasOpenedFromResult && status !== 'playing') {
+        resultOverlay.classList.remove('hidden');
+      }
+      statsWasOpenedFromResult = false;
+    }
+
+    // ------------------------------------------------------------- result ---
+    function shareText() {
+      const score = `${status === 'won' ? guesses.length : 'X'}/${rows}`;
+      // A star keeps a hinted win honest when the grid is shared.
+      const star = revealedHints.length ? '*' : '';
+      const header = mode === 'daily'
+        ? `Teka Kata Neon #${dayIndex} ${score}${star}`
+        : `Teka Kata Neon Latihan ${score}${star}`;
+      return header + '\n' + gridText();
+    }
+
+    function gridText() {
+      const glyph = { hit: '🟩', near: '🟨', miss: '⬛' };
+      return guesses
+        .map(g => scoreGuess(g, answer).map(m => glyph[m]).join(''))
+        .join('\n');
+    }
+
+    function showResult() {
+      const won = status === 'won';
+      document.getElementById('resultTitle').textContent = won ? '🎉 Berjaya!' : '💀 Tekaan Habis';
+      document.getElementById('resultText').textContent = won
+        ? (mode === 'daily'
+          ? 'Datang semula esok untuk teka seterusnya.'
+          : 'Satu lagi perkataan rawak hanya sekali tekan.')
+        : 'Semoga berjaya pada yang seterusnya.';
+      document.getElementById('answerWord').textContent = answer;
+      document.getElementById('shareGrid').textContent = gridText();
+      document.getElementById('resGuesses').textContent = won ? `${guesses.length}/${rows}` : `X/${rows}`;
+      const stats = mode === 'daily' ? loadStats() : loadPractice();
+      document.getElementById('resStreak').textContent = stats.streak;
+      document.getElementById('newBestTag').style.display = newBestThisRound ? 'block' : 'none';
+      document.getElementById('resultPrimary').textContent =
+        mode === 'daily' ? '🎲 Perkataan Latihan' : '🎲 Perkataan Seterusnya';
+      updateNextIn();
+      resultOverlay.classList.remove('hidden');
+    }
+
+    function updateNextIn() {
+      const el = document.getElementById('nextIn');
+      clearInterval(nextInTimer);
+      if (mode !== 'daily') { el.textContent = ''; return; }
+      const tick = () => {
+        const ms = msUntilTomorrow();
+        const h = Math.floor(ms / 3600000);
+        const m = Math.floor((ms % 3600000) / 60000);
+        const s = Math.floor((ms % 60000) / 1000);
+        el.textContent = `Teka seterusnya dalam ${h}j ${m}m ${s}s`;
+      };
+      tick();
+      nextInTimer = setInterval(tick, 1000);
+    }
+
+    function resultPrimaryAction() {
+      mode = 'practice';
+      resultOverlay.classList.add('hidden');
+      clearInterval(nextInTimer);
+      startGame();
+    }
+
+    async function shareResult() {
+      const text = shareText();
+      const btn = document.getElementById('shareBtn');
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = '✅ Disalin!';
+      } catch (e) {
+        btn.textContent = '⚠ Gagal Menyalin';
+      }
+      setTimeout(() => { btn.textContent = '📋 Salin Keputusan'; }, 1600);
+    }
+
+    // --------------------------------------------------------------- flow ---
+    function switchMode() {
+      mode = mode === 'daily' ? 'practice' : 'daily';
+      hideAllOverlays();
+      clearInterval(nextInTimer);
+      startGame();
+    }
+
+    function startGame() {
+      initAudio();
+      clearRevealTimers();
+      clearInterval(nextInTimer);
+      hideAllOverlays();
+
+      dayIndex = localDayIndex();
+      guesses = [];
+      current = '';
+      status = 'playing';
+      revealing = false;
+      newBestThisRound = false;
+      revealedHints = [];
+
+      if (mode === 'daily') {
+        rows = ROWS;
+        hardMode = false;
+        answer = answerForDay(dayIndex);
+        hintsLeft = DAILY_HINTS;
+        buildBoard();
+        loadProgress();
+      } else {
+        const cfg = DIFFICULTIES[difficulty];
+        rows = cfg.rows;
+        hardMode = cfg.hardMode;
+        hintsLeft = cfg.hints;
+        answer = WORDS[Math.floor(Math.random() * WORDS.length)];
+        buildBoard();
+      }
+
+      renderBoard();
+      renderHints();
+      renderHud();
+
+      if (status !== 'playing') showResult();
+    }
+
+    function showStartOverlay() {
+      hideAllOverlays();
+      clearInterval(nextInTimer);
+      refreshStartOverlay();
+      startOverlay.classList.remove('hidden');
+    }
+
+    // -------------------------------------------------------------- wiring ---
+    document.addEventListener('keydown', e => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      if (e.key === 'Escape') {
+        if (!helpOverlay.classList.contains('hidden')) { closeHelp(); e.preventDefault(); }
+        else if (!statsOverlay.classList.contains('hidden')) { closeStats(); e.preventDefault(); }
+        return;
+      }
+
+      if (anyOverlayOpen()) return;
+
+      initAudio();
+      if (e.key === 'Enter') { e.preventDefault(); submitGuess(); }
+      else if (e.key === 'Backspace') { e.preventDefault(); pressBackspace(); }
+      else if (/^[a-zA-Z]$/.test(e.key)) { e.preventDefault(); pressLetter(e.key.toLowerCase()); }
+    });
+
+    // wireFullscreen relabels with textContent, which would drop the
+    // .btn-label span; put it back so the icon-only phone layout survives.
+    Arcade.wireFullscreen(document.getElementById('fullscreenBtn'), () => {
+      const btn = document.getElementById('fullscreenBtn');
+      btn.innerHTML = document.fullscreenElement
+        ? '⤢<span class="btn-label"> Keluar</span>'
+        : '⛶<span class="btn-label"> Penuh</span>';
+      layoutBoard();
+    });
+
+    // Re-measure whenever the space can change. visualViewport is the one that
+    // fires when a phone browser slides its address bar in or out — a plain
+    // window resize does not always follow.
+    let layoutPending = false;
+    function requestLayout() {
+      if (layoutPending) return;
+      layoutPending = true;
+      requestAnimationFrame(() => { layoutPending = false; layoutBoard(); });
+    }
+
+    window.addEventListener('resize', requestLayout);
+    window.addEventListener('orientationchange', requestLayout);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', requestLayout);
+      window.visualViewport.addEventListener('scroll', requestLayout);
+    }
+
+    // A word game has no simulation to freeze, but a mid-flip tab switch would
+    // otherwise land the animation callbacks all at once on return.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && revealing) {
+        clearRevealTimers();
+        revealing = false;
+        const rowIndex = guesses.length - 1;
+        renderBoard();
+        if (rowIndex >= 0) finishTurn(rowIndex, guesses[rowIndex]);
+      }
+    });
+
+    // ---------------------------------------------------------------- boot ---
+    const savedDiff = localStorage.getItem(DIFF_KEY);
+    if (savedDiff && DIFFICULTIES[savedDiff]) difficulty = savedDiff;
+    setDifficulty(difficulty);
+
+    dayIndex = localDayIndex();
+    answer = answerForDay(dayIndex);
+    hintsLeft = DAILY_HINTS;
+    buildBoard();
+    buildKeyboard();
+    renderBoard();
+    renderHints();
+    syncBestKey();
+    renderHud();
+    refreshStartOverlay();
+  </script>
+</body>
+</html>
