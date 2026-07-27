@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>💣 Neon Mines | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    /* Width of this game's play column; the rest of the chrome is
+       inherited from the shared arcade sheet. */
+    :root {
+      --play-max: 520px;
+      --hidden: #262647;
+      --hidden-hi: #32325c;
+      --open: #12122a;
+      --flag: #ff2a6d;
+    }
+
+    body {
+      background: radial-gradient(ellipse at top, #14142c 0%, #050510 100%);
+    }
+
+    /* A DOM game: the ui-layer holds real content, so it takes pointer events. */
+    .ui-layer { pointer-events: auto; }
+
+    .board-wrap {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 0;
+      padding: 4px 10px;
+    }
+
+    .board {
+      display: grid;
+      gap: var(--gap, 3px);
+      grid-template-columns: repeat(var(--cols, 8), var(--cell, 34px));
+      grid-template-rows: repeat(var(--rows, 10), var(--cell, 34px));
+      touch-action: manipulation;
+    }
+
+    .cell {
+      background: var(--hidden);
+      border: none;
+      border-radius: 5px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: calc(var(--cell, 34px) * 0.56);
+      font-weight: bold;
+      line-height: 1;
+      color: var(--text);
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.35);
+      transition: background 0.08s;
+    }
+
+    .cell:hover { background: var(--hidden-hi); transform: none; }
+
+    .cell.open {
+      background: var(--open);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+      cursor: default;
+    }
+
+    .cell.open:hover { background: var(--open); }
+
+    /* Number colours, the familiar ones pushed into the neon palette. */
+    .cell.n1 { color: #4da3ff; }
+    .cell.n2 { color: #00ff88; }
+    .cell.n3 { color: #ff5c8a; }
+    .cell.n4 { color: #b17cff; }
+    .cell.n5 { color: #ffb400; }
+    .cell.n6 { color: #00e5d0; }
+    .cell.n7 { color: #ff8a3d; }
+    .cell.n8 { color: #c8c8e0; }
+
+    .cell.flag { color: var(--flag); }
+
+    .cell.mine {
+      background: #3a1020;
+      color: #ff2a6d;
+    }
+
+    .cell.blast {
+      background: var(--flag);
+      color: #1a0008;
+      animation: blast 0.4s ease;
+    }
+
+    @keyframes blast {
+      0% { transform: scale(0.7); }
+      60% { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+
+    .cell.wrong { background: #3a1020; color: #8d8da8; }
+
+    .cell.pop { animation: pop 0.12s ease-out; }
+
+    @keyframes pop {
+      0% { transform: scale(0.88); }
+      100% { transform: scale(1); }
+    }
+
+    /* Flag-mode button reads as a toggle, not just a button. */
+    #flagBtn.on {
+      background: var(--flag);
+      border-color: var(--flag);
+      color: #1a0008;
+    }
+
+    .mine-count strong { color: var(--flag); }
+
+    .legend-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 12px 0 4px;
+      font-size: 0.72rem;
+      color: #999;
+      text-align: left;
+      max-width: 320px;
+    }
+
+    .legend-grid .row-mini {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mini {
+      width: 24px;
+      height: 24px;
+      border-radius: 5px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.78rem;
+      font-weight: bold;
+      background: var(--hidden);
+      flex-shrink: 0;
+      box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.35);
+    }
+
+    .mini.open { background: var(--open); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); }
+    .mini.one { color: #4da3ff; }
+    .mini.flagged { color: var(--flag); }
+
+    .promise {
+      font-size: 0.72rem;
+      color: var(--accent);
+      margin: 6px 0 2px;
+      max-width: 330px;
+    }
+
+    .next-in {
+      font-size: 0.72rem;
+      color: #888;
+      margin-top: 10px;
+    }
+
+    .overlay .stats { margin: 10px 0; }
+
+    /* A finished board is bright; the shared 0.92 scrim is not enough over it. */
+    .overlay {
+      background: rgba(5, 5, 16, 0.985);
+      backdrop-filter: blur(8px);
+    }
+
+    /* Six control buttons do not fit one phone row, and a second row eats board
+       space. Icons only below this width. */
+    @media (max-width: 460px) {
+      .controls-bar { justify-content: center; flex-wrap: nowrap; }
+      .controls-bar button { padding: 6px 8px; }
+      .btn-label { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span>Mode</span>
+        <strong id="modeEl">Daily</strong>
+      </div>
+      <div class="hud-panel mine-count">
+        <span>Mines</span>
+        <strong id="minesEl">10</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Time</span>
+        <strong id="timeEl">0:00</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Streak</span>
+        <strong id="streakEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button id="modeBtn" onclick="switchMode()">🎲<span class="btn-label"> Practice</span></button>
+      <button id="flagBtn" onclick="toggleFlagMode()">🚩<span class="btn-label"> Flag</span></button>
+      <button id="statsBtn" onclick="showStats()">📊<span class="btn-label"> Stats</span></button>
+      <button id="helpBtn" onclick="showHelp()">❔<span class="btn-label"> How</span></button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶<span class="btn-label"> Full</span></button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠<span class="btn-label"> Home</span></button>
+      </a>
+    </div>
+
+    <div class="board-wrap">
+      <div class="board" id="board"></div>
+    </div>
+
+    <div class="bottom-bar" id="bottomBar">
+      <div class="hint-line" id="hintLine">Tap to open · long-press to flag</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>💣 Neon Mines</h1>
+    <p>Open every square that is not a mine. Each number counts the mines touching it.</p>
+
+    <div class="legend-grid">
+      <div class="row-mini">
+        <span class="mini open one">1</span>
+        <span>Exactly one mine touches this square.</span>
+      </div>
+      <div class="row-mini">
+        <span class="mini flagged">🚩</span>
+        <span>Long-press — or use 🚩 mode — to mark a mine.</span>
+      </div>
+      <div class="row-mini">
+        <span class="mini open one">2</span>
+        <span>Tap a number with both flags placed to open the rest around it.</span>
+      </div>
+    </div>
+
+    <p class="promise">Every board is checked by a solver before you see it, so no board ever ends in a coin flip. Your first square is always safe.</p>
+
+    <div class="difficulty-bar" id="difficultyBar">
+      <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+      <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+      <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+    </div>
+    <p class="diff-note" id="diffNote"></p>
+    <p class="mode-line diff-note" id="startModeLine"></p>
+
+    <button class="primary" id="startBtn" onclick="startGame()">▶ Play</button>
+    <div class="secondary-row">
+      <button id="startModeBtn" onclick="toggleStartMode()">🎲 Practice Mode</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="helpOverlay">
+    <h1>❔ How to Play</h1>
+    <p>Open squares until only mines are left. A number tells you how many of the eight squares around it hold a mine.</p>
+    <p><strong>Tap</strong> opens a square. <strong>Long-press</strong> flags one — or turn on 🚩 mode and tap to flag instead.</p>
+    <p><strong>Tap a number</strong> that already has all its mines flagged to open everything else around it in one go.</p>
+    <p>No board ever needs a guess. Every board is played by a solver first, and any board that would come down to a coin flip is thrown away and replaced.</p>
+    <p><strong>Daily</strong> gives everyone the same board, with the same opening square already turned over. <strong>Practice</strong> deals a fresh board whenever you like, and there the board is built around wherever you tap first.</p>
+    <button class="primary" onclick="closeHelp()">Got It</button>
+  </div>
+
+  <div class="overlay hidden" id="resultOverlay">
+    <h1 id="resultTitle">🎉 Cleared!</h1>
+    <p class="new-best" id="newBestTag">🏆 Fastest Yet!</p>
+    <p id="resultText">Nice work.</p>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="resTime">0:00</div>
+        <div class="lbl">Time</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="resBest">—</div>
+        <div class="lbl">Best</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="resStreak">0</div>
+        <div class="lbl">Streak</div>
+      </div>
+    </div>
+
+    <button class="primary" id="resultPrimary" onclick="resultPrimaryAction()">🎲 Practice Board</button>
+    <div class="secondary-row">
+      <button id="shareBtn" onclick="shareResult()">📋 Copy Result</button>
+      <button onclick="showStats()">📊 Stats</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+    <p class="next-in" id="nextIn"></p>
+  </div>
+
+  <div class="overlay hidden" id="statsOverlay">
+    <h1>Stats</h1>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="stPlayed">0</div>
+        <div class="lbl">Played</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="stWinPct">0%</div>
+        <div class="lbl">Win Rate</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="stStreak">0</div>
+        <div class="lbl">Streak</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="stMax">0</div>
+        <div class="lbl">Best Streak</div>
+      </div>
+    </div>
+    <p class="mode-line" id="bestLine"></p>
+    <p class="mode-line" id="practiceLine"></p>
+    <button class="primary" onclick="closeStats()">Back</button>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    // ---------------------------------------------------------- difficulty ---
+    /**
+     * Sizes are shaped for a phone held upright: columns are the scarce
+     * dimension, so they stay low and the rows carry the size. Mine densities
+     * are the classic ones — 12%, 18%, 21% — which the generator can still meet
+     * while guaranteeing a board needs no guessing.
+     */
+    const DIFFICULTIES = {
+      easy:   { cols: 8,  rows: 10, mines: 10, note: 'Easy — 8 × 10 with 10 mines.' },
+      medium: { cols: 10, rows: 14, mines: 25, note: 'Medium — 10 × 14 with 25 mines.' },
+      hard:   { cols: 12, rows: 16, mines: 40, note: 'Hard — 12 × 16 with 40 mines.' }
+    };
+
+    const HIDDEN = 0, OPEN = 1, FLAG = 2;
+    const LONG_PRESS_MS = 380;
+    const MAX_BOARD_TRIES = 600;
+
+    const board = document.getElementById('board');
+    const toastEl = document.getElementById('toast');
+    const modeEl = document.getElementById('modeEl');
+    const minesEl = document.getElementById('minesEl');
+    const timeEl = document.getElementById('timeEl');
+    const streakEl = document.getElementById('streakEl');
+    const hintLine = document.getElementById('hintLine');
+    const modeBtn = document.getElementById('modeBtn');
+    const flagBtn = document.getElementById('flagBtn');
+    const startOverlay = document.getElementById('startOverlay');
+    const helpOverlay = document.getElementById('helpOverlay');
+    const resultOverlay = document.getElementById('resultOverlay');
+    const statsOverlay = document.getElementById('statsOverlay');
+    const difficultyBar = document.getElementById('difficultyBar');
+    const diffNote = document.getElementById('diffNote');
+    const startModeLine = document.getElementById('startModeLine');
+    const startModeBtn = document.getElementById('startModeBtn');
+    const startBtn = document.getElementById('startBtn');
+
+    let mode = 'daily';           // 'daily' | 'practice'
+    let difficulty = 'medium';
+    let cols = 10, rows = 14, mineCount = 25;
+    let counts = null;            // Int8Array, -1 for a mine
+    let state = null;             // Uint8Array of HIDDEN | OPEN | FLAG
+    let placed = false;           // has a board been generated yet
+    let status = 'idle';          // 'idle' | 'playing' | 'won' | 'lost'
+    let flagMode = false;
+    let dayIndex = 0;
+    let startedAt = 0, elapsed = 0, tickTimer = null;
+    let statsWasOpenedFromResult = false;
+    let newBestThisRound = false;
+    let nextInTimer = null;
+    let blastAt = -1;
+
+    const STORE = 'mines';
+
+    function dailyKey(d)    { return STORE + 'Daily_' + d; }
+    function statsKey(d)    { return STORE + 'Stats_' + d; }
+    function practiceKey(d) { return STORE + 'Practice_' + d; }
+    const DIFF_KEY = STORE + 'Difficulty';
+    const FLAGMODE_KEY = STORE + 'FlagMode';
+
+    // ------------------------------------------------------- shared wraps ---
+    function initAudio() { Arcade.initAudio(); }
+    function playTone(f, t, d, delay, v) { Arcade.playTone(f, t, d, delay, v); }
+    function showToast(text, color, ms) { Arcade.showToast(toastEl, text, color || '#00f2ff', ms || 1200); }
+    function toggleFullscreen() { Arcade.toggleFullscreen(); }
+
+    // --------------------------------------------------------------- rng ---
+    /** Small deterministic generator, so a daily board is the same everywhere. */
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function localDayIndex(now) {
+      const d = now || new Date();
+      const today = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const epoch = new Date(2026, 0, 1);
+      return Math.round((today - epoch) / 86400000);
+    }
+
+    function msUntilTomorrow(now) {
+      const d = now || new Date();
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1) - d;
+    }
+
+    function dailySeed(day, diff) {
+      let h = 2166136261 ^ day;
+      const tag = 'mines:' + diff;
+      for (let i = 0; i < tag.length; i++) {
+        h ^= tag.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return h >>> 0;
+    }
+
+    // ------------------------------------------------------------- board ---
+    function idx(x, y) { return y * cols + x; }
+
+    function neighbours(i) {
+      const out = [];
+      const x = i % cols, y = (i / cols) | 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue;
+          const nx = x + dx, ny = y + dy;
+          if (nx >= 0 && nx < cols && ny >= 0 && ny < rows) out.push(ny * cols + nx);
+        }
+      }
+      return out;
+    }
+
+    const NEIGHBOURS = [];        // rebuilt whenever the board size changes
+    function buildNeighbourTable() {
+      NEIGHBOURS.length = 0;
+      for (let i = 0; i < cols * rows; i++) NEIGHBOURS.push(neighbours(i));
+    }
+
+    /** Lays mines anywhere except the opening square and the ring around it. */
+    function layMines(safe, rng) {
+      const n = cols * rows;
+      const blocked = new Uint8Array(n);
+      blocked[safe] = 1;
+      NEIGHBOURS[safe].forEach(j => { blocked[j] = 1; });
+
+      const pool = [];
+      for (let i = 0; i < n; i++) if (!blocked[i]) pool.push(i);
+      // Partial Fisher-Yates: we only need the first mineCount entries.
+      for (let k = 0; k < mineCount; k++) {
+        const j = k + Math.floor(rng() * (pool.length - k));
+        const t = pool[k]; pool[k] = pool[j]; pool[j] = t;
+      }
+
+      const c = new Int8Array(n);
+      const isMine = new Uint8Array(n);
+      for (let k = 0; k < mineCount; k++) isMine[pool[k]] = 1;
+      for (let i = 0; i < n; i++) {
+        if (isMine[i]) { c[i] = -1; continue; }
+        let m = 0;
+        const nb = NEIGHBOURS[i];
+        for (let k = 0; k < nb.length; k++) if (isMine[nb[k]]) m++;
+        c[i] = m;
+      }
+      return c;
+    }
+
+    // ------------------------------------------------------------ solver ---
+    /**
+     * Plays the board with logic alone and reports whether it can be finished.
+     *
+     * Three rules, in increasing cost:
+     *   1. a number with all its mines flagged frees its other neighbours, and a
+     *      number with exactly as many unknowns as missing mines flags them all;
+     *   2. where one number's unknown set sits inside another's, the difference
+     *      is fully determined whenever the mine counts allow only one reading;
+     *   3. the mines remaining against the squares remaining closes the endgame.
+     *
+     * Every step is a certainty, never a guess — so a board this accepts cannot
+     * put the player in a coin flip. It is not a complete solver, and rejecting
+     * a board that some cleverer method could crack costs nothing but a retry.
+     */
+    function solvesWithoutGuessing(c, first) {
+      const n = cols * rows;
+      const seen = new Uint8Array(n);     // 1 = opened, 2 = known mine
+      const opened = [];
+
+      function open(i) {
+        if (seen[i]) return true;
+        if (c[i] < 0) return false;        // a sound rule can never land here
+        seen[i] = 1; opened.push(i);
+        if (c[i] === 0) {
+          const nb = NEIGHBOURS[i];
+          for (let k = 0; k < nb.length; k++) if (!seen[nb[k]] && !open(nb[k])) return false;
+        }
+        return true;
+      }
+
+      if (!open(first)) return false;
+
+      let progress = true;
+      while (progress) {
+        progress = false;
+        const cons = [];
+
+        for (let a = 0; a < opened.length; a++) {
+          const i = opened[a];
+          if (c[i] <= 0) continue;
+          const nb = NEIGHBOURS[i];
+          const unknown = [];
+          let flags = 0;
+          for (let k = 0; k < nb.length; k++) {
+            if (seen[nb[k]] === 2) flags++;
+            else if (!seen[nb[k]]) unknown.push(nb[k]);
+          }
+          if (!unknown.length) continue;
+          const need = c[i] - flags;
+          if (need === 0) {
+            for (let k = 0; k < unknown.length; k++) if (!open(unknown[k])) return false;
+            progress = true;
+          } else if (need === unknown.length) {
+            for (let k = 0; k < unknown.length; k++) seen[unknown[k]] = 2;
+            progress = true;
+          } else {
+            cons.push({ cells: unknown, need: need });
+          }
+        }
+        if (progress) continue;
+
+        outer:
+        for (let a = 0; a < cons.length; a++) {
+          for (let b = a + 1; b < cons.length; b++) {
+            const A = cons[a], B = cons[b];
+            const pair = subsetDiff(A, B) || subsetDiff(B, A);
+            if (!pair) continue;
+            const diff = pair.diff, need = pair.need;
+            if (need === 0) {
+              for (let k = 0; k < diff.length; k++) if (!open(diff[k])) return false;
+              progress = true; break outer;
+            }
+            if (need === diff.length) {
+              for (let k = 0; k < diff.length; k++) seen[diff[k]] = 2;
+              progress = true; break outer;
+            }
+          }
+        }
+        if (progress) continue;
+
+        // Rule 3: what is left over the whole board.
+        let hidden = 0, flagged = 0;
+        for (let i = 0; i < n; i++) {
+          if (seen[i] === 2) flagged++;
+          else if (!seen[i]) hidden++;
+        }
+        const left = mineCount - flagged;
+        if (hidden > 0 && left === 0) {
+          for (let i = 0; i < n; i++) if (!seen[i] && !open(i)) return false;
+          progress = true;
+        } else if (hidden > 0 && left === hidden) {
+          for (let i = 0; i < n; i++) if (!seen[i]) seen[i] = 2;
+          progress = true;
+        }
+      }
+
+      // Finished only if every safe square is open and every mine is accounted for.
+      for (let i = 0; i < n; i++) {
+        if (c[i] < 0 && seen[i] !== 2) return false;
+        if (c[i] >= 0 && seen[i] !== 1) return false;
+      }
+      return true;
+    }
+
+    /** If A's cells sit inside B's, returns the leftover cells and their mines. */
+    function subsetDiff(A, B) {
+      if (A.cells.length >= B.cells.length) return null;
+      const set = new Set(B.cells);
+      for (let k = 0; k < A.cells.length; k++) if (!set.has(A.cells[k])) return null;
+      const inA = new Set(A.cells);
+      const diff = B.cells.filter(x => !inA.has(x));
+      return { diff: diff, need: B.need - A.need };
+    }
+
+    /**
+     * Deals boards until one survives the solver. Rejection sampling is enough:
+     * measured over thousands of boards, Easy takes 1.3 tries on average and
+     * Hard 9.9, which is a few milliseconds either way.
+     */
+    function makeSolvableBoard(safe, rng) {
+      for (let t = 0; t < MAX_BOARD_TRIES; t++) {
+        const c = layMines(safe, rng);
+        if (solvesWithoutGuessing(c, safe)) return { counts: c, tries: t + 1 };
+      }
+      // Never seen in testing, but a board is better than a hang.
+      return { counts: layMines(safe, rng), tries: MAX_BOARD_TRIES, degraded: true };
+    }
+
+    // ------------------------------------------------------------ drawing ---
+    function buildGrid() {
+      board.innerHTML = '';
+      board.style.setProperty('--cols', cols);
+      board.style.setProperty('--rows', rows);
+      const frag = document.createDocumentFragment();
+      for (let i = 0; i < cols * rows; i++) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'cell';
+        b.dataset.i = i;
+        frag.appendChild(b);
+      }
+      board.appendChild(frag);
+      layoutBoard();
+    }
+
+    function cellEl(i) { return board.children[i]; }
+
+    function paintCell(i) {
+      const el = cellEl(i);
+      el.className = 'cell';
+      el.textContent = '';
+      if (state[i] === FLAG) {
+        el.classList.add('flag');
+        el.textContent = '🚩';
+      } else if (state[i] === OPEN) {
+        el.classList.add('open');
+        if (counts[i] > 0) {
+          el.classList.add('n' + counts[i]);
+          el.textContent = counts[i];
+        }
+      }
+    }
+
+    function paintAll() {
+      for (let i = 0; i < cols * rows; i++) paintCell(i);
+    }
+
+    /** Shows the whole truth once the round is over. */
+    function revealEndState(hitMine) {
+      for (let i = 0; i < cols * rows; i++) {
+        const el = cellEl(i);
+        if (counts[i] < 0) {
+          if (state[i] === FLAG) continue;             // correctly flagged, leave it
+          el.className = 'cell mine';
+          el.textContent = '💣';
+        } else if (state[i] === FLAG) {
+          el.className = 'cell wrong';                 // flagged a safe square
+          el.textContent = '✖';
+        }
+      }
+      if (hitMine >= 0) {
+        const el = cellEl(hitMine);
+        el.className = 'cell blast';
+        el.textContent = '💥';
+      }
+    }
+
+    /**
+     * Sizes the squares from the room actually left for the board. The CSS
+     * cannot know: the same grid has to fit a phone with its address bar showing
+     * and a desktop window, and the three difficulties are different shapes.
+     */
+    function layoutBoard() {
+      const wrap = board.parentElement;
+      const box = wrap.getBoundingClientRect();
+      if (!box.width || !box.height) return;
+      const st = getComputedStyle(wrap);
+      const availW = box.width - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight);
+      const availH = box.height - parseFloat(st.paddingTop) - parseFloat(st.paddingBottom);
+
+      let cell = 40, gap = 3;
+      for (const g of [3, 2]) {
+        gap = g;
+        cell = Math.min(40,
+          Math.floor((availW - (cols - 1) * g) / cols),
+          Math.floor((availH - (rows - 1) * g) / rows));
+        if (cell >= 24 || g === 2) break;
+      }
+      cell = Math.max(14, cell);
+      board.style.setProperty('--cell', cell + 'px');
+      board.style.setProperty('--gap', gap + 'px');
+    }
+
+    // -------------------------------------------------------------- play ---
+    function hiddenCount() {
+      let h = 0;
+      for (let i = 0; i < cols * rows; i++) if (state[i] !== OPEN) h++;
+      return h;
+    }
+
+    function flagsPlaced() {
+      let f = 0;
+      for (let i = 0; i < cols * rows; i++) if (state[i] === FLAG) f++;
+      return f;
+    }
+
+    function updateHud() {
+      minesEl.textContent = Math.max(0, mineCount - flagsPlaced());
+      timeEl.textContent = formatTime(elapsed);
+      const s = mode === 'daily' ? loadStats() : loadPractice();
+      streakEl.textContent = s.streak;
+      modeEl.textContent = mode === 'daily' ? 'Daily' : 'Practice';
+      modeBtn.innerHTML = mode === 'daily'
+        ? '🎲<span class="btn-label"> Practice</span>'
+        : '📅<span class="btn-label"> Daily</span>';
+      updateHintLine();
+    }
+
+    function updateHintLine() {
+      if (status === 'won') hintLine.textContent = 'Cleared! 🎉';
+      else if (status === 'lost') hintLine.textContent = 'Boom — that one was a mine';
+      else if (flagMode) hintLine.textContent = '🚩 Flag mode — tap to mark a mine';
+      else hintLine.textContent = 'Tap to open · long-press to flag';
+    }
+
+    function formatTime(ms) {
+      const s = Math.floor(ms / 1000);
+      return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    }
+
+    function startTimer() {
+      stopTimer();
+      startedAt = Date.now() - elapsed;
+      tickTimer = setInterval(function () {
+        elapsed = Date.now() - startedAt;
+        timeEl.textContent = formatTime(elapsed);
+      }, 200);
+    }
+
+    function stopTimer() {
+      clearInterval(tickTimer);
+      tickTimer = null;
+    }
+
+    function openCell(i) {
+      if (state[i] !== HIDDEN) return true;
+      state[i] = OPEN;
+      paintCell(i);
+      cellEl(i).classList.add('pop');
+      if (counts[i] < 0) return false;
+      if (counts[i] === 0) {
+        const nb = NEIGHBOURS[i];
+        for (let k = 0; k < nb.length; k++) {
+          if (state[nb[k]] === HIDDEN) openCell(nb[k]);
+        }
+      }
+      return true;
+    }
+
+    function reveal(i) {
+      if (status !== 'idle' && status !== 'playing') return;
+      if (state[i] === FLAG) return;
+
+      if (!placed) {
+        // Practice builds the board around the first tap, so it is always safe.
+        generateAround(i, Math.floor(Math.random() * 0xffffffff));
+        status = 'playing';
+        startTimer();
+      }
+      if (state[i] === OPEN) { chord(i); return; }
+
+      const safe = openCell(i);
+      playTone(safe ? 420 : 130, safe ? 'triangle' : 'sawtooth', safe ? 0.05 : 0.25, 0, safe ? 0.05 : 0.12);
+      if (!safe) { lose(i); return; }
+      updateHud();
+      checkWin();
+    }
+
+    /** Tapping a satisfied number opens everything still hidden around it. */
+    function chord(i) {
+      if (counts[i] <= 0 || state[i] !== OPEN) return;
+      const nb = NEIGHBOURS[i];
+      let flags = 0, hidden = 0;
+      for (let k = 0; k < nb.length; k++) {
+        if (state[nb[k]] === FLAG) flags++;
+        else if (state[nb[k]] === HIDDEN) hidden++;
+      }
+      if (flags !== counts[i] || !hidden) return;
+      let safe = true;
+      let boom = -1;
+      for (let k = 0; k < nb.length; k++) {
+        if (state[nb[k]] === HIDDEN) {
+          if (!openCell(nb[k])) { safe = false; boom = nb[k]; }
+        }
+      }
+      if (!safe) { playTone(130, 'sawtooth', 0.25, 0, 0.12); lose(boom); return; }
+      playTone(520, 'triangle', 0.06, 0, 0.05);
+      updateHud();
+      checkWin();
+    }
+
+    function toggleFlag(i) {
+      if (status !== 'idle' && status !== 'playing') return;
+      if (state[i] === OPEN) return;
+      state[i] = state[i] === FLAG ? HIDDEN : FLAG;
+      paintCell(i);
+      playTone(state[i] === FLAG ? 660 : 400, 'sine', 0.06, 0, 0.06);
+      updateHud();
+    }
+
+    function checkWin() {
+      if (hiddenCount() === mineCount) win();
+    }
+
+    function win() {
+      status = 'won';
+      stopTimer();
+      for (let i = 0; i < cols * rows; i++) {
+        if (counts[i] < 0 && state[i] !== FLAG) { state[i] = FLAG; paintCell(i); }
+      }
+      updateHud();
+      showToast('Cleared!', '#00ff88', 1400);
+      Arcade.playBestJingle();
+      recordResult(true);
+      setTimeout(showResult, 700);
+    }
+
+    function lose(hit) {
+      status = 'lost';
+      blastAt = hit;
+      stopTimer();
+      revealEndState(hit);
+      updateHud();
+      showToast('Boom!', '#ff2a6d', 1400);
+      recordResult(false);
+      setTimeout(showResult, 800);
+    }
+
+    // ----------------------------------------------------------- storage ---
+    function readJSON(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return fallback;
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : fallback;
+      } catch (e) { return fallback; }
+    }
+
+    function writeJSON(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+    }
+
+    function blankStats() {
+      return { played: 0, wins: 0, streak: 0, maxStreak: 0, lastDay: null, best: 0 };
+    }
+
+    function loadStats() { return Object.assign(blankStats(), readJSON(statsKey(difficulty), {})); }
+    function loadPractice() { return Object.assign(blankStats(), readJSON(practiceKey(difficulty), {})); }
+
+    /** The single number the arcade home page shows for this game. */
+    function syncBestKey() {
+      let best = 0;
+      Object.keys(DIFFICULTIES).forEach(function (d) {
+        const s = Object.assign(blankStats(), readJSON(statsKey(d), {}));
+        const p = Object.assign(blankStats(), readJSON(practiceKey(d), {}));
+        best = Math.max(best, s.maxStreak | 0, p.maxStreak | 0);
+      });
+      Arcade.setBestScore(STORE + 'Best', best);
+      return best;
+    }
+
+    function recordResult(won) {
+      const isDaily = mode === 'daily';
+      const key = isDaily ? statsKey(difficulty) : practiceKey(difficulty);
+      const s = Object.assign(blankStats(), readJSON(key, {}));
+      if (isDaily && s.lastDay !== null && s.lastDay !== undefined && s.lastDay !== dayIndex - 1) {
+        s.streak = 0;              // a daily streak only survives consecutive days
+      }
+      s.played++;
+      if (won) {
+        s.wins++;
+        s.streak++;
+        if (!s.best || elapsed < s.best) { s.best = elapsed; newBestThisRound = true; }
+      } else {
+        s.streak = 0;
+      }
+      if (s.streak > s.maxStreak) s.maxStreak = s.streak;
+      if (isDaily) s.lastDay = dayIndex;
+      writeJSON(key, s);
+      if (isDaily) saveProgress();
+      syncBestKey();
+      updateHud();
+    }
+
+    /**
+     * Only the daily is resumable; a practice board is throwaway.
+     *
+     * Nothing is written before a round is actually under way. Otherwise simply
+     * opening the page and leaving would store an all-hidden board, and coming
+     * back would restore that instead of dealing the opening square — a blank
+     * daily with nothing turned over.
+     */
+    function saveProgress() {
+      if (mode !== 'daily' || !placed || status === 'idle') return;
+      writeJSON(dailyKey(difficulty), {
+        day: dayIndex,
+        state: Array.from(state),
+        status: status,
+        elapsed: elapsed
+      });
+    }
+
+    function loadProgress() {
+      const saved = readJSON(dailyKey(difficulty), null);
+      if (!saved || saved.day !== dayIndex || !Array.isArray(saved.state)) return false;
+      if (saved.state.length !== cols * rows) return false;
+      // A save with nothing opened has nothing to restore; deal the opening
+      // square instead of showing a board the player cannot start from.
+      if (!saved.state.some(v => v === OPEN)) return false;
+      for (let i = 0; i < state.length; i++) {
+        const v = saved.state[i];
+        state[i] = (v === OPEN || v === FLAG) ? v : HIDDEN;
+        // A stored board must never claim an opened mine.
+        if (state[i] === OPEN && counts[i] < 0) state[i] = HIDDEN;
+      }
+      elapsed = typeof saved.elapsed === 'number' && saved.elapsed >= 0 ? saved.elapsed : 0;
+      status = saved.status === 'won' || saved.status === 'lost' ? saved.status : 'playing';
+      if (status === 'playing' && hiddenCount() === mineCount) status = 'won';
+      return true;
+    }
+
+    // ---------------------------------------------------------- overlays ---
+    function hideAllOverlays() {
+      [startOverlay, helpOverlay, resultOverlay, statsOverlay].forEach(o => o.classList.add('hidden'));
+    }
+
+    function anyOverlayOpen() {
+      return [startOverlay, helpOverlay, resultOverlay, statsOverlay]
+        .some(o => !o.classList.contains('hidden'));
+    }
+
+    function setDifficulty(d) {
+      if (!DIFFICULTIES[d]) return;
+      difficulty = d;
+      localStorage.setItem(DIFF_KEY, d);
+      difficultyBar.querySelectorAll('button').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.diff === d);
+      });
+      diffNote.textContent = DIFFICULTIES[d].note;
+      refreshStartOverlay();
+    }
+
+    function toggleStartMode() {
+      mode = mode === 'daily' ? 'practice' : 'daily';
+      refreshStartOverlay();
+    }
+
+    function refreshStartOverlay() {
+      const isDaily = mode === 'daily';
+      startModeBtn.textContent = isDaily ? '🎲 Practice Mode' : '📅 Daily Board';
+      if (isDaily) {
+        const saved = readJSON(dailyKey(difficulty), null);
+        const done = saved && saved.day === localDayIndex() &&
+          (saved.status === 'won' || saved.status === 'lost');
+        startModeLine.textContent = done
+          ? `Today's ${difficulty} board is done — open it to see how it finished.`
+          : `Daily board #${localDayIndex()} — the same board for everyone, opening square included.`;
+        startBtn.textContent = done ? '▶ View Today' : '▶ Play';
+      } else {
+        startModeLine.textContent = 'Practice — a fresh board built around wherever you tap first.';
+        startBtn.textContent = '▶ Play';
+      }
+    }
+
+    function showHelp() { helpOverlay.classList.remove('hidden'); }
+    function closeHelp() { helpOverlay.classList.add('hidden'); }
+
+    function showStats() {
+      statsWasOpenedFromResult = !resultOverlay.classList.contains('hidden');
+      resultOverlay.classList.add('hidden');
+      const s = loadStats(), p = loadPractice();
+      document.getElementById('stPlayed').textContent = s.played;
+      document.getElementById('stWinPct').textContent =
+        s.played ? Math.round((s.wins / s.played) * 100) + '%' : '0%';
+      document.getElementById('stStreak').textContent = s.streak;
+      document.getElementById('stMax').textContent = s.maxStreak;
+      document.getElementById('bestLine').textContent =
+        `Best ${difficulty} time — daily ${s.best ? formatTime(s.best) : '—'} · practice ${p.best ? formatTime(p.best) : '—'}`;
+      document.getElementById('practiceLine').textContent =
+        `Practice: ${p.wins}/${p.played} cleared · streak ${p.streak} · best streak ${p.maxStreak}`;
+      statsOverlay.classList.remove('hidden');
+    }
+
+    function closeStats() {
+      statsOverlay.classList.add('hidden');
+      if (statsWasOpenedFromResult && (status === 'won' || status === 'lost')) {
+        resultOverlay.classList.remove('hidden');
+      }
+      statsWasOpenedFromResult = false;
+    }
+
+    // ------------------------------------------------------------ result ---
+    function shareText() {
+      const s = mode === 'daily' ? loadStats() : loadPractice();
+      const label = difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+      const head = mode === 'daily'
+        ? `💣 Neon Mines #${dayIndex} · ${label}`
+        : `💣 Neon Mines Practice · ${label}`;
+      return `${head}\n${status === 'won' ? '✅ ' + formatTime(elapsed) : '💥 hit a mine'} · streak ${s.streak}`;
+    }
+
+    function showResult() {
+      const won = status === 'won';
+      const s = mode === 'daily' ? loadStats() : loadPractice();
+      document.getElementById('resultTitle').textContent = won ? '🎉 Cleared!' : '💥 Boom';
+      document.getElementById('resultText').textContent = won
+        ? (mode === 'daily' ? 'Come back tomorrow for the next board.' : 'Another board is one tap away.')
+        : 'Every board here is solvable — that one had an answer.';
+      document.getElementById('resTime').textContent = won ? formatTime(elapsed) : '—';
+      document.getElementById('resBest').textContent = s.best ? formatTime(s.best) : '—';
+      document.getElementById('resStreak').textContent = s.streak;
+      document.getElementById('newBestTag').style.display = newBestThisRound ? 'block' : 'none';
+      document.getElementById('resultPrimary').textContent =
+        mode === 'daily' ? '🎲 Practice Board' : '🎲 Next Board';
+      updateNextIn();
+      resultOverlay.classList.remove('hidden');
+    }
+
+    function updateNextIn() {
+      const el = document.getElementById('nextIn');
+      clearInterval(nextInTimer);
+      if (mode !== 'daily') { el.textContent = ''; return; }
+      const tick = function () {
+        const ms = msUntilTomorrow();
+        const h = Math.floor(ms / 3600000);
+        const m = Math.floor((ms % 3600000) / 60000);
+        const sec = Math.floor((ms % 60000) / 1000);
+        el.textContent = `Next board in ${h}h ${m}m ${sec}s`;
+      };
+      tick();
+      nextInTimer = setInterval(tick, 1000);
+    }
+
+    function resultPrimaryAction() {
+      mode = 'practice';
+      resultOverlay.classList.add('hidden');
+      clearInterval(nextInTimer);
+      startGame();
+    }
+
+    async function shareResult() {
+      const btn = document.getElementById('shareBtn');
+      try {
+        await navigator.clipboard.writeText(shareText());
+        btn.textContent = '✅ Copied!';
+      } catch (e) {
+        btn.textContent = '⚠ Copy Failed';
+      }
+      setTimeout(function () { btn.textContent = '📋 Copy Result'; }, 1600);
+    }
+
+    // -------------------------------------------------------------- flow ---
+    function generateAround(safe, seed) {
+      const rng = mulberry32(seed);
+      const made = makeSolvableBoard(safe, rng);
+      counts = made.counts;
+      placed = true;
+      return made;
+    }
+
+    function switchMode() {
+      mode = mode === 'daily' ? 'practice' : 'daily';
+      hideAllOverlays();
+      clearInterval(nextInTimer);
+      startGame();
+    }
+
+    function toggleFlagMode() {
+      flagMode = !flagMode;
+      flagBtn.classList.toggle('on', flagMode);
+      localStorage.setItem(FLAGMODE_KEY, flagMode ? '1' : '0');
+      updateHintLine();
+    }
+
+    function startGame() {
+      initAudio();
+      hideAllOverlays();
+      clearInterval(nextInTimer);
+      stopTimer();
+
+      const cfg = DIFFICULTIES[difficulty];
+      cols = cfg.cols; rows = cfg.rows; mineCount = cfg.mines;
+      buildNeighbourTable();
+
+      dayIndex = localDayIndex();
+      state = new Uint8Array(cols * rows);
+      elapsed = 0;
+      newBestThisRound = false;
+      blastAt = -1;
+      placed = false;
+      buildGrid();
+
+      if (mode === 'daily') {
+        // The board and its opening square both come from the day's seed, so
+        // everybody gets the same puzzle from the same starting position.
+        const rng = mulberry32(dailySeed(dayIndex, difficulty));
+        const safe = Math.floor(rng() * cols * rows);
+        generateAround(safe, dailySeed(dayIndex, difficulty) ^ 0x9e3779b9);
+        status = 'playing';
+        if (!loadProgress()) openCell(safe);
+        paintAll();
+        if (status === 'won' || status === 'lost') {
+          revealEndState(-1);
+        } else {
+          startTimer();
+        }
+      } else {
+        counts = new Int8Array(cols * rows);
+        status = 'idle';
+        paintAll();
+      }
+
+      updateHud();
+      layoutBoard();
+      if (status === 'won' || status === 'lost') showResult();
+    }
+
+    function showStartOverlay() {
+      hideAllOverlays();
+      clearInterval(nextInTimer);
+      stopTimer();
+      refreshStartOverlay();
+      startOverlay.classList.remove('hidden');
+    }
+
+    // ------------------------------------------------------------- input ---
+    let pressTimer = null, pressedIndex = -1, pressHandled = false;
+
+    function indexFromEvent(e) {
+      const el = e.target.closest('.cell');
+      return el ? Number(el.dataset.i) : -1;
+    }
+
+    board.addEventListener('pointerdown', function (e) {
+      if (anyOverlayOpen()) return;
+      // Only the primary button drives taps. A right-click already has its own
+      // handler below, and letting it through here would flag the square and
+      // then open it in the same click.
+      if (e.button !== 0) return;
+      const i = indexFromEvent(e);
+      if (i < 0) return;
+      initAudio();
+      pressedIndex = i;
+      pressHandled = false;
+      clearTimeout(pressTimer);
+      pressTimer = setTimeout(function () {
+        pressHandled = true;                 // long-press flags, whatever the mode
+        toggleFlag(i);
+      }, LONG_PRESS_MS);
+    });
+
+    board.addEventListener('pointerup', function (e) {
+      if (anyOverlayOpen()) return;
+      if (e.button !== 0) return;
+      clearTimeout(pressTimer);
+      const i = indexFromEvent(e);
+      if (i < 0 || i !== pressedIndex || pressHandled) { pressedIndex = -1; return; }
+      pressedIndex = -1;
+      if (flagMode && state[i] !== OPEN) toggleFlag(i);
+      else reveal(i);
+    });
+
+    ['pointerleave', 'pointercancel'].forEach(function (ev) {
+      board.addEventListener(ev, function () {
+        clearTimeout(pressTimer);
+        pressedIndex = -1;
+      });
+    });
+
+    // Right-click is the desktop way to flag.
+    board.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+      if (anyOverlayOpen()) return;
+      const i = indexFromEvent(e);
+      if (i >= 0) toggleFlag(i);
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        if (!helpOverlay.classList.contains('hidden')) { closeHelp(); e.preventDefault(); }
+        else if (!statsOverlay.classList.contains('hidden')) { closeStats(); e.preventDefault(); }
+        return;
+      }
+      if (anyOverlayOpen()) return;
+      if (e.key === 'f' || e.key === 'F') { e.preventDefault(); toggleFlagMode(); }
+    });
+
+    Arcade.wireFullscreen(document.getElementById('fullscreenBtn'), function () {
+      const btn = document.getElementById('fullscreenBtn');
+      btn.innerHTML = document.fullscreenElement
+        ? '⤢<span class="btn-label"> Exit</span>'
+        : '⛶<span class="btn-label"> Full</span>';
+      layoutBoard();
+    });
+
+    // The clock should not run while the tab is in the background.
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) {
+        if (status === 'playing' && tickTimer) { elapsed = Date.now() - startedAt; stopTimer(); saveProgress(); }
+      } else if (status === 'playing' && !tickTimer && placed) {
+        startTimer();
+      }
+    });
+
+    window.addEventListener('beforeunload', saveProgress);
+
+    let layoutPending = false;
+    function requestLayout() {
+      if (layoutPending) return;
+      layoutPending = true;
+      requestAnimationFrame(function () { layoutPending = false; layoutBoard(); });
+    }
+    window.addEventListener('resize', requestLayout);
+    window.addEventListener('orientationchange', requestLayout);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', requestLayout);
+      window.visualViewport.addEventListener('scroll', requestLayout);
+    }
+
+    // Keep the daily board's progress even if the player just closes the tab.
+    setInterval(function () { if (status === 'playing') saveProgress(); }, 5000);
+
+    // --------------------------------------------------------------- boot ---
+    const savedDiff = localStorage.getItem(DIFF_KEY);
+    if (savedDiff && DIFFICULTIES[savedDiff]) difficulty = savedDiff;
+    flagMode = localStorage.getItem(FLAGMODE_KEY) === '1';
+    flagBtn.classList.toggle('on', flagMode);
+
+    dayIndex = localDayIndex();
+    const boot = DIFFICULTIES[difficulty];
+    cols = boot.cols; rows = boot.rows; mineCount = boot.mines;
+    buildNeighbourTable();
+    state = new Uint8Array(cols * rows);
+    counts = new Int8Array(cols * rows);
+    buildGrid();
+    paintAll();
+    setDifficulty(difficulty);
+    syncBestKey();
+    updateHud();
+    refreshStartOverlay();
+  </script>
+</body>
+</html>

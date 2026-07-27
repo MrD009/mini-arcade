@@ -153,6 +153,7 @@
     .game-card:nth-child(11) { animation-delay: 1.6s; }
     .game-card:nth-child(12) { animation-delay: 1.75s; }
     .game-card:nth-child(13) { animation-delay: 1.9s; }
+    .game-card:nth-child(14) { animation-delay: 2.05s; }
 
     .game-card::before {
       content: '';
@@ -516,6 +517,19 @@
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
+    <a href="games/mines/index.html" class="game-card" data-game="mines">
+      <span class="favorite-tag">🔥 Favorite</span>
+      <div class="card-content">
+        <span class="game-icon">💣</span>
+        <h2 class="game-title">Neon Mines</h2>
+        <p class="game-desc">Minesweeper with a daily board — and a solver checks every board first, so none of them ever comes down to a coin flip.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
   </main>
 
   <footer>
@@ -648,7 +662,8 @@
         parseInt(localStorage.getItem(`n2048Best_${d}`) || '0', 10))),
       // Cipher's "best" is its longest streak, mirrored into one key by the game.
       cipher: () => parseInt(localStorage.getItem('cipherBest') || '0', 10),
-      'cipher-ms': () => parseInt(localStorage.getItem('cipherMsBest') || '0', 10)
+      'cipher-ms': () => parseInt(localStorage.getItem('cipherMsBest') || '0', 10),
+      mines: () => parseInt(localStorage.getItem('minesBest') || '0', 10)
     };
 
     // ---- Play counts ----
