@@ -300,6 +300,7 @@
     <div class="secondary-row">
       <button id="shareBtn" onclick="shareResult()">📋 Copy Result</button>
       <button onclick="showStats()">📊 Stats</button>
+      <button onclick="showStartOverlay()">🔧 Change Level</button>
       <a href="../../index.html" style="text-decoration:none;">
         <button type="button">🏠 Home</button>
       </a>
@@ -371,6 +372,7 @@
     const startBtn = document.getElementById('startBtn');
 
     let mode = 'daily';           // 'daily' | 'practice'
+    let modeChosenByUser = false; // once true, stop second-guessing the player
     let difficulty = 'medium';
     let cols = 10, rows = 14, mineCount = 25;
     let counts = null;            // Int8Array, -1 for a mine
@@ -953,11 +955,33 @@
         b.classList.toggle('active', b.dataset.diff === d);
       });
       diffNote.textContent = DIFFICULTIES[d].note;
+      autoPickMode();          // each difficulty has its own daily board
       refreshStartOverlay();
+    }
+
+    function dailyDone(d) {
+      const saved = readJSON(dailyKey(d), null);
+      return !!saved && saved.day === localDayIndex() &&
+        (saved.status === 'won' || saved.status === 'lost');
+    }
+
+    /**
+     * Opens on Practice once today's board is finished.
+     *
+     * There is one daily board per difficulty, so a player coming back after
+     * finishing it would otherwise land on a button that only replays the board
+     * they already know the answer to. Minesweeper is a play-whenever game; the
+     * daily is a bonus on top, not a gate. Once the player picks a mode by hand
+     * this keeps out of the way.
+     */
+    function autoPickMode() {
+      if (modeChosenByUser) return;
+      mode = dailyDone(difficulty) ? 'practice' : 'daily';
     }
 
     function toggleStartMode() {
       mode = mode === 'daily' ? 'practice' : 'daily';
+      modeChosenByUser = true;
       refreshStartOverlay();
     }
 
@@ -973,7 +997,9 @@
           : `Daily board #${localDayIndex()} — the same board for everyone, opening square included.`;
         startBtn.textContent = done ? '▶ View Today' : '▶ Play';
       } else {
-        startModeLine.textContent = 'Practice — a fresh board built around wherever you tap first.';
+        startModeLine.textContent = dailyDone(difficulty)
+          ? `Today's ${difficulty} daily is done — practice boards are unlimited.`
+          : 'Practice — a fresh board built around wherever you tap first.';
         startBtn.textContent = '▶ Play';
       }
     }
@@ -1049,6 +1075,7 @@
 
     function resultPrimaryAction() {
       mode = 'practice';
+      modeChosenByUser = true;
       resultOverlay.classList.add('hidden');
       clearInterval(nextInTimer);
       startGame();
@@ -1076,6 +1103,7 @@
 
     function switchMode() {
       mode = mode === 'daily' ? 'practice' : 'daily';
+      modeChosenByUser = true;
       hideAllOverlays();
       clearInterval(nextInTimer);
       startGame();
@@ -1135,6 +1163,7 @@
       hideAllOverlays();
       clearInterval(nextInTimer);
       stopTimer();
+      autoPickMode();
       refreshStartOverlay();
       startOverlay.classList.remove('hidden');
     }
@@ -1250,7 +1279,7 @@
     counts = new Int8Array(cols * rows);
     buildGrid();
     paintAll();
-    setDifficulty(difficulty);
+    setDifficulty(difficulty);     // also picks the opening mode
     syncBestKey();
     updateHud();
     refreshStartOverlay();
