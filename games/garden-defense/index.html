@@ -85,6 +85,70 @@
 
     .seed-card.shovel .seed-cost { color: #999; }
 
+    .seed-star {
+      position: absolute;
+      top: 1px;
+      right: 3px;
+      font-size: 0.62rem;
+      color: var(--gold);
+      display: none;
+    }
+
+    .seed-card.upgraded { border-color: rgba(255, 215, 0, 0.7); }
+    .seed-card.upgraded .seed-star { display: block; }
+
+    /* -------------------------------------------------------- rewards --- */
+
+    .reward-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+      max-width: 330px;
+      margin: 14px 0 6px;
+    }
+
+    .reward-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-align: left;
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--panel);
+      border: 1px solid rgba(0, 242, 255, 0.25);
+      border-radius: 12px;
+      /* Buttons are nowrap in the shared sheet; these wrap onto two lines. */
+      white-space: normal;
+    }
+
+    .reward-card:hover, .reward-card:active {
+      background: rgba(0, 242, 255, 0.15);
+      border-color: var(--accent);
+      transform: none;
+    }
+
+    .reward-card.gold { border-color: rgba(255, 215, 0, 0.45); }
+    .reward-card.gold:hover, .reward-card.gold:active {
+      background: rgba(255, 215, 0, 0.15);
+      border-color: var(--gold);
+    }
+
+    .reward-card .r-icon { font-size: 1.9rem; flex-shrink: 0; }
+    .reward-card .r-text { flex: 1; min-width: 0; }
+    /* Both are spans inside a button, so they need to be blocks or the name and
+       the description run together on one line. */
+    .reward-card .r-name { display: block; font-size: 0.9rem; color: var(--accent); }
+    .reward-card.gold .r-name { color: var(--gold); }
+    .reward-card .r-desc { display: block; font-size: 0.72rem; color: #aaa; font-weight: normal; margin-top: 2px; }
+
+    .trophy-line {
+      color: var(--gold);
+      font-size: 0.82rem;
+      margin-top: 2px;
+      min-height: 1.2em;
+    }
+
     /* -------------------------------------------------------- overlays --- */
 
     .plant-guide {
@@ -143,31 +207,37 @@
           <span class="seed-icon" style="color:#ffd700">🌻</span>
           <span class="seed-cost">50</span>
           <span class="seed-cd"></span>
+          <span class="seed-star">★</span>
         </button>
         <button class="seed-card" type="button" data-plant="spike">
           <span class="seed-icon" style="color:#00ff88">🌵</span>
           <span class="seed-cost">100</span>
           <span class="seed-cd"></span>
+          <span class="seed-star">★</span>
         </button>
         <button class="seed-card" type="button" data-plant="nut">
           <span class="seed-icon" style="color:#c98a3a">🌰</span>
           <span class="seed-cost">50</span>
           <span class="seed-cd"></span>
+          <span class="seed-star">★</span>
         </button>
         <button class="seed-card" type="button" data-plant="frost">
           <span class="seed-icon" style="color:#7fdfff">❄️</span>
           <span class="seed-cost">175</span>
           <span class="seed-cd"></span>
+          <span class="seed-star">★</span>
         </button>
         <button class="seed-card" type="button" data-plant="boom">
           <span class="seed-icon" style="color:#ff2a2a">💣</span>
           <span class="seed-cost">150</span>
           <span class="seed-cd"></span>
+          <span class="seed-star">★</span>
         </button>
         <button class="seed-card" type="button" data-plant="chili">
           <span class="seed-icon" style="color:#ff5500">🌶️</span>
           <span class="seed-cost">200</span>
           <span class="seed-cd"></span>
+          <span class="seed-star">★</span>
         </button>
         <button class="seed-card shovel" type="button" data-plant="shovel">
           <span class="seed-icon" style="color:#cccccc">🧹</span>
@@ -183,6 +253,8 @@
   <div class="overlay" id="startOverlay">
     <h1>🌻 Neon Garden Defense</h1>
     <p>Zombies march down the lanes. Collect ☀ energy, plant your defenders, and don't let one reach the fence.</p>
+    <p>Survive 5 waves to pick a bonus card. Every 10 waves you earn a 🏆 and a permanent plant upgrade.</p>
+    <div class="trophy-line" id="trophyLine"></div>
 
     <div class="difficulty-bar" id="difficultyBar">
       <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
@@ -220,6 +292,10 @@
         <div class="lbl">Zombies Zapped</div>
       </div>
       <div class="stat">
+        <div class="num" id="finalTrophies">0</div>
+        <div class="lbl">🏆 Trophies</div>
+      </div>
+      <div class="stat">
         <div class="num" id="finalBest">0</div>
         <div class="lbl">Best</div>
       </div>
@@ -231,6 +307,12 @@
         <button type="button">🏠 Arcade Home</button>
       </a>
     </div>
+  </div>
+
+  <div class="overlay hidden" id="rewardOverlay">
+    <h1 id="rewardTitle">🎁 Bonus!</h1>
+    <p id="rewardSub">Pick one card.</p>
+    <div class="reward-cards" id="rewardCards"></div>
   </div>
 
   <script src="../../shared/arcade.js"></script>
@@ -247,8 +329,14 @@
     const finalScore = document.getElementById('finalScore');
     const finalWave = document.getElementById('finalWave');
     const finalZombies = document.getElementById('finalZombies');
+    const finalTrophies = document.getElementById('finalTrophies');
     const finalBest = document.getElementById('finalBest');
     const newBestTag = document.getElementById('newBestTag');
+    const rewardOverlay = document.getElementById('rewardOverlay');
+    const rewardTitle = document.getElementById('rewardTitle');
+    const rewardSub = document.getElementById('rewardSub');
+    const rewardCards = document.getElementById('rewardCards');
+    const trophyLine = document.getElementById('trophyLine');
     const toast = document.getElementById('toast');
     const hintLine = document.getElementById('hintLine');
     const pauseBtn = document.getElementById('pauseBtn');
@@ -293,12 +381,81 @@
     const DIFFICULTIES = {
       easy:   { startEnergy: 175, hpMult: 0.8,  speedMult: 0.85, sunEvery: 7000,  waveGap: 15000, drones: 2, budget: 1.0,  note: 'Two shield drones per lane, energy falls often.' },
       medium: { startEnergy: 125, hpMult: 1.0,  speedMult: 1.0,  sunEvery: 9000,  waveGap: 11000, drones: 1, budget: 1.3,  note: 'One drone per lane, waves come quicker.' },
-      hard:   { startEnergy: 100, hpMult: 1.3,  speedMult: 1.15, sunEvery: 10000, waveGap: 8000,  drones: 1, budget: 1.5,  note: 'Tougher zombies, scarce energy, barely a breather.' }
+      hard:   { startEnergy: 125, hpMult: 1.3,  speedMult: 1.15, sunEvery: 10000, waveGap: 8000,  drones: 1, budget: 1.5,  note: 'Tougher zombies, scarce energy, barely a breather.' }
     };
+
+    /*
+     * Upgrades change plant stats for the rest of a run, so gameplay reads from
+     * AP — a per-run copy of PLANTS — while PLANTS itself stays the pristine
+     * baseline every new run is rebuilt from.
+     */
+    let AP = JSON.parse(JSON.stringify(PLANTS));
+
+    const BONUS_CARDS = [
+      {
+        id: 'drones', icon: '🛡️', name: 'Spare Drones', desc: '+1 shield drone in every lane',
+        apply() { for (let c = 0; c < COLS; c++) drones[c] = Math.min(3, drones[c] + 1); }
+      },
+      {
+        id: 'sun', icon: '☀️', name: 'Sun Burst', desc: '+250 energy, right now',
+        apply() { energy += 250; }
+      },
+      {
+        id: 'guard', icon: '🌰', name: 'Guard Wall', desc: 'A free Nut Wall up front in every lane',
+        apply() {
+          for (let c = 0; c < COLS; c++) {
+            for (let r = 0; r < ROWS; r++) if (!grid[r][c]) { placeFree(r, c, 'nut'); break; }
+          }
+        }
+      },
+      {
+        id: 'quick', icon: '⚡', name: 'Quick Seeds', desc: 'Seed cards recharge 35% faster',
+        apply() { SEED_KEYS.forEach(t => { AP[t].cooldown *= 0.65; }); }
+      },
+      {
+        id: 'repair', icon: '❤️', name: 'Field Repair', desc: 'Every chewed plant back to full health',
+        apply() { eachPlant(p => { p.hp = p.maxHp; }); }
+      },
+      {
+        id: 'blooms', icon: '🌻', name: 'Free Blooms', desc: 'Two free Solar Blooms at the back',
+        apply() {
+          let placed = 0;
+          for (let r = ROWS - 1; r >= 0 && placed < 2; r--) {
+            for (let c = 0; c < COLS && placed < 2; c++) if (!grid[r][c]) { placeFree(r, c, 'bloom'); placed++; }
+          }
+        }
+      }
+    ];
+
+    // One per plant, so a run's upgrades read as a growing garden rather than a
+    // stack of numbers. Each can only be taken once.
+    const UPGRADE_CARDS = [
+      { id: 'gatling', plant: 'spike', icon: '🌵', name: 'Gatling Spike', desc: 'Spike Shooters fire twice as fast',
+        apply() { AP.spike.fire *= 0.5; } },
+      { id: 'twin', plant: 'bloom', icon: '🌻', name: 'Twin Bloom', desc: 'Blooms make sun twice as often',
+        apply() { AP.bloom.produce *= 0.5; } },
+      { id: 'iron', plant: 'nut', icon: '🌰', name: 'Iron Nut', desc: 'Nut Walls are 2.5× tougher',
+        apply() {
+          AP.nut.hp *= 2.5;
+          // Walls already on the lawn thicken too, keeping their damage ratio.
+          eachPlant(p => {
+            if (p.type !== 'nut') return;
+            const ratio = p.hp / p.maxHp;
+            p.maxHp = AP.nut.hp;
+            p.hp = p.maxHp * ratio;
+          });
+        } },
+      { id: 'deep', plant: 'frost', icon: '❄️', name: 'Deep Freeze', desc: 'Frost bites harder and holds longer',
+        apply() { AP.frost.slowFactor = 0.3; AP.frost.slowMs = 5000; AP.frost.damage += 6; } },
+      { id: 'cluster', plant: 'boom', icon: '💣', name: 'Cluster Boom', desc: 'Boom Buds blast a wider crater',
+        apply() { AP.boom.radius = 2; } },
+      { id: 'wild', plant: 'chili', icon: '🌶️', name: 'Wildfire', desc: 'Chili Bombs torch the next lanes too',
+        apply() { AP.chili.wide = true; } }
+    ];
 
     const SUN_VALUE = 25;
     const SUN_LIFE = 11000;
-    const FIRST_WAVE_DELAY = 9000;  // planting time before the first zombie
+    const FIRST_WAVE_DELAY = 12000; // planting time before the first zombie
     const ZOMBIE_BITE = 100;        // plant hp chewed per second
     const BOLT_SPEED = 7;           // rows per second
     const FROST_SLOW = 0.5;
@@ -325,6 +482,9 @@
     let cardReady = {};             // plant type -> ms of cooldown left
     let selected = null;            // selected seed card, or 'shovel'
 
+    let trophies = 0;
+    let upgradesTaken = [];
+    let choosing = false;           // a reward overlay is up; the run is held
     let sunTimer = 0;
     let waveTimer = 0;
     let pendingSpawns = [];
@@ -402,6 +562,7 @@
         btn.classList.toggle('active', btn.dataset.diff === diff));
       diffNote.textContent = DIFFICULTIES[diff].note;
       bestEl.textContent = getBestScore();
+      renderTrophyLine();
     }
 
     function getBestScore() {
@@ -421,7 +582,7 @@
       initAudio();
       if (selected === type) { selected = null; return; }
       if (type !== 'shovel') {
-        const cfg = PLANTS[type];
+        const cfg = AP[type];
         if (cardReady[type] > 0) { playDeniedSound(); showToast('STILL GROWING', '#ff8800', 800); return; }
         if (energy < cfg.cost) { playDeniedSound(); showToast('NOT ENOUGH ☀', '#ff8800', 800); return; }
       }
@@ -438,17 +599,32 @@
         const type = card.dataset.plant;
         card.classList.toggle('selected', selected === type);
         if (type === 'shovel') return;
-        const cfg = PLANTS[type];
+        const cfg = AP[type];
         const left = cardReady[type] || 0;
         card.classList.toggle('locked', left > 0 || energy < cfg.cost);
+        card.classList.toggle('upgraded',
+          UPGRADE_CARDS.some(u => u.plant === type && upgradesTaken.includes(u.id)));
         card.style.setProperty('--cd', (left / cfg.cooldown).toFixed(3));
       });
     }
 
     // ------------------------------------------------------------ plants ---
 
+    function eachPlant(fn) {
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (grid[r][c]) fn(grid[r][c]);
+    }
+
+    /** Plants without charging energy or starting the card's recharge. */
+    function placeFree(row, col, type) {
+      const spent = energy;
+      const ready = cardReady[type];
+      plantAt(row, col, type);
+      energy = spent;
+      cardReady[type] = ready;
+    }
+
     function plantAt(row, col, type) {
-      const cfg = PLANTS[type];
+      const cfg = AP[type];
       grid[row][col] = {
         type, row, col,
         hp: cfg.hp,
@@ -469,7 +645,7 @@
       const p = grid[row][col];
       if (!p) return;
       grid[row][col] = null;
-      spawnParticles(laneX(col), vy(row + 0.5), chewed ? '#7d2b2b' : PLANTS[p.type].color, 10, 120);
+      spawnParticles(laneX(col), vy(row + 0.5), chewed ? '#7d2b2b' : AP[p.type].color, 10, 120);
     }
 
     function updatePlants(dt) {
@@ -477,7 +653,7 @@
         for (let c = 0; c < COLS; c++) {
           const p = grid[r][c];
           if (!p) continue;
-          const cfg = PLANTS[p.type];
+          const cfg = AP[p.type];
           p.timer += dt * 1000;
           if (p.pulse > 0) p.pulse -= dt;
 
@@ -497,7 +673,9 @@
                 lane: c,
                 v: r + 0.15,
                 damage: cfg.damage,
-                frost: p.type === 'frost'
+                frost: p.type === 'frost',
+                slowFactor: cfg.slowFactor || FROST_SLOW,
+                slowMs: cfg.slowMs || FROST_MS
               });
               playShootSound();
             }
@@ -529,29 +707,34 @@
     }
 
     function explodeBoom(row, col) {
+      const reach = AP.boom.radius || 1;
       grid[row][col] = null;
       playBoomSound();
       showToast('💥 BOOM!', '#ff2a2a', 800);
       for (let i = 0; i < 26; i++) {
-        spawnParticles(laneX(col), vy(row + 0.5), i % 2 ? '#ff8800' : '#ffd700', 1, 260);
+        spawnParticles(laneX(col), vy(row + 0.5), i % 2 ? '#ff8800' : '#ffd700', 1, 260 * reach);
       }
       for (const z of zombies) {
-        if (Math.abs(z.lane - col) > 1) continue;
+        if (Math.abs(z.lane - col) > reach) continue;
         const front = z.v + 0.32;
-        if (front > row - 1.1 && front < row + 2.1) damageZombie(z, 1200);
+        if (front > row - 0.1 - reach && front < row + 1.1 + reach) damageZombie(z, 1200);
       }
       reapZombies();
     }
 
     function burnLane(row, col) {
+      // Wildfire takes the neighbouring lanes with it.
+      const lanes = AP.chili.wide ? [col - 1, col, col + 1].filter(c => c >= 0 && c < COLS) : [col];
       grid[row][col] = null;
       playBoomSound();
-      showToast('🌶️ LANE TORCHED!', '#ff5500', 1000);
-      for (let i = 0; i < 30; i++) {
-        spawnParticles(laneX(col), vy(Math.random() * ROWS), i % 2 ? '#ff5500' : '#ffd700', 1, 200);
+      showToast(lanes.length > 1 ? '🌶️ WILDFIRE!' : '🌶️ LANE TORCHED!', '#ff5500', 1000);
+      for (const lane of lanes) {
+        for (let i = 0; i < 30; i++) {
+          spawnParticles(laneX(lane), vy(Math.random() * ROWS), i % 2 ? '#ff5500' : '#ffd700', 1, 200);
+        }
       }
       for (const z of zombies) {
-        if (z.lane === col) damageZombie(z, 2500);
+        if (lanes.includes(z.lane)) damageZombie(z, 2500);
       }
       reapZombies();
     }
@@ -603,7 +786,8 @@
 
         damageZombie(target, b.damage);
         if (b.frost) {
-          target.slow = FROST_MS;
+          target.slow = b.slowMs;
+          target.slowFactor = b.slowFactor;
           spawnParticles(laneX(b.lane), vy(b.v), '#7fdfff', 4, 70);
         } else {
           spawnParticles(laneX(b.lane), vy(b.v), '#00ff88', 3, 70);
@@ -670,7 +854,7 @@
 
         z.eating = false;
         z.step += dt * 6;
-        z.v += z.speed * (z.slow > 0 ? FROST_SLOW : 1) * dt;
+        z.v += z.speed * (z.slow > 0 ? (z.slowFactor || FROST_SLOW) : 1) * dt;
       }
 
       // A zombie crossing the fence is eaten by that lane's shield drone. Run
@@ -707,9 +891,12 @@
     function buildWave(n) {
       const diff = DIFFICULTIES[currentDifficulty];
       const big = n % 5 === 0;
-      // Wave 1 is a single zombie on every difficulty; the ramp is gentle enough
-      // early on that there's time to get an economy planted first.
-      let budget = (1 + (n - 1) * 1.15) * diff.budget * (big ? 1.5 : 1);
+      // Wave 1 is a single zombie on every difficulty. The per-tier multiplier
+      // then fades in over the next few waves rather than applying flat from the
+      // start — at full strength from wave 1 it put three zombies on Hard's
+      // second wave, when the player can still only afford one shooter.
+      const tierRamp = 1 + (diff.budget - 1) * Math.min(1, (n - 1) / 4);
+      let budget = (1 + (n - 1) * 1.15) * tierRamp * (big ? 1.5 : 1);
       const pool = Object.keys(ZOMBIES).filter(t => n >= ZOMBIES[t].minWave);
       const duration = Math.min(6000 + n * 600, 20000);
 
@@ -784,7 +971,75 @@
         waveTimer = 0;
         playClearSound();
         showToast(`WAVE ${wave} CLEARED! +${25 * wave}`, '#00ff88', 1400);
+
+        // Every 10th wave is a trophy and a permanent upgrade; the 5s in
+        // between hand out a one-off bonus instead.
+        if (wave % 10 === 0) {
+          trophies++;
+          openReward('upgrade');
+        } else if (wave % 5 === 0) {
+          openReward('bonus');
+        }
       }
+    }
+
+    // ---------------------------------------------------------- rewards ----
+
+    function pickThree(pool) {
+      const shuffled = pool.slice();
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled.slice(0, 3);
+    }
+
+    function openReward(kind) {
+      // Once every upgrade has been taken there is nothing left to offer, so
+      // late runs fall back to the bonus pile.
+      const remaining = UPGRADE_CARDS.filter(u => !upgradesTaken.includes(u.id));
+      const upgrade = kind === 'upgrade' && remaining.length > 0;
+      const cards = pickThree(upgrade ? remaining : BONUS_CARDS);
+
+      rewardTitle.textContent = upgrade ? '🏆 Trophy Earned!' : '🎁 Wave Bonus!';
+      rewardSub.textContent = upgrade
+        ? `${trophies} trophy${trophies === 1 ? '' : 's'} — pick a permanent upgrade.`
+        : 'Pick one card to help you hold the line.';
+
+      rewardCards.innerHTML = '';
+      cards.forEach(card => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'reward-card' + (upgrade ? ' gold' : '');
+        btn.innerHTML =
+          `<span class="r-icon">${card.icon}</span>` +
+          `<span class="r-text"><span class="r-name">${card.name}</span>` +
+          `<span class="r-desc">${card.desc}</span></span>`;
+        btn.addEventListener('click', () => takeReward(card, upgrade));
+        rewardCards.appendChild(btn);
+      });
+
+      choosing = true;
+      gamePaused = true;
+      if (kind === 'upgrade') playTone(1046, 'sine', 0.3, 0, 0.12);
+      rewardOverlay.classList.remove('hidden');
+    }
+
+    function takeReward(card, upgrade) {
+      card.apply();
+      if (upgrade) {
+        upgradesTaken.push(card.id);
+        showToast(`★ ${card.name.toUpperCase()}`, '#ffd700', 1600);
+        Arcade.playBestJingle();
+      } else {
+        showToast(`${card.icon} ${card.name.toUpperCase()}`, '#00f2ff', 1400);
+        playPlantSound();
+      }
+      rewardOverlay.classList.add('hidden');
+      choosing = false;
+      gamePaused = false;
+      lastTime = 0;
+      renderSeedBar();
     }
 
     // -------------------------------------------------------- particles ----
@@ -848,11 +1103,11 @@
       }
 
       if (!selected) {
-        if (existing) showToast(PLANTS[existing.type].name.toUpperCase(), PLANTS[existing.type].color, 800);
+        if (existing) showToast(AP[existing.type].name.toUpperCase(), AP[existing.type].color, 800);
         return;
       }
 
-      const cfg = PLANTS[selected];
+      const cfg = AP[selected];
       if (existing) { playDeniedSound(); showToast('TILE TAKEN', '#ff8800', 800); return; }
       if (energy < cfg.cost) { playDeniedSound(); showToast('NOT ENOUGH ☀', '#ff8800', 800); return; }
       if (cardReady[selected] > 0) { playDeniedSound(); return; }
@@ -922,7 +1177,7 @@
       // Highlight the tile under a held seed so it's obvious where it lands.
       if (selected) {
         ctx.save();
-        ctx.strokeStyle = selected === 'shovel' ? '#cccccc' : PLANTS[selected].color;
+        ctx.strokeStyle = selected === 'shovel' ? '#cccccc' : AP[selected].color;
         ctx.globalAlpha = 0.5;
         ctx.lineWidth = 2;
         ctx.strokeRect(boardX + 1, vy(0) + 1, boardW - 2, boardH - 2);
@@ -972,7 +1227,7 @@
         for (let c = 0; c < COLS; c++) {
           const p = grid[r][c];
           if (!p) continue;
-          const cfg = PLANTS[p.type];
+          const cfg = AP[p.type];
           const x = laneX(c);
           const y = vy(r + 0.5);
           const pulse = p.pulse > 0 ? 1 + p.pulse * 0.35 : 1;
@@ -1131,6 +1386,13 @@
         ctx.font = `${Math.max(9, Math.round(cell * 0.15))}px 'Segoe UI', sans-serif`;
         ctx.fillText(`${zombies.length + pendingSpawns.length} left`, boardX + cell * COLS / 2, y - 14);
       }
+
+      if (trophies > 0) {
+        ctx.fillStyle = '#ffd700';
+        ctx.textAlign = 'right';
+        ctx.font = `bold ${Math.max(10, Math.round(cell * 0.17))}px 'Segoe UI', sans-serif`;
+        ctx.fillText(`🏆 ×${trophies}`, boardX + cell * COLS, y - cell * 0.34);
+      }
       ctx.restore();
     }
 
@@ -1155,7 +1417,7 @@
       drawBolts();
       drawSuns();
       drawParticles();
-      if (gamePaused) drawPaused();
+      if (gamePaused && !choosing) drawPaused();
     }
 
     function drawHUD() {
@@ -1204,10 +1466,24 @@
     function showStartOverlay() {
       gameRunning = false;
       gamePaused = false;
+      choosing = false;
       cancelAnimationFrame(animationId);
       gameOverOverlay.classList.add('hidden');
+      rewardOverlay.classList.add('hidden');
       startOverlay.classList.remove('hidden');
       pauseBtn.textContent = 'Pause';
+      renderTrophyLine();
+    }
+
+    function bestTrophies() {
+      return Arcade.bestScore(`gardenTrophies_${currentDifficulty}`);
+    }
+
+    function renderTrophyLine() {
+      const best = bestTrophies();
+      trophyLine.textContent = best > 0
+        ? `Best run on this level: ${'🏆'.repeat(Math.min(best, 6))}${best > 6 ? ` ×${best}` : ''}`
+        : '';
     }
 
     function startGame() {
@@ -1225,6 +1501,12 @@
       suns = [];
       particles = [];
       drones = new Array(COLS).fill(diff.drones);
+      // Fresh copy of the plant stats: last run's upgrades don't carry over.
+      AP = JSON.parse(JSON.stringify(PLANTS));
+      trophies = 0;
+      upgradesTaken = [];
+      choosing = false;
+      rewardOverlay.classList.add('hidden');
       cardReady = {};
       SEED_KEYS.forEach(t => { cardReady[t] = 0; });
       selected = null;
@@ -1259,7 +1541,9 @@
     }
 
     function togglePause() {
-      if (!gameRunning) return;
+      // A reward pick holds the run already; unpausing under it would let the
+      // waves roll on behind the overlay.
+      if (!gameRunning || choosing) return;
       gamePaused = !gamePaused;
       pauseBtn.textContent = gamePaused ? 'Resume' : 'Pause';
       if (!gamePaused) lastTime = 0;
@@ -1275,13 +1559,17 @@
     function gameOver() {
       gameRunning = false;
       gamePaused = false;
+      choosing = false;
+      rewardOverlay.classList.add('hidden');
       cancelAnimationFrame(animationId);
       playGameOverSound();
       const isNewBest = saveBestScore();
+      if (trophies > bestTrophies()) Arcade.setBestScore(`gardenTrophies_${currentDifficulty}`, trophies);
 
       finalScore.textContent = score;
       finalWave.textContent = wavesCleared;
       finalZombies.textContent = zombiesKilled;
+      finalTrophies.textContent = trophies;
       finalBest.textContent = getBestScore();
       bestEl.textContent = getBestScore();
       newBestTag.style.display = isNewBest ? 'block' : 'none';
