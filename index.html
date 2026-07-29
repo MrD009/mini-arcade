@@ -154,6 +154,7 @@
     .game-card:nth-child(12) { animation-delay: 1.75s; }
     .game-card:nth-child(13) { animation-delay: 1.9s; }
     .game-card:nth-child(14) { animation-delay: 2.05s; }
+    .game-card:nth-child(15) { animation-delay: 2.2s; }
 
     .game-card::before {
       content: '';
@@ -530,6 +531,20 @@
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
+
+    <a href="games/garden-defense/index.html" class="game-card" data-game="garden-defense">
+      <span class="favorite-tag">🔥 Favorite</span>
+      <div class="card-content">
+        <span class="game-icon">🌻</span>
+        <h2 class="game-title">Neon Garden Defense</h2>
+        <p class="game-desc">Zombies march down five lanes. Collect sun, plant shooters, walls and bombs, and hold the fence wave after wave.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
   </main>
 
   <footer>
@@ -663,7 +678,9 @@
       // Cipher's "best" is its longest streak, mirrored into one key by the game.
       cipher: () => parseInt(localStorage.getItem('cipherBest') || '0', 10),
       'cipher-ms': () => parseInt(localStorage.getItem('cipherMsBest') || '0', 10),
-      mines: () => parseInt(localStorage.getItem('minesBest') || '0', 10)
+      mines: () => parseInt(localStorage.getItem('minesBest') || '0', 10),
+      'garden-defense': () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
+        parseInt(localStorage.getItem(`gardenBest_${d}`) || '0', 10)))
     };
 
     // ---- Play counts ----
