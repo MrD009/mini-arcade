@@ -22,6 +22,10 @@
        real buttons for keyboard/screen readers, and get free tap handling. */
     .seed-bar {
       display: flex;
+      /* Unlocked upgrade cards join the tray mid-run, so it wraps to a second
+         row rather than squeezing every card thinner. layout() measures the
+         tray, so the lawn shrinks to match automatically. */
+      flex-wrap: wrap;
       gap: 5px;
       justify-content: center;
       width: 100%;
@@ -30,8 +34,10 @@
 
     .seed-card {
       position: relative;
-      flex: 1 1 0;
-      min-width: 0;
+      /* The min-width is what makes the tray wrap: without a floor the cards
+         just shrink, and thirteen of them end up as unreadable slivers. */
+      flex: 1 1 44px;
+      min-width: 44px;
       max-width: 74px;
       background: rgba(15, 15, 36, 0.85);
       border: 1px solid rgba(0, 242, 255, 0.25);
@@ -94,8 +100,13 @@
       display: none;
     }
 
-    .seed-card.upgraded { border-color: rgba(255, 215, 0, 0.7); }
-    .seed-card.upgraded .seed-star { display: block; }
+    .seed-card.upgrade { border-color: rgba(255, 215, 0, 0.7); }
+    .seed-card.upgrade .seed-star { display: block; }
+    .seed-card.upgrade.selected {
+      border-color: var(--gold);
+      box-shadow: 0 0 12px rgba(255, 215, 0, 0.5);
+      background: rgba(255, 215, 0, 0.15);
+    }
 
     /* -------------------------------------------------------- rewards --- */
 
@@ -239,6 +250,43 @@
           <span class="seed-cd"></span>
           <span class="seed-star">★</span>
         </button>
+        <button class="seed-card upgrade hidden" type="button" data-plant="twin">
+          <span class="seed-icon" style="color:#ffd700">🌻</span>
+          <span class="seed-cost">150</span>
+          <span class="seed-cd"></span>
+          <span class="seed-star">★</span>
+        </button>
+        <button class="seed-card upgrade hidden" type="button" data-plant="gatling">
+          <span class="seed-icon" style="color:#00ff88">🌵</span>
+          <span class="seed-cost">250</span>
+          <span class="seed-cd"></span>
+          <span class="seed-star">★</span>
+        </button>
+        <button class="seed-card upgrade hidden" type="button" data-plant="iron">
+          <span class="seed-icon" style="color:#c98a3a">🌰</span>
+          <span class="seed-cost">150</span>
+          <span class="seed-cd"></span>
+          <span class="seed-star">★</span>
+        </button>
+        <button class="seed-card upgrade hidden" type="button" data-plant="deep">
+          <span class="seed-icon" style="color:#7fdfff">❄️</span>
+          <span class="seed-cost">275</span>
+          <span class="seed-cd"></span>
+          <span class="seed-star">★</span>
+        </button>
+        <button class="seed-card upgrade hidden" type="button" data-plant="cluster">
+          <span class="seed-icon" style="color:#ff2a2a">💣</span>
+          <span class="seed-cost">250</span>
+          <span class="seed-cd"></span>
+          <span class="seed-star">★</span>
+        </button>
+        <button class="seed-card upgrade hidden" type="button" data-plant="wild">
+          <span class="seed-icon" style="color:#ff5500">🌶️</span>
+          <span class="seed-cost">300</span>
+          <span class="seed-cd"></span>
+          <span class="seed-star">★</span>
+        </button>
+
         <button class="seed-card shovel" type="button" data-plant="shovel">
           <span class="seed-icon" style="color:#cccccc">🧹</span>
           <span class="seed-cost">dig</span>
@@ -253,7 +301,7 @@
   <div class="overlay" id="startOverlay">
     <h1>🌻 Neon Garden Defense</h1>
     <p>Zombies march down the lanes. Collect ☀ energy, plant your defenders, and don't let one reach the fence.</p>
-    <p>Survive 5 waves to pick a bonus card. Every 10 waves you earn a 🏆 and a permanent plant upgrade.</p>
+    <p>Survive 5 waves to pick a bonus card. Every 10 waves you earn a 🏆 and unlock an upgrade seed — plant it on top of a grown plant to make it stronger.</p>
     <div class="trophy-line" id="trophyLine"></div>
 
     <div class="difficulty-bar" id="difficultyBar">
@@ -367,8 +415,25 @@
       nut:   { icon: '🌰', name: 'Nut Wall',      cost: 50,  cooldown: 20000, hp: 1600, color: '#c98a3a' },
       frost: { icon: '❄️', name: 'Frost Shooter', cost: 175, cooldown: 25000, hp: 300,  color: '#7fdfff', fire: 1500, damage: 13 },
       boom:  { icon: '💣', name: 'Boom Bud',      cost: 150, cooldown: 20000, hp: 300,  color: '#ff2a2a', arm: 2000 },
-      chili: { icon: '🌶️', name: 'Chili Bomb',    cost: 200, cooldown: 35000, hp: 300,  color: '#ff5500', fuse: 900 }
+      chili: { icon: '🌶️', name: 'Chili Bomb',    cost: 200, cooldown: 35000, hp: 300,  color: '#ff5500', fuse: 900 },
+
+      /*
+       * Upgrades are ordinary plants with two extra fields: `from` is the plant
+       * they have to be placed on top of, and `base` is whose behaviour they
+       * reuse in updatePlants. They stay locked out of the tray until a trophy
+       * wave unlocks them.
+       */
+      twin:    { icon: '🌻', name: 'Twin Bloom',    cost: 150, cooldown: 12000, hp: 300,  color: '#ffd700', produce: 6000, from: 'bloom', base: 'bloom' },
+      gatling: { icon: '🌵', name: 'Gatling Spike', cost: 250, cooldown: 14000, hp: 300,  color: '#00ff88', fire: 600,  damage: 20, from: 'spike', base: 'spike' },
+      iron:    { icon: '🌰', name: 'Iron Nut',      cost: 150, cooldown: 22000, hp: 4800, color: '#c98a3a', from: 'nut',   base: 'nut' },
+      deep:    { icon: '❄️', name: 'Deep Freeze',   cost: 275, cooldown: 26000, hp: 300,  color: '#7fdfff', fire: 1300, damage: 19, slowFactor: 0.3, slowMs: 5000, from: 'frost', base: 'frost' },
+      cluster: { icon: '💣', name: 'Cluster Boom',  cost: 250, cooldown: 18000, hp: 300,  color: '#ff2a2a', arm: 1500, radius: 2, from: 'boom', base: 'boom' },
+      wild:    { icon: '🌶️', name: 'Wildfire',      cost: 300, cooldown: 32000, hp: 300,  color: '#ff5500', fuse: 900, wide: true, from: 'chili', base: 'chili' }
     };
+
+    const BASE_SEEDS = ['bloom', 'spike', 'nut', 'frost', 'boom', 'chili'];
+    const UPGRADE_SEEDS = ['twin', 'gatling', 'iron', 'deep', 'cluster', 'wild'];
+    const ALL_SEEDS = BASE_SEEDS.concat(UPGRADE_SEEDS);
 
     const ZOMBIES = {
       walker: { hp: 100,  speed: 0.20, score: 10,  cost: 1.0, armor: null,     size: 0.62, minWave: 1 },
@@ -410,7 +475,7 @@
       },
       {
         id: 'quick', icon: '⚡', name: 'Quick Seeds', desc: 'Seed cards recharge 35% faster',
-        apply() { SEED_KEYS.forEach(t => { AP[t].cooldown *= 0.65; }); }
+        apply() { ALL_SEEDS.forEach(t => { AP[t].cooldown *= 0.65; }); }
       },
       {
         id: 'repair', icon: '❤️', name: 'Field Repair', desc: 'Every chewed plant back to full health',
@@ -427,31 +492,22 @@
       }
     ];
 
-    // One per plant, so a run's upgrades read as a growing garden rather than a
-    // stack of numbers. Each can only be taken once.
-    const UPGRADE_CARDS = [
-      { id: 'gatling', plant: 'spike', icon: '🌵', name: 'Gatling Spike', desc: 'Spike Shooters fire twice as fast',
-        apply() { AP.spike.fire *= 0.5; } },
-      { id: 'twin', plant: 'bloom', icon: '🌻', name: 'Twin Bloom', desc: 'Blooms make sun twice as often',
-        apply() { AP.bloom.produce *= 0.5; } },
-      { id: 'iron', plant: 'nut', icon: '🌰', name: 'Iron Nut', desc: 'Nut Walls are 2.5× tougher',
-        apply() {
-          AP.nut.hp *= 2.5;
-          // Walls already on the lawn thicken too, keeping their damage ratio.
-          eachPlant(p => {
-            if (p.type !== 'nut') return;
-            const ratio = p.hp / p.maxHp;
-            p.maxHp = AP.nut.hp;
-            p.hp = p.maxHp * ratio;
-          });
-        } },
-      { id: 'deep', plant: 'frost', icon: '❄️', name: 'Deep Freeze', desc: 'Frost bites harder and holds longer',
-        apply() { AP.frost.slowFactor = 0.3; AP.frost.slowMs = 5000; AP.frost.damage += 6; } },
-      { id: 'cluster', plant: 'boom', icon: '💣', name: 'Cluster Boom', desc: 'Boom Buds blast a wider crater',
-        apply() { AP.boom.radius = 2; } },
-      { id: 'wild', plant: 'chili', icon: '🌶️', name: 'Wildfire', desc: 'Chili Bombs torch the next lanes too',
-        apply() { AP.chili.wide = true; } }
-    ];
+    /*
+     * A trophy wave unlocks one of these into the seed tray. They are not free
+     * boosts: an unlocked card still has to be paid for and planted on top of
+     * the plant it upgrades, which is what gives late-run energy somewhere to go.
+     */
+    const UPGRADE_CARDS = UPGRADE_SEEDS.map(id => ({
+      id,
+      blurb: {
+        twin: 'Makes sun twice as often',
+        gatling: 'Fires twice as fast',
+        iron: 'Three times the chewing',
+        deep: 'Bites harder, holds longer',
+        cluster: 'A much wider crater',
+        wild: 'Torches the next lanes too'
+      }[id]
+    }));
 
     const SUN_VALUE = 25;
     const SUN_LIFE = 11000;
@@ -483,7 +539,7 @@
     let selected = null;            // selected seed card, or 'shovel'
 
     let trophies = 0;
-    let upgradesTaken = [];
+    let unlocked = [];
     let choosing = false;           // a reward overlay is up; the run is held
     let sunTimer = 0;
     let waveTimer = 0;
@@ -599,11 +655,11 @@
         const type = card.dataset.plant;
         card.classList.toggle('selected', selected === type);
         if (type === 'shovel') return;
+        // An upgrade card only joins the tray once a trophy has unlocked it.
+        if (UPGRADE_SEEDS.includes(type)) card.classList.toggle('hidden', !unlocked.includes(type));
         const cfg = AP[type];
         const left = cardReady[type] || 0;
         card.classList.toggle('locked', left > 0 || energy < cfg.cost);
-        card.classList.toggle('upgraded',
-          UPGRADE_CARDS.some(u => u.plant === type && upgradesTaken.includes(u.id)));
         card.style.setProperty('--cd', (left / cfg.cooldown).toFixed(3));
       });
     }
@@ -623,16 +679,20 @@
       cardReady[type] = ready;
     }
 
+    /** Which plant's behaviour a type runs: an upgrade reuses its base's. */
+    function kindOf(type) { return AP[type].base || type; }
+
     function plantAt(row, col, type) {
       const cfg = AP[type];
+      const kind = kindOf(type);
       grid[row][col] = {
-        type, row, col,
+        type, row, col, kind,
         hp: cfg.hp,
         maxHp: cfg.hp,
         timer: 0,
         // Boom Buds sit inert while they arm; Chili Bombs burn down a fuse.
-        armed: type === 'boom' ? false : true,
-        fuse: type === 'chili' ? cfg.fuse : 0,
+        armed: kind === 'boom' ? false : true,
+        fuse: kind === 'chili' ? cfg.fuse : 0,
         pulse: 0
       };
       energy -= cfg.cost;
@@ -657,13 +717,13 @@
           p.timer += dt * 1000;
           if (p.pulse > 0) p.pulse -= dt;
 
-          if (p.type === 'bloom') {
+          if (p.kind === 'bloom') {
             if (p.timer >= cfg.produce) {
               p.timer = 0;
               p.pulse = 0.4;
               spawnSun(c + 0.5, r + 0.35, r + 0.5);
             }
-          } else if (p.type === 'spike' || p.type === 'frost') {
+          } else if (p.kind === 'spike' || p.kind === 'frost') {
             if (p.timer >= cfg.fire && laneHasTarget(c, r)) {
               p.timer = 0;
               p.pulse = 0.2;
@@ -673,22 +733,22 @@
                 lane: c,
                 v: r + 0.15,
                 damage: cfg.damage,
-                frost: p.type === 'frost',
+                frost: p.kind === 'frost',
                 slowFactor: cfg.slowFactor || FROST_SLOW,
                 slowMs: cfg.slowMs || FROST_MS
               });
               playShootSound();
             }
-          } else if (p.type === 'boom') {
+          } else if (p.kind === 'boom') {
             if (!p.armed && p.timer >= cfg.arm) {
               p.armed = true;
               p.pulse = 0.4;
               playTone(880, 'sine', 0.08, 0, 0.07);
             }
-            if (p.armed && zombieNear(c, r)) explodeBoom(r, c);
-          } else if (p.type === 'chili') {
+            if (p.armed && zombieNear(c, r)) explodeBoom(r, c, cfg);
+          } else if (p.kind === 'chili') {
             p.fuse -= dt * 1000;
-            if (p.fuse <= 0) burnLane(r, c);
+            if (p.fuse <= 0) burnLane(r, c, cfg);
           }
         }
       }
@@ -706,8 +766,8 @@
       return zombies.some(z => z.lane === lane && z.v + 0.32 > row - 0.15 && z.v < row + 1.1);
     }
 
-    function explodeBoom(row, col) {
-      const reach = AP.boom.radius || 1;
+    function explodeBoom(row, col, cfg) {
+      const reach = cfg.radius || 1;
       grid[row][col] = null;
       playBoomSound();
       showToast('💥 BOOM!', '#ff2a2a', 800);
@@ -722,9 +782,9 @@
       reapZombies();
     }
 
-    function burnLane(row, col) {
+    function burnLane(row, col, cfg) {
       // Wildfire takes the neighbouring lanes with it.
-      const lanes = AP.chili.wide ? [col - 1, col, col + 1].filter(c => c >= 0 && c < COLS) : [col];
+      const lanes = cfg.wide ? [col - 1, col, col + 1].filter(c => c >= 0 && c < COLS) : [col];
       grid[row][col] = null;
       playBoomSound();
       showToast(lanes.length > 1 ? '🌶️ WILDFIRE!' : '🌶️ LANE TORCHED!', '#ff5500', 1000);
@@ -997,7 +1057,7 @@
     function openReward(kind) {
       // Once every upgrade has been taken there is nothing left to offer, so
       // late runs fall back to the bonus pile.
-      const remaining = UPGRADE_CARDS.filter(u => !upgradesTaken.includes(u.id));
+      const remaining = UPGRADE_CARDS.filter(u => !unlocked.includes(u.id));
       const upgrade = kind === 'upgrade' && remaining.length > 0;
       const cards = pickThree(upgrade ? remaining : BONUS_CARDS);
 
@@ -1008,13 +1068,16 @@
 
       rewardCards.innerHTML = '';
       cards.forEach(card => {
+        const cfg = upgrade ? AP[card.id] : null;
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'reward-card' + (upgrade ? ' gold' : '');
         btn.innerHTML =
-          `<span class="r-icon">${card.icon}</span>` +
-          `<span class="r-text"><span class="r-name">${card.name}</span>` +
-          `<span class="r-desc">${card.desc}</span></span>`;
+          `<span class="r-icon">${upgrade ? cfg.icon : card.icon}</span>` +
+          `<span class="r-text"><span class="r-name">${upgrade ? cfg.name : card.name}</span>` +
+          `<span class="r-desc">${upgrade
+            ? `${card.blurb} — plant it on a ${AP[cfg.from].name} for ${cfg.cost} ☀`
+            : card.desc}</span></span>`;
         btn.addEventListener('click', () => takeReward(card, upgrade));
         rewardCards.appendChild(btn);
       });
@@ -1026,12 +1089,12 @@
     }
 
     function takeReward(card, upgrade) {
-      card.apply();
       if (upgrade) {
-        upgradesTaken.push(card.id);
-        showToast(`★ ${card.name.toUpperCase()}`, '#ffd700', 1600);
+        unlocked.push(card.id);
+        showToast(`★ ${AP[card.id].name.toUpperCase()} UNLOCKED`, '#ffd700', 1800);
         Arcade.playBestJingle();
       } else {
+        card.apply();
         showToast(`${card.icon} ${card.name.toUpperCase()}`, '#00f2ff', 1400);
         playPlantSound();
       }
@@ -1040,6 +1103,10 @@
       gamePaused = false;
       lastTime = 0;
       renderSeedBar();
+      // An unlocked card can push the tray onto another row, which leaves the
+      // lawn less height than it was measured for. Re-measure on the next frame
+      // rather than now — the tray has not been laid out at its new height yet.
+      requestAnimationFrame(layout);
     }
 
     // -------------------------------------------------------- particles ----
@@ -1108,11 +1175,24 @@
       }
 
       const cfg = AP[selected];
-      if (existing) { playDeniedSound(); showToast('TILE TAKEN', '#ff8800', 800); return; }
+      // An upgrade goes on top of the plant it upgrades; everything else needs
+      // bare soil.
+      if (cfg.from) {
+        if (!existing || existing.type !== cfg.from) {
+          playDeniedSound();
+          showToast(`NEEDS A ${AP[cfg.from].name.toUpperCase()}`, '#ff8800', 1100);
+          return;
+        }
+      } else if (existing) {
+        playDeniedSound();
+        showToast('TILE TAKEN', '#ff8800', 800);
+        return;
+      }
       if (energy < cfg.cost) { playDeniedSound(); showToast('NOT ENOUGH ☀', '#ff8800', 800); return; }
       if (cardReady[selected] > 0) { playDeniedSound(); return; }
 
       plantAt(at.row, at.col, selected);
+      if (cfg.from) showToast(`★ ${cfg.name.toUpperCase()}`, '#ffd700', 1000);
       selected = null;               // one tap plants one seed, like the original
     }
 
@@ -1123,12 +1203,11 @@
       handleTap(e.clientX - rect.left, e.clientY - rect.top);
     });
 
-    const SEED_KEYS = ['bloom', 'spike', 'nut', 'frost', 'boom', 'chili'];
     document.addEventListener('keydown', e => {
       initAudio();
       if (e.key >= '1' && e.key <= '6') {
         e.preventDefault();
-        selectSeed(SEED_KEYS[parseInt(e.key, 10) - 1]);
+        selectSeed(BASE_SEEDS[parseInt(e.key, 10) - 1]);
       } else if (e.key === 's' || e.key === 'S') {
         selectSeed('shovel');
       } else if (e.key === 'Escape') {
@@ -1242,11 +1321,22 @@
           ctx.fill();
 
           // An unarmed Boom Bud is dim; a lit Chili Bomb flickers.
-          if (p.type === 'boom' && !p.armed) ctx.globalAlpha = 0.45;
-          if (p.type === 'chili') ctx.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(p.timer / 90));
+          if (p.kind === 'boom' && !p.armed) ctx.globalAlpha = 0.45;
+          if (p.kind === 'chili') ctx.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(p.timer / 90));
 
           ctx.font = `${Math.round(cell * 0.5 * pulse)}px serif`;
           ctx.fillText(cfg.icon, 0, cell * 0.02);
+
+          // Upgraded plants wear a gold star, so a glance at the lawn shows
+          // which tiles have already been improved.
+          if (cfg.from) {
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = '#ffd700';
+            ctx.fillStyle = '#ffd700';
+            ctx.font = `bold ${Math.round(cell * 0.24)}px 'Segoe UI', sans-serif`;
+            ctx.fillText('★', cell * 0.26, -cell * 0.24);
+          }
           ctx.restore();
 
           if (p.hp < p.maxHp) drawBar(x, y - cell * 0.42, cell * 0.62, p.hp / p.maxHp, '#00ff88');
@@ -1435,7 +1525,7 @@
       lastTime = timestamp;
 
       if (!gamePaused) {
-        for (const type of SEED_KEYS) {
+        for (const type of ALL_SEEDS) {
           if (cardReady[type] > 0) cardReady[type] = Math.max(0, cardReady[type] - dt * 1000);
         }
 
@@ -1504,11 +1594,11 @@
       // Fresh copy of the plant stats: last run's upgrades don't carry over.
       AP = JSON.parse(JSON.stringify(PLANTS));
       trophies = 0;
-      upgradesTaken = [];
+      unlocked = [];
       choosing = false;
       rewardOverlay.classList.add('hidden');
       cardReady = {};
-      SEED_KEYS.forEach(t => { cardReady[t] = 0; });
+      ALL_SEEDS.forEach(t => { cardReady[t] = 0; });
       selected = null;
       sunTimer = 0;
       betweenWaves = true;
