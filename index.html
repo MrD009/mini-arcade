@@ -156,6 +156,7 @@
     .game-card:nth-child(14) { animation-delay: 2.05s; }
     .game-card:nth-child(15) { animation-delay: 2.2s; }
     .game-card:nth-child(16) { animation-delay: 2.35s; }
+    .game-card:nth-child(17) { animation-delay: 2.5s; }
 
     .game-card::before {
       content: '';
@@ -560,6 +561,20 @@
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
+
+    <a href="games/air-hockey/index.html" class="game-card" data-game="air-hockey">
+      <span class="favorite-tag">🔥 Favorite</span>
+      <div class="card-content">
+        <span class="game-icon">🏒</span>
+        <h2 class="game-title">Neon Air Hockey</h2>
+        <p class="game-desc">Two players, one screen — a mallet each end and first to 5 wins. Or take on the CPU solo and build a win streak.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
   </main>
 
   <footer>
@@ -697,7 +712,10 @@
       'garden-defense': () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
         parseInt(localStorage.getItem(`gardenBest_${d}`) || '0', 10))),
       'sugar-rush': () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
-        parseInt(localStorage.getItem(`sugarBest_${d}`) || '0', 10)))
+        parseInt(localStorage.getItem(`sugarBest_${d}`) || '0', 10))),
+      // Air Hockey's "best" is the longest run of wins against the CPU.
+      'air-hockey': () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
+        parseInt(localStorage.getItem(`hockeyBest_${d}`) || '0', 10)))
     };
 
     // ---- Play counts ----
