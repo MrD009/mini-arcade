@@ -116,11 +116,13 @@
 
     .menu {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 30px;
-      max-width: 900px;
+      /* Narrower minimum and a wider column than the original 260px/900px, so
+         a growing library gains columns instead of rows. */
+      grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+      gap: 18px;
+      max-width: 1100px;
       width: 100%;
-      padding: 30px;
+      padding: 20px;
       perspective: 1000px;
     }
 
@@ -128,7 +130,7 @@
       display: block;
       background: var(--card-bg);
       border-radius: 20px;
-      padding: 30px;
+      padding: 20px;
       text-decoration: none;
       color: var(--text);
       border: 2px solid rgba(255,255,255,0.05);
@@ -140,23 +142,25 @@
       animation: fadeInUp 0.8s ease both;
     }
 
-    .game-card:nth-child(1) { animation-delay: 0.1s; }
-    .game-card:nth-child(2) { animation-delay: 0.25s; }
-    .game-card:nth-child(3) { animation-delay: 0.4s; }
-    .game-card:nth-child(4) { animation-delay: 0.55s; }
-    .game-card:nth-child(5) { animation-delay: 0.7s; }
-    .game-card:nth-child(6) { animation-delay: 0.85s; }
-    .game-card:nth-child(7) { animation-delay: 1.0s; }
-    .game-card:nth-child(8) { animation-delay: 1.15s; }
-    .game-card:nth-child(9) { animation-delay: 1.3s; }
-    .game-card:nth-child(10) { animation-delay: 1.45s; }
-    .game-card:nth-child(11) { animation-delay: 1.6s; }
-    .game-card:nth-child(12) { animation-delay: 1.75s; }
-    .game-card:nth-child(13) { animation-delay: 1.9s; }
-    .game-card:nth-child(14) { animation-delay: 2.05s; }
-    .game-card:nth-child(15) { animation-delay: 2.2s; }
-    .game-card:nth-child(16) { animation-delay: 2.35s; }
-    .game-card:nth-child(17) { animation-delay: 2.5s; }
+    /* A short step: at the original 0.15s per card the seventeenth did not
+       appear until 3.3s after load, so the page looked half empty. */
+    .game-card:nth-child(1) { animation-delay: 0.03s; }
+    .game-card:nth-child(2) { animation-delay: 0.06s; }
+    .game-card:nth-child(3) { animation-delay: 0.09s; }
+    .game-card:nth-child(4) { animation-delay: 0.12s; }
+    .game-card:nth-child(5) { animation-delay: 0.15s; }
+    .game-card:nth-child(6) { animation-delay: 0.18s; }
+    .game-card:nth-child(7) { animation-delay: 0.21s; }
+    .game-card:nth-child(8) { animation-delay: 0.24s; }
+    .game-card:nth-child(9) { animation-delay: 0.27s; }
+    .game-card:nth-child(10) { animation-delay: 0.3s; }
+    .game-card:nth-child(11) { animation-delay: 0.33s; }
+    .game-card:nth-child(12) { animation-delay: 0.36s; }
+    .game-card:nth-child(13) { animation-delay: 0.39s; }
+    .game-card:nth-child(14) { animation-delay: 0.42s; }
+    .game-card:nth-child(15) { animation-delay: 0.45s; }
+    .game-card:nth-child(16) { animation-delay: 0.48s; }
+    .game-card:nth-child(17) { animation-delay: 0.51s; }
 
     .game-card::before {
       content: '';
@@ -229,8 +233,8 @@
     .meta-chip.best-chip { color: var(--gold); }
 
     .game-icon {
-      font-size: 4rem;
-      margin-bottom: 15px;
+      font-size: 3.1rem;
+      margin-bottom: 10px;
       display: block;
       transition: transform 0.3s;
     }
@@ -240,23 +244,29 @@
     }
 
     .game-title {
-      font-size: 1.6rem;
-      margin-bottom: 10px;
+      font-size: 1.25rem;
+      margin-bottom: 7px;
       color: var(--accent);
     }
 
     .game-desc {
-      font-size: 0.95rem;
+      font-size: 0.85rem;
       color: #bbb;
-      line-height: 1.5;
-      margin-bottom: 15px;
+      line-height: 1.45;
+      margin-bottom: 12px;
+      /* Clamped so one wordy blurb cannot stretch a whole row of cards. */
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
 
     .play-btn {
       display: inline-block;
       background: var(--accent2);
       color: white;
-      padding: 10px 24px;
+      padding: 8px 18px;
+      font-size: 0.85rem;
       border-radius: 30px;
       font-weight: bold;
       letter-spacing: 1px;
@@ -294,14 +304,183 @@
       50% { opacity: 1; }
     }
 
+    /* ------------------------------------------------------------ toolbar --- */
+
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      width: 100%;
+      background: rgba(13, 13, 26, 0.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    }
+
+    .toolbar-inner {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 10px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .search-wrap { position: relative; display: flex; align-items: center; }
+
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      font-size: 0.9rem;
+      pointer-events: none;
+      opacity: 0.6;
+    }
+
+    #search {
+      width: 100%;
+      padding: 10px 14px 10px 36px;
+      border-radius: 50px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: var(--panel);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.95rem;
+    }
+
+    #search:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(0, 242, 255, 0.25);
+    }
+
+    /* The chips scroll sideways rather than wrapping into a second row that
+       would eat vertical space on every screen. */
+    .chip-row {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding-bottom: 2px;
+      position: relative;
+    }
+
+    /* A fade off the right edge, so it reads as a row that scrolls rather than
+       one that has simply been cut off. */
+    .chip-scroll {
+      position: relative;
+    }
+
+    .chip-scroll::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 34px;
+      height: 100%;
+      pointer-events: none;
+      background: linear-gradient(to right, rgba(13, 13, 26, 0), rgba(13, 13, 26, 0.95));
+      opacity: 1;
+      transition: opacity 0.2s;
+    }
+
+    .chip-scroll.at-end::after { opacity: 0; }
+
+    .chip-row::-webkit-scrollbar { display: none; }
+
+    .filter-chip {
+      flex: 0 0 auto;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #bbb;
+      font: inherit;
+      font-size: 0.78rem;
+      padding: 6px 13px;
+      border-radius: 50px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .filter-chip:hover { color: var(--text); border-color: rgba(0, 242, 255, 0.4); }
+
+    .filter-chip.active {
+      background: rgba(0, 242, 255, 0.15);
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: bold;
+    }
+
+    .game-card.filtered-out { display: none; }
+
+    .no-results {
+      color: #888;
+      padding: 30px 20px;
+      text-align: center;
+    }
+
+    .no-results button {
+      background: none;
+      border: none;
+      color: var(--accent);
+      font: inherit;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    .no-results.hidden { display: none; }
+
+    .to-top {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      z-index: 25;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 242, 255, 0.3);
+      background: rgba(22, 22, 46, 0.9);
+      color: var(--accent);
+      font-size: 1.2rem;
+      cursor: pointer;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s, transform 0.25s;
+      transform: translateY(8px);
+    }
+
+    .to-top.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
+
     @media (max-width: 600px) {
-      h1 { font-size: clamp(1.4rem, 8vw, 2rem); letter-spacing: 1px; }
-      .menu { padding: 10px; gap: 12px; }
-      .game-card { padding: 16px; }
-      .game-icon { font-size: 2.8rem; }
-      .game-title { font-size: 1.3rem; }
-      .stats-bar { gap: 8px; margin: 14px 0; }
-      .stat-pill { padding: 7px 12px; font-size: 0.82rem; }
+      h1 { font-size: clamp(1.3rem, 7vw, 1.8rem); letter-spacing: 1px; }
+      header { margin-top: 16px; margin-bottom: 4px; }
+      .tagline { display: none; }
+      .stats-bar { gap: 6px; margin: 10px 0; font-size: 0.85rem; }
+      .stat-pill { padding: 6px 11px; font-size: 0.78rem; }
+      .toolbar-inner { padding: 8px 10px; }
+
+      /* Two compact cards per row. Seventeen full-size cards in a single
+         column made the page seven screens tall, which is the whole reason
+         this layout exists. */
+      .menu {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        padding: 10px;
+      }
+
+      .game-card { padding: 12px 10px; border-radius: 14px; }
+      .game-icon { font-size: 2.3rem; margin-bottom: 6px; }
+      .game-title { font-size: 0.92rem; margin-bottom: 4px; line-height: 1.25; }
+      .game-desc { display: none; }
+      .play-btn { display: none; }
+      .card-meta { gap: 4px; margin-bottom: 0; }
+      .meta-chip { font-size: 0.6rem; padding: 2px 6px; }
+      .meta-chip.plays-chip { display: none; }
+      .favorite-tag { font-size: 0.52rem; padding: 2px 6px; top: 6px; right: 6px; }
+    }
+
+    /* Very narrow phones still get two columns, just tighter. */
+    @media (max-width: 360px) {
+      .game-title { font-size: 0.85rem; }
+      .game-icon { font-size: 2rem; }
     }
 
     /* Remove 3D hover effects on touch devices — they ghost on tap */
@@ -338,8 +517,32 @@
     <button class="stat-pill surprise-btn" type="button" onclick="surpriseMe()">🎲 Surprise Me</button>
   </div>
 
+  <!-- Sticky so a game can be found from anywhere in the list, rather than
+       scrolling back to the top to change filter. -->
+  <div class="toolbar" id="toolbar">
+    <div class="toolbar-inner">
+      <div class="search-wrap">
+        <span class="search-icon" aria-hidden="true">🔍</span>
+        <input type="search" id="search" placeholder="Search games…" aria-label="Search games" autocomplete="off">
+      </div>
+      <div class="chip-scroll" id="chipScroll">
+      <div class="chip-row" id="chipRow" role="tablist" aria-label="Filter by kind">
+        <button class="filter-chip active" data-cat="all" role="tab" aria-selected="true">All</button>
+        <button class="filter-chip" data-cat="action" role="tab" aria-selected="false">🕹️ Action</button>
+        <button class="filter-chip" data-cat="puzzle" role="tab" aria-selected="false">🧩 Puzzle</button>
+        <button class="filter-chip" data-cat="brain" role="tab" aria-selected="false">🧠 Brain</button>
+        <button class="filter-chip" data-cat="daily" role="tab" aria-selected="false">📅 Daily</button>
+        <button class="filter-chip" data-cat="strategy" role="tab" aria-selected="false">♟️ Strategy</button>
+        <button class="filter-chip" data-cat="versus" role="tab" aria-selected="false">👥 2 Player</button>
+      </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="no-results hidden" id="noResults">No games match that. <button type="button" onclick="clearFilters()">Show all</button></p>
+
   <main class="menu" id="menu">
-    <a href="games/memory/index.html" class="game-card" data-game="memory">
+    <a href="games/memory/index.html" class="game-card" data-game="memory" data-cat="brain">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🧠</span>
@@ -353,7 +556,7 @@
       </div>
     </a>
 
-    <a href="games/snake/index.html" class="game-card" data-game="snake">
+    <a href="games/snake/index.html" class="game-card" data-game="snake" data-cat="action">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🐍</span>
@@ -367,7 +570,7 @@
       </div>
     </a>
 
-    <a href="games/shooter/index.html" class="game-card" data-game="shooter">
+    <a href="games/shooter/index.html" class="game-card" data-game="shooter" data-cat="action">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🚀</span>
@@ -381,7 +584,7 @@
       </div>
     </a>
 
-    <a href="games/maze/index.html" class="game-card" data-game="maze">
+    <a href="games/maze/index.html" class="game-card" data-game="maze" data-cat="action">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🌀</span>
@@ -395,7 +598,7 @@
       </div>
     </a>
 
-    <a href="games/gravity-runner/index.html" class="game-card" data-game="gravity-runner">
+    <a href="games/gravity-runner/index.html" class="game-card" data-game="gravity-runner" data-cat="action">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🔃</span>
@@ -409,7 +612,7 @@
       </div>
     </a>
 
-    <a href="games/rabbit/index.html" class="game-card" data-game="rabbit">
+    <a href="games/rabbit/index.html" class="game-card" data-game="rabbit" data-cat="action">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🐰</span>
@@ -423,7 +626,7 @@
       </div>
     </a>
 
-    <a href="games/whack-a-mole/index.html" class="game-card" data-game="whack-a-mole">
+    <a href="games/whack-a-mole/index.html" class="game-card" data-game="whack-a-mole" data-cat="action">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🔨</span>
@@ -437,7 +640,7 @@
       </div>
     </a>
 
-    <a href="games/highway-racer/index.html" class="game-card" data-game="highway-racer">
+    <a href="games/highway-racer/index.html" class="game-card" data-game="highway-racer" data-cat="action">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🏎️</span>
@@ -451,7 +654,7 @@
       </div>
     </a>
 
-    <a href="games/brick-breaker/index.html" class="game-card" data-game="brick-breaker">
+    <a href="games/brick-breaker/index.html" class="game-card" data-game="brick-breaker" data-cat="action">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🧱</span>
@@ -465,7 +668,7 @@
       </div>
     </a>
 
-    <a href="games/tetris/index.html" class="game-card" data-game="tetris">
+    <a href="games/tetris/index.html" class="game-card" data-game="tetris" data-cat="puzzle">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🟦</span>
@@ -479,7 +682,7 @@
       </div>
     </a>
 
-    <a href="games/n2048/index.html" class="game-card" data-game="n2048">
+    <a href="games/n2048/index.html" class="game-card" data-game="n2048" data-cat="puzzle">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🔢</span>
@@ -493,7 +696,7 @@
       </div>
     </a>
 
-    <a href="games/cipher/index.html" class="game-card" data-game="cipher">
+    <a href="games/cipher/index.html" class="game-card" data-game="cipher" data-cat="daily">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🧩</span>
@@ -507,7 +710,7 @@
       </div>
     </a>
 
-    <a href="games/cipher-ms/index.html" class="game-card" data-game="cipher-ms">
+    <a href="games/cipher-ms/index.html" class="game-card" data-game="cipher-ms" data-cat="daily">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🌺</span>
@@ -520,7 +723,7 @@
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
-    <a href="games/mines/index.html" class="game-card" data-game="mines">
+    <a href="games/mines/index.html" class="game-card" data-game="mines" data-cat="daily">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">💣</span>
@@ -534,7 +737,7 @@
       </div>
     </a>
 
-    <a href="games/garden-defense/index.html" class="game-card" data-game="garden-defense">
+    <a href="games/garden-defense/index.html" class="game-card" data-game="garden-defense" data-cat="strategy">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🌻</span>
@@ -548,7 +751,7 @@
       </div>
     </a>
 
-    <a href="games/sugar-rush/index.html" class="game-card" data-game="sugar-rush">
+    <a href="games/sugar-rush/index.html" class="game-card" data-game="sugar-rush" data-cat="puzzle">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🍬</span>
@@ -562,7 +765,7 @@
       </div>
     </a>
 
-    <a href="games/air-hockey/index.html" class="game-card" data-game="air-hockey">
+    <a href="games/air-hockey/index.html" class="game-card" data-game="air-hockey" data-cat="versus">
       <span class="favorite-tag">🔥 Favorite</span>
       <div class="card-content">
         <span class="game-icon">🏒</span>
@@ -576,6 +779,8 @@
       </div>
     </a>
   </main>
+
+  <button class="to-top" id="toTop" type="button" onclick="scrollToTop()" aria-label="Back to top">↑</button>
 
   <footer>
     Built with HTML, CSS & JavaScript. No frameworks needed.
@@ -768,30 +973,116 @@
 
     renderCardMeta();
 
+    // ---- Search and category filter ----
+    let focusIndex = 0;                 // declared here so applyFilters can reset it
+    const searchInput = document.getElementById('search');
+    const chipRow = document.getElementById('chipRow');
+    const noResults = document.getElementById('noResults');
+    let activeCat = 'all';
+
+    function visibleCards() {
+      return cards.filter(c => !c.classList.contains('filtered-out'));
+    }
+
+    function applyFilters() {
+      const q = searchInput.value.trim().toLowerCase();
+      let shown = 0;
+      cards.forEach(card => {
+        const title = card.querySelector('.game-title').textContent.toLowerCase();
+        const desc = card.querySelector('.game-desc').textContent.toLowerCase();
+        const matchesText = !q || title.includes(q) || desc.includes(q);
+        const matchesCat = activeCat === 'all' || card.dataset.cat === activeCat;
+        const show = matchesText && matchesCat;
+        card.classList.toggle('filtered-out', !show);
+        if (show) shown++;
+      });
+      noResults.classList.toggle('hidden', shown > 0);
+      document.getElementById('gameCount').textContent = shown;
+      // Keyboard focus should start from whatever is actually on screen.
+      focusIndex = 0;
+    }
+
+    function clearFilters() {
+      searchInput.value = '';
+      activeCat = 'all';
+      chipRow.querySelectorAll('.filter-chip').forEach(chip => {
+        const on = chip.dataset.cat === 'all';
+        chip.classList.toggle('active', on);
+        chip.setAttribute('aria-selected', String(on));
+      });
+      applyFilters();
+    }
+
+    searchInput.addEventListener('input', applyFilters);
+    searchInput.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      // Enter on a single match is the fastest way in.
+      const shown = visibleCards();
+      if (shown.length === 1) {
+        bumpPlayCount(shown[0].dataset.game);
+        window.location.href = shown[0].getAttribute('href');
+      }
+    });
+
+    // Hide the edge fade once the row is scrolled to its end.
+    const chipScroll = document.getElementById('chipScroll');
+    function syncChipFade() {
+      const atEnd = chipRow.scrollLeft + chipRow.clientWidth >= chipRow.scrollWidth - 2;
+      chipScroll.classList.toggle('at-end', atEnd);
+    }
+    chipRow.addEventListener('scroll', syncChipFade, { passive: true });
+    window.addEventListener('resize', syncChipFade);
+    syncChipFade();
+
+    chipRow.querySelectorAll('.filter-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        activeCat = chip.dataset.cat;
+        chipRow.querySelectorAll('.filter-chip').forEach(c => {
+          const on = c === chip;
+          c.classList.toggle('active', on);
+          c.setAttribute('aria-selected', String(on));
+        });
+        applyFilters();
+      });
+    });
+
+    // ---- Back to top ----
+    const toTop = document.getElementById('toTop');
+    function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    window.addEventListener('scroll', () => {
+      toTop.classList.toggle('show', window.scrollY > 500);
+    }, { passive: true });
+
     // ---- Surprise Me ----
     function surpriseMe() {
-      if (!cards.length) return;
-      const pick = cards[Math.floor(Math.random() * cards.length)];
+      // Only ever picks from what the current filter is showing.
+      const pool = visibleCards();
+      if (!pool.length) return;
+      const pick = pool[Math.floor(Math.random() * pool.length)];
       bumpPlayCount(pick.dataset.game);
       window.location.href = pick.getAttribute('href');
     }
 
     // ---- Keyboard navigation between cards ----
-    let focusIndex = 0;
-
     function gridColumnCount() {
       const cols = getComputedStyle(menuEl).gridTemplateColumns.split(' ').filter(Boolean);
       return cols.length || 1;
     }
 
+    // Arrow keys walk the cards the filter is actually showing, so a hidden
+    // card can never be focused.
     function focusCardAt(i) {
-      if (!cards.length) return;
-      focusIndex = Math.max(0, Math.min(cards.length - 1, i));
-      cards[focusIndex].focus();
+      const shown = visibleCards();
+      if (!shown.length) return;
+      focusIndex = Math.max(0, Math.min(shown.length - 1, i));
+      shown[focusIndex].focus();
     }
 
-    cards.forEach((card, i) => {
-      card.addEventListener('focus', () => { focusIndex = i; });
+    cards.forEach(card => {
+      card.addEventListener('focus', () => {
+        const at = visibleCards().indexOf(card);
+        if (at >= 0) focusIndex = at;
+      });
     });
 
     document.addEventListener('keydown', e => {
