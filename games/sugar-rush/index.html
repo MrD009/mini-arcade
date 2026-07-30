@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🍬 Neon Sugar Rush | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    /* A square board reads better in a narrower column than the runner games. */
+    :root { --play-max: 500px; }
+
+    #gameCanvas {
+      background: radial-gradient(ellipse at top, #1a1030 0%, #050510 70%);
+    }
+
+    .goal-note {
+      font-size: 0.7rem;
+      color: #aaa;
+      margin: 2px 0 8px;
+    }
+
+    .candy-guide {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px 12px;
+      font-size: 0.72rem;
+      color: #aaa;
+      margin: 12px 0 4px;
+      text-align: left;
+      max-width: 330px;
+      align-items: center;
+    }
+
+    .candy-guide b { color: var(--text); font-weight: 600; }
+
+    .overlay .stats { max-width: 300px; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span>Level</span>
+        <strong id="levelEl">1</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Moves</span>
+        <strong id="movesEl">25</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Score</span>
+        <strong id="scoreEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button id="startBtn" onclick="showStartOverlay()">Restart</button>
+      <button id="pauseBtn" onclick="togglePause()">Pause</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="hint-line" id="hintLine">Swipe a candy to swap it • Match 3 or more</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">SWEET!</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🍬 Neon Sugar Rush</h1>
+    <p>Swap candies to line up three or more. Hit the level target before you run out of moves.</p>
+
+    <div class="difficulty-bar" id="difficultyBar">
+      <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+      <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+      <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+    </div>
+    <div class="diff-note" id="diffNote"></div>
+
+    <div class="candy-guide">
+      <span>4 in a row</span><span><b>Striped</b> — clears its whole line</span>
+      <span>L or T shape</span><span><b>Wrapped</b> — blows up a 3×3</span>
+      <span>5 in a row</span><span><b>Rainbow</b> — swap it to clear a colour</span>
+    </div>
+
+    <button class="primary" onclick="startGame()">▶ Start Game</button>
+  </div>
+
+  <div class="overlay hidden" id="levelOverlay">
+    <h1>🎉 Sugar Crush!</h1>
+    <p id="levelBlurb">Level 1 cleared.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="lvlScore">0</div>
+        <div class="lbl">Level Score</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="lvlBonus">0</div>
+        <div class="lbl">Moves Bonus</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="lvlTotal">0</div>
+        <div class="lbl">Total</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="lvlNext">0</div>
+        <div class="lbl">Next Target</div>
+      </div>
+    </div>
+    <button class="primary" onclick="nextLevel()">▶ Next Level</button>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <h1>🍭 Out of Moves</h1>
+    <p class="new-best" id="newBestTag">🏆 New Best Score!</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalScore">0</div>
+        <div class="lbl">Score</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalLevel">1</div>
+        <div class="lbl">Level Reached</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalCleared">0</div>
+        <div class="lbl">Candies Cleared</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBest">0</div>
+        <div class="lbl">Best</div>
+      </div>
+    </div>
+    <button class="primary" onclick="startGame()">Try Again</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Difficulty</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const levelEl = document.getElementById('levelEl');
+    const movesEl = document.getElementById('movesEl');
+    const scoreEl = document.getElementById('scoreEl');
+    const bestEl = document.getElementById('bestEl');
+    const startOverlay = document.getElementById('startOverlay');
+    const levelOverlay = document.getElementById('levelOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const diffNote = document.getElementById('diffNote');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.querySelector('.bottom-bar');
+
+    const COLS = 8;
+    const ROWS = 8;
+
+    /*
+     * Every candy carries a shape as well as a colour, so the board still reads
+     * for a player who cannot tell two of the neons apart.
+     */
+    const CANDIES = [
+      { color: '#ff2a2a', shape: 'circle' },
+      { color: '#00f2ff', shape: 'square' },
+      { color: '#ffd700', shape: 'diamond' },
+      { color: '#00ff88', shape: 'triangle' },
+      { color: '#ff00aa', shape: 'hexagon' },
+      { color: '#ff8800', shape: 'star' },
+      { color: '#b06bff', shape: 'heart' }
+    ];
+
+    const DIFFICULTIES = {
+      easy:   { colors: 5, moves: 30, targetMult: 0.8,  note: 'Five candy kinds and 30 moves a level.' },
+      medium: { colors: 6, moves: 25, targetMult: 1.0,  note: 'Six candy kinds, 25 moves — the standard mix.' },
+      // Seven colours already makes matches much scarcer, so Hard leans on that
+      // and the move count rather than also inflating the target on top.
+      hard:   { colors: 7, moves: 22, targetMult: 1.1, note: 'Seven kinds and only 22 moves. Matches are scarce.' }
+    };
+
+    const TILE_SCORE = 60;
+    const SPECIAL_BONUS = { stripeH: 200, stripeV: 200, wrapped: 400, bomb: 800 };
+    const MAX_CHAIN_MULT = 10;
+    const MOVE_BONUS = 200;        // per unused move when a level is cleared
+
+    // Phase lengths, in ms. Short enough to stay snappy on a cascade.
+    const SWAP_MS = 150;
+    const CLEAR_MS = 200;
+    const FALL_MS = 240;
+    const HINT_AFTER = 6000;
+
+    let currentDifficulty = 'easy';
+    let colorCount = 5;
+    let gameRunning = false;
+    let gamePaused = false;
+    let animationId = null;
+    let lastTime = 0;
+
+    let board = [];
+    let phase = 'idle';            // idle | swap | revert | clear | fall
+    let phaseT = 0;
+    let clearing = [];             // cells mid-clear, drawn shrinking
+    let chain = 0;                 // cascade depth, drives the score multiplier
+    let swapPair = null;           // the two cells of the swap being animated
+
+    let score = 0;
+    let levelScore = 0;
+    let level = 1;
+    let moves = 0;
+    let target = 0;
+    let candiesCleared = 0;
+    let levelBonus = 0;
+    let sugarCrushing = false;
+
+    let selected = null;           // tap-to-select source cell
+    let dragFrom = null;
+    let dragStart = null;
+    let idleT = 0;
+    let hint = null;
+
+    let cell = 40, boardX = 0, boardY = 0, viewW = 0, viewH = 0;
+
+    // Audio, toast, best scores and fullscreen live in shared/arcade.js.
+    const initAudio = Arcade.initAudio;
+    function playTone(freq, type, duration, delay = 0, vol = 0.12) {
+      Arcade.playTone(freq, type, duration, delay, vol);
+    }
+    function playSwapSound()    { playTone(420, 'sine', 0.06, 0, 0.07); }
+    function playDeniedSound()  { playTone(180, 'square', 0.09, 0, 0.06); }
+    function playMatchSound(n)  { playTone(440 + Math.min(n, 8) * 60, 'sine', 0.09, 0, 0.09); }
+    function playSpecialSound() { playTone(880, 'sine', 0.1); playTone(1175, 'sine', 0.12, 0.06); }
+    function playBlastSound()   { playTone(140, 'sawtooth', 0.22, 0, 0.13); }
+    function playLevelSound()   { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => playTone(f, 'sine', 0.25, i * 0.11)); }
+    function playGameOverSound() {
+      playTone(440, 'sawtooth', 0.2);
+      playTone(330, 'sawtooth', 0.25, 0.15);
+      playTone(220, 'sawtooth', 0.35, 0.3);
+    }
+
+    function showToast(text, color, ms) {
+      Arcade.showToast(toast, text, color || '#ffd700', ms || 1000);
+    }
+
+    // ------------------------------------------------------------ layout ---
+
+    function layout() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      viewW = rect.width;
+      viewH = rect.height;
+      const topLimit = controlsBar.getBoundingClientRect().bottom - rect.top + 8;
+      const bottomLimit = bottomBar.getBoundingClientRect().top - rect.top - 8;
+      const availH = Math.max(160, bottomLimit - topLimit);
+      // Leave a strip above the board for the level goal bar.
+      const GOAL_STRIP = 34;
+      cell = Math.min((rect.width - 12) / COLS, (availH - GOAL_STRIP) / ROWS);
+      boardX = (rect.width - cell * COLS) / 2;
+      boardY = topLimit + GOAL_STRIP + Math.max(0, (availH - GOAL_STRIP - cell * ROWS) / 2);
+    }
+    window.addEventListener('resize', layout);
+
+    function tileX(c) { return boardX + c * cell; }
+    function tileY(r) { return boardY + r * cell; }
+
+    // ------------------------------------------------------------- board ---
+
+    function inBounds(r, c) { return r >= 0 && r < ROWS && c >= 0 && c < COLS; }
+    function randColor() { return Math.floor(Math.random() * colorCount); }
+
+    function newTile(color, type) {
+      return { color, type: type || 'normal', ox: 0, oy: 0, scale: 1, born: 0 };
+    }
+
+    /** True when the tile at (r,c) sits in a run of three or more. */
+    function matchAt(r, c) {
+      const t = board[r][c];
+      if (!t) return false;
+      let run = 1;
+      for (let i = c - 1; i >= 0 && board[r][i] && board[r][i].color === t.color; i--) run++;
+      for (let i = c + 1; i < COLS && board[r][i] && board[r][i].color === t.color; i++) run++;
+      if (run >= 3) return true;
+      run = 1;
+      for (let i = r - 1; i >= 0 && board[i][c] && board[i][c].color === t.color; i--) run++;
+      for (let i = r + 1; i < ROWS && board[i][c] && board[i][c].color === t.color; i++) run++;
+      return run >= 3;
+    }
+
+    function anyMatch() {
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (matchAt(r, c)) return true;
+      return false;
+    }
+
+    /** Fisher-Yates over the candies already on the board. No validation. */
+    function permuteBoard() {
+      const flat = [];
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) flat.push(board[r][c]);
+      for (let i = flat.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [flat[i], flat[j]] = [flat[j], flat[i]];
+      }
+      let k = 0;
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) board[r][c] = flat[k++];
+    }
+
+    /** Re-rolls the colour of any candy sitting in a match, until none are. */
+    function deMatch() {
+      for (let pass = 0; pass < 30; pass++) {
+        let dirty = false;
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            let guard = 0;
+            while (matchAt(r, c) && guard++ < 40) {
+              board[r][c] = newTile(randColor(), board[r][c].type);
+              dirty = true;
+            }
+          }
+        }
+        if (!dirty) return;
+      }
+    }
+
+    /**
+     * Leaves the board settled and playable: nothing already matched, and at
+     * least one legal swap. Bounded, and it never calls back into fillBoard —
+     * a match-3 that cannot deal a playable board must still not hang.
+     */
+    function ensurePlayable() {
+      // Shuffling the candies already in play is tried first, since it keeps
+      // whatever specials the player has built.
+      for (let attempt = 0; attempt < 200; attempt++) {
+        if (!anyMatch() && findHint()) return;
+        permuteBoard();
+      }
+      // Some multisets can never be dealt clean — two colours on a 64-square
+      // board always leave a run somewhere — so fall back to re-rolling colours.
+      for (let attempt = 0; attempt < 50; attempt++) {
+        deMatch();
+        if (findHint()) return;
+        permuteBoard();
+      }
+    }
+
+    function fillBoard() {
+      board = [];
+      for (let r = 0; r < ROWS; r++) {
+        board.push([]);
+        for (let c = 0; c < COLS; c++) board[r].push(newTile(randColor()));
+      }
+      // Re-roll anything that starts already matched, so the board opens still.
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          let guard = 0;
+          while (matchAt(r, c) && guard++ < 40) board[r][c] = newTile(randColor());
+        }
+      }
+      ensurePlayable();
+    }
+
+    /** Reshuffles the candies in play when the board runs out of moves. */
+    function shuffleBoard() {
+      permuteBoard();
+      ensurePlayable();
+    }
+
+    // ----------------------------------------------------------- matching ---
+
+    /**
+     * Every run of three or more, as groups. A cell in both a horizontal and a
+     * vertical run turns up in both, which is how an L or T is spotted later.
+     */
+    function findRuns() {
+      const runs = [];
+      for (let r = 0; r < ROWS; r++) {
+        let start = 0;
+        for (let c = 1; c <= COLS; c++) {
+          const same = c < COLS && board[r][c] && board[r][start] && board[r][c].color === board[r][start].color;
+          if (!same) {
+            if (c - start >= 3) {
+              const cells = [];
+              for (let i = start; i < c; i++) cells.push({ r, c: i });
+              runs.push({ dir: 'h', cells });
+            }
+            start = c;
+          }
+        }
+      }
+      for (let c = 0; c < COLS; c++) {
+        let start = 0;
+        for (let r = 1; r <= ROWS; r++) {
+          const same = r < ROWS && board[r][c] && board[start][c] && board[r][c].color === board[start][c].color;
+          if (!same) {
+            if (r - start >= 3) {
+              const cells = [];
+              for (let i = start; i < r; i++) cells.push({ r: i, c });
+              runs.push({ dir: 'v', cells });
+            }
+            start = r;
+          }
+        }
+      }
+      return runs;
+    }
+
+    const key = (r, c) => r * COLS + c;
+    const unkey = k => ({ r: Math.floor(k / COLS), c: k % COLS });
+
+    /**
+     * Groups overlapping runs together and decides what each group leaves
+     * behind: a rainbow for five, a wrapped candy for a corner, a striped for
+     * four. `origin` is the cell the player actually moved, so the special
+     * appears under their finger where the original does.
+     */
+    function planMatches(origins) {
+      const runs = findRuns();
+      if (!runs.length) return null;
+
+      const groups = [];
+      const seen = new Map();          // cell key -> group index
+      runs.forEach(run => {
+        const hits = new Set();
+        run.cells.forEach(({ r, c }) => {
+          const g = seen.get(key(r, c));
+          if (g !== undefined) hits.add(g);
+        });
+        let target;
+        if (hits.size === 0) {
+          target = groups.length;
+          groups.push({ cells: new Set(), runs: [] });
+        } else {
+          // The run bridges groups that were separate until now; fold them in.
+          const list = [...hits].sort((a, b) => a - b);
+          target = list[0];
+          for (let i = 1; i < list.length; i++) {
+            const from = groups[list[i]];
+            from.cells.forEach(k => { groups[target].cells.add(k); seen.set(k, target); });
+            groups[target].runs.push(...from.runs);
+            from.cells.clear();
+            from.runs.length = 0;
+          }
+        }
+        groups[target].runs.push(run);
+        run.cells.forEach(({ r, c }) => {
+          groups[target].cells.add(key(r, c));
+          seen.set(key(r, c), target);
+        });
+      });
+
+      const plans = [];
+      groups.forEach(g => {
+        if (!g.cells.size) return;
+        const cells = [...g.cells];
+        const hasH = g.runs.some(run => run.dir === 'h');
+        const hasV = g.runs.some(run => run.dir === 'v');
+        const longest = Math.max(...g.runs.map(run => run.cells.length));
+        let special = null;
+        if (hasH && hasV) special = 'wrapped';
+        else if (longest >= 5) special = 'bomb';
+        else if (longest === 4) special = hasH ? 'stripeH' : 'stripeV';
+
+        let at = cells[Math.floor(cells.length / 2)];
+        (origins || []).forEach(o => {
+          if (o && g.cells.has(key(o.r, o.c))) at = key(o.r, o.c);
+        });
+        const first = unkey(cells[0]);
+        plans.push({ cells, special, at, color: board[first.r][first.c].color });
+      });
+      return plans.length ? plans : null;
+    }
+
+    // ---------------------------------------------------------- clearing ---
+
+    /**
+     * Grows a set of doomed cells outward through any specials caught in it, so
+     * one striped candy setting off another resolves in a single pass.
+     */
+    function expandClears(seed, bombColorHint) {
+      const doomed = new Set();
+      const queue = [...seed];
+      while (queue.length) {
+        const k = queue.pop();
+        if (doomed.has(k)) continue;
+        const { r, c } = unkey(k);
+        if (!inBounds(r, c) || !board[r][c]) continue;
+        doomed.add(k);
+        const t = board[r][c];
+        if (t.type === 'stripeH') {
+          for (let i = 0; i < COLS; i++) if (board[r][i]) queue.push(key(r, i));
+        } else if (t.type === 'stripeV') {
+          for (let i = 0; i < ROWS; i++) if (board[i][c]) queue.push(key(i, c));
+        } else if (t.type === 'wrapped') {
+          for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+            if (inBounds(r + dr, c + dc) && board[r + dr][c + dc]) queue.push(key(r + dr, c + dc));
+          }
+        } else if (t.type === 'bomb') {
+          // A rainbow caught in a blast takes the colour it was told to, or the
+          // one it has most company from.
+          const colour = bombColorHint !== undefined ? bombColorHint : commonestColor();
+          for (let i = 0; i < ROWS; i++) for (let j = 0; j < COLS; j++) {
+            if (board[i][j] && board[i][j].color === colour) queue.push(key(i, j));
+          }
+        }
+      }
+      return doomed;
+    }
+
+    function commonestColor() {
+      const counts = new Array(colorCount).fill(0);
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+        if (board[r][c] && board[r][c].type === 'normal') counts[board[r][c].color]++;
+      }
+      return counts.indexOf(Math.max(...counts));
+    }
+
+    /** Starts the clear phase for a set of cells, scoring them as it goes. */
+    function beginClear(doomed, specials) {
+      chain++;
+      const mult = Math.min(chain, MAX_CHAIN_MULT);
+      let gained = doomed.size * TILE_SCORE * mult;
+
+      clearing = [];
+      doomed.forEach(k => {
+        const { r, c } = unkey(k);
+        const t = board[r][c];
+        if (!t) return;
+        clearing.push({ r, c, tile: t });
+        board[r][c] = null;
+        candiesCleared++;
+        if (t.type !== 'normal') gained += SPECIAL_BONUS[t.type] || 0;
+      });
+
+      // Specials are born where the match happened, after the cells clear.
+      (specials || []).forEach(s => {
+        const { r, c } = unkey(s.at);
+        board[r][c] = newTile(s.color, s.special);
+        board[r][c].born = 1;
+        gained += SPECIAL_BONUS[s.special] || 0;
+        clearing = clearing.filter(x => !(x.r === r && x.c === c));
+      });
+
+      addScore(gained);
+      if (specials && specials.length) playSpecialSound();
+      else playMatchSound(doomed.size);
+      if (chain === 2) showToast('SWEET!', '#00f2ff', 800);
+      else if (chain === 3) showToast('TASTY!', '#00ff88', 900);
+      else if (chain >= 4) showToast(`DELICIOUS! ×${mult}`, '#ffd700', 1000);
+
+      phase = 'clear';
+      phaseT = 0;
+    }
+
+    function addScore(n) {
+      score += n;
+      levelScore += n;
+    }
+
+    // ---------------------------------------------------------- gravity ----
+
+    function applyGravity() {
+      for (let c = 0; c < COLS; c++) {
+        let write = ROWS - 1;
+        for (let r = ROWS - 1; r >= 0; r--) {
+          const t = board[r][c];
+          if (!t) continue;
+          if (write !== r) {
+            board[write][c] = t;
+            board[r][c] = null;
+            t.oy = r - write;            // negative: starts above its new home
+          }
+          write--;
+        }
+        // Everything left at the top of the column is new, and falls in as a
+        // block from just above the board.
+        const drop = write + 1;
+        for (let r = write; r >= 0; r--) {
+          board[r][c] = newTile(randColor());
+          board[r][c].oy = -drop;
+        }
+      }
+      phase = 'fall';
+      phaseT = 0;
+    }
+
+    // ------------------------------------------------------------- moves ---
+
+    /** A legal swap somewhere on the board, or null when there is none. */
+    function findHint() {
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (board[r][c] && board[r][c].type === 'bomb') return [{ r, c }, { r, c }];
+          for (const [dr, dc] of [[0, 1], [1, 0]]) {
+            const r2 = r + dr, c2 = c + dc;
+            if (!inBounds(r2, c2)) continue;
+            if (!board[r][c] || !board[r2][c2]) continue;
+            swapCells(r, c, r2, c2);
+            const ok = matchAt(r, c) || matchAt(r2, c2);
+            swapCells(r, c, r2, c2);
+            if (ok) return [{ r, c }, { r: r2, c: c2 }];
+          }
+        }
+      }
+      return null;
+    }
+
+    function swapCells(r1, c1, r2, c2) {
+      const t = board[r1][c1];
+      board[r1][c1] = board[r2][c2];
+      board[r2][c2] = t;
+    }
+
+    function tryMove(r1, c1, r2, c2) {
+      if (phase !== 'idle' || !gameRunning || gamePaused) return;
+      if (!inBounds(r1, c1) || !inBounds(r2, c2)) return;
+      if (Math.abs(r1 - r2) + Math.abs(c1 - c2) !== 1) return;
+      const a = board[r1][c1], b = board[r2][c2];
+      if (!a || !b) return;
+
+      selected = null;
+      hint = null;
+      idleT = 0;
+
+      // A rainbow is spent by swapping it onto a colour, match or not.
+      if (a.type === 'bomb' || b.type === 'bomb') {
+        swapCells(r1, c1, r2, c2);
+        board[r2][c2].ox = c1 - c2; board[r2][c2].oy = r1 - r2;
+        board[r1][c1].ox = c2 - c1; board[r1][c1].oy = r2 - r1;
+        swapPair = { a: { r: r1, c: c1 }, b: { r: r2, c: c2 }, bomb: true };
+        moves--;
+        phase = 'swap';
+        phaseT = 0;
+        playSwapSound();
+        return;
+      }
+
+      swapCells(r1, c1, r2, c2);
+      board[r2][c2].ox = c1 - c2; board[r2][c2].oy = r1 - r2;
+      board[r1][c1].ox = c2 - c1; board[r1][c1].oy = r2 - r1;
+      swapPair = { a: { r: r1, c: c1 }, b: { r: r2, c: c2 }, bomb: false };
+      phase = 'swap';
+      phaseT = 0;
+      playSwapSound();
+    }
+
+    // -------------------------------------------------------- resolution ---
+
+    function resolveAfterSwap() {
+      const { a, b, bomb } = swapPair;
+
+      if (bomb) {
+        const bombCell = board[a.r][a.c].type === 'bomb' ? a : b;
+        const other = bombCell === a ? b : a;
+        const otherTile = board[other.r][other.c];
+        // Two rainbows together take the whole board with them.
+        const colour = otherTile.type === 'bomb' ? -1 : otherTile.color;
+        const seed = [key(bombCell.r, bombCell.c)];
+        if (colour === -1) {
+          for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) seed.push(key(r, c));
+        } else {
+          seed.push(key(other.r, other.c));
+        }
+        chain = 0;
+        playBlastSound();
+        beginClear(expandClears(seed, colour === -1 ? undefined : colour), null);
+        return;
+      }
+
+      const plans = planMatches([a, b]);
+      if (!plans) {
+        // Nothing lined up, so the swap costs nothing and rolls back.
+        swapCells(a.r, a.c, b.r, b.c);
+        board[a.r][a.c].ox = b.c - a.c; board[a.r][a.c].oy = b.r - a.r;
+        board[b.r][b.c].ox = a.c - b.c; board[b.r][b.c].oy = a.r - b.r;
+        phase = 'revert';
+        phaseT = 0;
+        playDeniedSound();
+        return;
+      }
+
+      moves--;
+      chain = 0;
+      startPlans(plans);
+    }
+
+    function startPlans(plans) {
+      const seed = [];
+      const specials = [];
+      plans.forEach(p => {
+        p.cells.forEach(k => seed.push(k));
+        if (p.special) specials.push({ at: p.at, special: p.special, color: p.color });
+      });
+      // A special is born rather than cleared, so keep its cell out of the blast.
+      const doomed = expandClears(seed);
+      specials.forEach(s => doomed.delete(s.at));
+      beginClear(doomed, specials);
+    }
+
+    /** Called when the board settles: cascade, then check the level state. */
+    function settle() {
+      const plans = planMatches(null);
+      if (plans) { startPlans(plans); return; }
+
+      chain = 0;
+      phase = 'idle';
+      idleT = 0;
+
+      if (sugarCrushing) { finishSugarCrush(); return; }
+      if (levelScore >= target) { beginSugarCrush(); return; }
+      if (moves <= 0) { gameOver(); return; }
+      if (!findHint()) {
+        showToast('NO MOVES — SHUFFLING', '#ff8800', 1200);
+        shuffleBoard();
+      }
+    }
+
+    // ------------------------------------------------------ sugar crush ----
+
+    /**
+     * Clearing a level spends the moves you did not need: each one turns a
+     * random candy striped and sets it off, which is the flourish the original
+     * is named for.
+     */
+    function beginSugarCrush() {
+      sugarCrushing = true;
+      levelBonus = Math.max(0, moves) * MOVE_BONUS;
+      addScore(levelBonus);
+      playLevelSound();
+      showToast('🎉 SUGAR CRUSH!', '#ffd700', 1400);
+
+      const spots = [];
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (board[r][c]) spots.push({ r, c });
+      const fireworks = Math.min(Math.max(moves, 1), 6);
+      const seed = [];
+      for (let i = 0; i < fireworks && spots.length; i++) {
+        const pick = spots.splice(Math.floor(Math.random() * spots.length), 1)[0];
+        board[pick.r][pick.c].type = i % 2 ? 'stripeV' : 'stripeH';
+        seed.push(key(pick.r, pick.c));
+      }
+      chain = 0;
+      playBlastSound();
+      beginClear(expandClears(seed), null);
+    }
+
+    function finishSugarCrush() {
+      sugarCrushing = false;
+      document.getElementById('levelBlurb').textContent =
+        `Level ${level} cleared with ${moves} move${moves === 1 ? '' : 's'} to spare.`;
+      document.getElementById('lvlScore').textContent = levelScore;
+      document.getElementById('lvlBonus').textContent = levelBonus;
+      document.getElementById('lvlTotal').textContent = score;
+      document.getElementById('lvlNext').textContent = targetFor(level + 1);
+      bestEl.textContent = Math.max(getBestScore(), score);
+      levelOverlay.classList.remove('hidden');
+    }
+
+    function targetFor(n) {
+      return Math.round((2000 + (n - 1) * 1500) * DIFFICULTIES[currentDifficulty].targetMult);
+    }
+
+    function nextLevel() {
+      level++;
+      levelScore = 0;
+      levelBonus = 0;
+      target = targetFor(level);
+      moves = DIFFICULTIES[currentDifficulty].moves;
+      fillBoard();
+      levelOverlay.classList.add('hidden');
+      phase = 'idle';
+      phaseT = 0;
+      idleT = 0;
+      hint = null;
+      lastTime = 0;
+      showToast(`LEVEL ${level}`, '#00f2ff', 1000);
+    }
+
+    // ------------------------------------------------------------ update ---
+
+    function update(dt) {
+      phaseT += dt * 1000;
+
+      if (phase === 'idle') {
+        idleT += dt * 1000;
+        if (idleT > HINT_AFTER && !hint) hint = findHint();
+        return;
+      }
+
+      if (phase === 'swap' && phaseT >= SWAP_MS) {
+        clearOffsets();
+        resolveAfterSwap();
+      } else if (phase === 'revert' && phaseT >= SWAP_MS) {
+        clearOffsets();
+        phase = 'idle';
+        idleT = 0;
+      } else if (phase === 'clear' && phaseT >= CLEAR_MS) {
+        clearing = [];
+        applyGravity();
+      } else if (phase === 'fall' && phaseT >= FALL_MS) {
+        clearOffsets();
+        settle();
+      }
+    }
+
+    function clearOffsets() {
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+        const t = board[r][c];
+        if (t) { t.ox = 0; t.oy = 0; t.born = 0; }
+      }
+    }
+
+    // ----------------------------------------------------------- drawing ---
+
+    function easeOut(p) { return 1 - Math.pow(1 - Math.min(1, Math.max(0, p)), 3); }
+
+    function drawCandyShape(shape, x, y, size, color) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      const h = size / 2;
+      if (shape === 'circle') {
+        ctx.arc(x, y, h, 0, Math.PI * 2);
+      } else if (shape === 'square') {
+        ctx.roundRect(x - h, y - h, size, size, size * 0.22);
+      } else if (shape === 'diamond') {
+        ctx.moveTo(x, y - h); ctx.lineTo(x + h, y); ctx.lineTo(x, y + h); ctx.lineTo(x - h, y);
+        ctx.closePath();
+      } else if (shape === 'triangle') {
+        ctx.moveTo(x, y - h); ctx.lineTo(x + h, y + h * 0.8); ctx.lineTo(x - h, y + h * 0.8);
+        ctx.closePath();
+      } else if (shape === 'hexagon') {
+        for (let i = 0; i < 6; i++) {
+          const a = Math.PI / 6 + i * Math.PI / 3;
+          const px = x + Math.cos(a) * h, py = y + Math.sin(a) * h;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+      } else if (shape === 'star') {
+        for (let i = 0; i < 10; i++) {
+          const a = -Math.PI / 2 + i * Math.PI / 5;
+          const rad = i % 2 ? h * 0.46 : h;
+          const px = x + Math.cos(a) * rad, py = y + Math.sin(a) * rad;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+      } else if (shape === 'heart') {
+        ctx.moveTo(x, y + h * 0.75);
+        ctx.bezierCurveTo(x - h * 1.4, y - h * 0.25, x - h * 0.45, y - h * 1.1, x, y - h * 0.35);
+        ctx.bezierCurveTo(x + h * 0.45, y - h * 1.1, x + h * 1.4, y - h * 0.25, x, y + h * 0.75);
+        ctx.closePath();
+      }
+      ctx.fill();
+    }
+
+    function drawTile(t, r, c, alpha, scale) {
+      const kind = CANDIES[t.color];
+      const px = tileX(c) + cell / 2 + t.ox * cell;
+      const py = tileY(r) + cell / 2 + t.oy * cell;
+      const size = cell * 0.72 * (scale === undefined ? 1 : scale);
+
+      ctx.save();
+      ctx.globalAlpha = alpha === undefined ? 1 : alpha;
+      ctx.shadowBlur = t.type === 'normal' ? 8 : 16;
+      ctx.shadowColor = t.type === 'bomb' ? '#ffffff' : kind.color;
+
+      if (t.type === 'bomb') {
+        // A rainbow candy belongs to no colour, so it gets its own look.
+        const g = ctx.createLinearGradient(px - size / 2, py - size / 2, px + size / 2, py + size / 2);
+        g.addColorStop(0, '#ff2a2a'); g.addColorStop(0.35, '#ffd700');
+        g.addColorStop(0.7, '#00ff88'); g.addColorStop(1, '#00f2ff');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(px, py, size / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.beginPath();
+        ctx.arc(px - size * 0.14, py - size * 0.14, size * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        drawCandyShape(kind.shape, px, py, size, kind.color);
+        if (t.type === 'wrapped') {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = Math.max(2, cell * 0.05);
+          ctx.strokeRect(px - size * 0.62, py - size * 0.62, size * 1.24, size * 1.24);
+        } else if (t.type === 'stripeH' || t.type === 'stripeV') {
+          ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+          ctx.lineWidth = Math.max(1.5, cell * 0.045);
+          ctx.beginPath();
+          for (let i = -1; i <= 1; i++) {
+            if (t.type === 'stripeH') {
+              ctx.moveTo(px - size * 0.42, py + i * size * 0.20);
+              ctx.lineTo(px + size * 0.42, py + i * size * 0.20);
+            } else {
+              ctx.moveTo(px + i * size * 0.20, py - size * 0.42);
+              ctx.lineTo(px + i * size * 0.20, py + size * 0.42);
+            }
+          }
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
+    function drawBoard() {
+      // Board bed
+      ctx.save();
+      ctx.fillStyle = 'rgba(12, 8, 28, 0.75)';
+      ctx.beginPath();
+      ctx.roundRect(boardX - 4, boardY - 4, cell * COLS + 8, cell * ROWS + 8, 12);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 0, 170, 0.25)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          ctx.fillStyle = (r + c) % 2 === 0 ? 'rgba(255,255,255,0.035)' : 'rgba(255,255,255,0.015)';
+          ctx.fillRect(tileX(c), tileY(r), cell, cell);
+        }
+      }
+
+      // Selection and hint sit under the candies so they never hide one.
+      if (selected) {
+        ctx.save();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(tileX(selected.c) + 2, tileY(selected.r) + 2, cell - 4, cell - 4);
+        ctx.restore();
+      }
+      if (hint && phase === 'idle') {
+        const pulse = 0.35 + 0.35 * Math.sin(performance.now() / 220);
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 3;
+        hint.forEach(h => ctx.strokeRect(tileX(h.c) + 3, tileY(h.r) + 3, cell - 6, cell - 6));
+        ctx.restore();
+      }
+
+      const p = easeOut(phaseT / (phase === 'fall' ? FALL_MS : SWAP_MS));
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const t = board[r][c];
+          if (!t) continue;
+          const saveOx = t.ox, saveOy = t.oy;
+          if (phase === 'swap' || phase === 'revert' || phase === 'fall') {
+            t.ox = saveOx * (1 - p);
+            t.oy = saveOy * (1 - p);
+          }
+          // A freshly made special pops into place.
+          const born = t.born ? 1 + 0.4 * (1 - easeOut(phaseT / CLEAR_MS)) : 1;
+          drawTile(t, r, c, 1, born);
+          t.ox = saveOx;
+          t.oy = saveOy;
+        }
+      }
+
+      if (phase === 'clear') {
+        const cp = phaseT / CLEAR_MS;
+        clearing.forEach(x => drawTile(x.tile, x.r, x.c, 1 - cp, 1 - cp * 0.7));
+      }
+    }
+
+    function drawGoal() {
+      const y = boardY - 20;
+      const w = cell * COLS;
+      const ratio = target ? Math.min(1, levelScore / target) : 0;
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx.beginPath();
+      ctx.roundRect(boardX, y, w, 10, 5);
+      ctx.fill();
+      const g = ctx.createLinearGradient(boardX, 0, boardX + w, 0);
+      g.addColorStop(0, '#ff00aa');
+      g.addColorStop(1, '#ffd700');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.roundRect(boardX, y, Math.max(4, w * ratio), 10, 5);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.65)';
+      ctx.font = `bold ${Math.max(10, Math.round(cell * 0.24))}px 'Segoe UI', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`${levelScore} / ${target}`, boardX + w / 2, y - 3);
+      ctx.restore();
+    }
+
+    function drawPaused() {
+      ctx.save();
+      ctx.fillStyle = 'rgba(5, 5, 16, 0.6)';
+      ctx.fillRect(0, 0, viewW, viewH);
+      ctx.fillStyle = '#00f2ff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `bold ${Math.round(Math.min(viewW * 0.1, 44))}px 'Segoe UI', sans-serif`;
+      ctx.fillText('PAUSED', viewW / 2, viewH / 2);
+      ctx.restore();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, viewW, viewH);
+      drawGoal();
+      drawBoard();
+      if (gamePaused) drawPaused();
+    }
+
+    function drawHUD() {
+      levelEl.textContent = level;
+      movesEl.textContent = Math.max(0, moves);
+      scoreEl.textContent = score;
+    }
+
+    // ------------------------------------------------------------- input ---
+
+    function cellFromPoint(x, y) {
+      const c = Math.floor((x - boardX) / cell);
+      const r = Math.floor((y - boardY) / cell);
+      return inBounds(r, c) ? { r, c } : null;
+    }
+
+    canvas.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      initAudio();
+      if (!gameRunning || gamePaused || phase !== 'idle') return;
+      const rect = canvas.getBoundingClientRect();
+      const at = cellFromPoint(e.clientX - rect.left, e.clientY - rect.top);
+      if (!at) { selected = null; return; }
+      dragFrom = at;
+      dragStart = { x: e.clientX, y: e.clientY };
+
+      // Second tap on a neighbour swaps; otherwise this becomes the selection.
+      if (selected && (Math.abs(selected.r - at.r) + Math.abs(selected.c - at.c)) === 1) {
+        tryMove(selected.r, selected.c, at.r, at.c);
+        dragFrom = null;
+      } else {
+        selected = (selected && selected.r === at.r && selected.c === at.c) ? null : at;
+      }
+      idleT = 0;
+      hint = null;
+    });
+
+    canvas.addEventListener('pointermove', e => {
+      if (!dragFrom || !dragStart) return;
+      const dx = e.clientX - dragStart.x;
+      const dy = e.clientY - dragStart.y;
+      const threshold = Math.max(12, cell * 0.35);
+      if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return;
+      const horizontal = Math.abs(dx) > Math.abs(dy);
+      const r2 = dragFrom.r + (horizontal ? 0 : Math.sign(dy));
+      const c2 = dragFrom.c + (horizontal ? Math.sign(dx) : 0);
+      tryMove(dragFrom.r, dragFrom.c, r2, c2);
+      dragFrom = null;
+      dragStart = null;
+    });
+
+    function endDrag() { dragFrom = null; dragStart = null; }
+    canvas.addEventListener('pointerup', endDrag);
+    canvas.addEventListener('pointercancel', endDrag);
+
+    document.addEventListener('keydown', e => {
+      initAudio();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (gameRunning) togglePause();
+      } else if (e.key === 'h' || e.key === 'H') {
+        if (phase === 'idle') hint = findHint();
+      }
+    });
+
+    // -------------------------------------------------------- run control --
+
+    function setDifficulty(diff) {
+      currentDifficulty = diff;
+      document.querySelectorAll('#difficultyBar button').forEach(btn =>
+        btn.classList.toggle('active', btn.dataset.diff === diff));
+      diffNote.textContent = DIFFICULTIES[diff].note;
+      bestEl.textContent = getBestScore();
+    }
+
+    function getBestScore() { return Arcade.bestScore(`sugarBest_${currentDifficulty}`); }
+
+    function saveBestScore() {
+      if (score <= getBestScore()) return false;
+      Arcade.setBestScore(`sugarBest_${currentDifficulty}`, score);
+      return true;
+    }
+
+    function showStartOverlay() {
+      gameRunning = false;
+      gamePaused = false;
+      cancelAnimationFrame(animationId);
+      gameOverOverlay.classList.add('hidden');
+      levelOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+      pauseBtn.textContent = 'Pause';
+    }
+
+    function startGame() {
+      initAudio();
+      const cfg = DIFFICULTIES[currentDifficulty];
+      colorCount = cfg.colors;
+      score = 0;
+      levelScore = 0;
+      levelBonus = 0;
+      level = 1;
+      moves = cfg.moves;
+      target = targetFor(1);
+      candiesCleared = 0;
+      chain = 0;
+      selected = null;
+      hint = null;
+      idleT = 0;
+      sugarCrushing = false;
+      clearing = [];
+      phase = 'idle';
+      phaseT = 0;
+
+      fillBoard();
+
+      startOverlay.classList.add('hidden');
+      levelOverlay.classList.add('hidden');
+      gameOverOverlay.classList.add('hidden');
+      document.getElementById('startBtn').textContent = 'Restart';
+
+      gameRunning = true;
+      gamePaused = false;
+      pauseBtn.textContent = 'Pause';
+      lastTime = 0;
+
+      layout();
+      bestEl.textContent = getBestScore();
+      drawHUD();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function togglePause() {
+      if (!gameRunning) return;
+      gamePaused = !gamePaused;
+      pauseBtn.textContent = gamePaused ? 'Resume' : 'Pause';
+      if (!gamePaused) lastTime = 0;
+    }
+
+    function toggleFullscreen() { Arcade.toggleFullscreen(); }
+
+    Arcade.wireFullscreen(fullscreenBtn, layout);
+    Arcade.wireAutoPause(() => gameRunning && !gamePaused, togglePause);
+
+    function gameOver() {
+      gameRunning = false;
+      cancelAnimationFrame(animationId);
+      playGameOverSound();
+      const isNewBest = saveBestScore();
+      document.getElementById('finalScore').textContent = score;
+      document.getElementById('finalLevel').textContent = level;
+      document.getElementById('finalCleared').textContent = candiesCleared;
+      document.getElementById('finalBest').textContent = getBestScore();
+      bestEl.textContent = getBestScore();
+      document.getElementById('newBestTag').style.display = isNewBest ? 'block' : 'none';
+      if (isNewBest) setTimeout(() => Arcade.playBestJingle(), 300);
+      gameOverOverlay.classList.remove('hidden');
+    }
+
+    function gameLoop(timestamp) {
+      if (!gameRunning) return;
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+      lastTime = timestamp;
+
+      // The level overlay holds the board still between levels.
+      if (!gamePaused && levelOverlay.classList.contains('hidden')) update(dt);
+      if (!gameRunning) return;
+
+      draw();
+      drawHUD();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    if (!('ontouchstart' in window)) {
+      hintLine.textContent = 'Drag a candy onto its neighbour • H for a hint • Esc to pause';
+    }
+
+    try {
+      setDifficulty('easy');
+      fillBoard();
+      layout();
+    } catch (err) {
+      console.error('Neon Sugar Rush init failed:', err);
+    }
+  </script>
+</body>
+</html>
