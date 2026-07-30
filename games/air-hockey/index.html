@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🏒 Neon Air Hockey | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    :root { --play-max: 520px; }
+
+    #gameCanvas {
+      background: radial-gradient(ellipse at center, #101a30 0%, #050510 75%);
+    }
+
+    /* Player two sits at the far end of the tablet, so their half of the
+       chrome is turned to face them. */
+    .flip { transform: rotate(180deg); }
+
+    .mode-bar {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin: 4px 0 2px;
+    }
+
+    .mode-bar button {
+      padding: 10px 20px;
+      font-size: 0.85rem;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .mode-bar button.active {
+      background: rgba(255, 0, 170, 0.18);
+      border-color: var(--accent2);
+      box-shadow: 0 0 10px rgba(255, 0, 170, 0.3);
+    }
+
+    .diff-wrap.dimmed { opacity: 0.35; pointer-events: none; }
+
+    .overlay .stats { max-width: 300px; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span id="p1Label">You</span>
+        <strong id="p1Score">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span id="p2Label">CPU</span>
+        <strong id="p2Score">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Streak</span>
+        <strong id="streakEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button id="startBtn" onclick="showStartOverlay()">Restart</button>
+      <button id="pauseBtn" onclick="togglePause()">Pause</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="hint-line" id="hintLine">Drag your mallet • First to 5 wins</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">GOAL!</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🏒 Neon Air Hockey</h1>
+    <p id="modeBlurb">Slide your mallet to smack the puck into the far goal. First to 5 wins.</p>
+
+    <div class="mode-bar" id="modeBar">
+      <button data-mode="solo" onclick="setMode('solo')">👤 1 Player</button>
+      <button data-mode="duo" onclick="setMode('duo')">👥 2 Players</button>
+    </div>
+
+    <div class="diff-wrap" id="diffWrap">
+      <div class="difficulty-bar" id="difficultyBar">
+        <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+        <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+        <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+      </div>
+      <div class="diff-note" id="diffNote"></div>
+    </div>
+
+    <button class="primary" onclick="startGame()">▶ Start Game</button>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <h1 id="winTitle">🏆 You Win!</h1>
+    <p class="new-best" id="newBestTag">🏆 Longest Win Streak!</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalScore">0 – 0</div>
+        <div class="lbl">Final Score</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalStreak">0</div>
+        <div class="lbl">Win Streak</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalSaves">0</div>
+        <div class="lbl">Longest Rally</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBest">0</div>
+        <div class="lbl">Best Streak</div>
+      </div>
+    </div>
+    <button class="primary" onclick="startGame()">Play Again</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Mode</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const p1ScoreEl = document.getElementById('p1Score');
+    const p2ScoreEl = document.getElementById('p2Score');
+    const p1LabelEl = document.getElementById('p1Label');
+    const p2LabelEl = document.getElementById('p2Label');
+    const streakEl = document.getElementById('streakEl');
+    const bestEl = document.getElementById('bestEl');
+    const startOverlay = document.getElementById('startOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const diffNote = document.getElementById('diffNote');
+    const diffWrap = document.getElementById('diffWrap');
+    const modeBlurb = document.getElementById('modeBlurb');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.querySelector('.bottom-bar');
+
+    /*
+     * The table is a fixed-aspect playfield measured in table units, not
+     * pixels: 1 unit wide by 1.7 tall. One scale factor maps it to the screen,
+     * so a puck stays round and a resize never changes the physics.
+     */
+    const TABLE_W = 1;
+    const TABLE_H = 1.7;
+    const PUCK_R = 0.042;
+    const PAD_R = 0.075;
+    const GOAL_HALF = 0.195;
+
+    const PUCK_MAX = 2.4;          // table units per second
+    const SERVE_SPEED = 0.85;
+    const WALL_BOUNCE = 0.96;
+    const PADDLE_TRANSFER = 0.4;   // how much of a swipe's speed the puck takes
+    const KEY_SPEED = 1.5;
+    const WIN_SCORE = 5;   // short enough that a young player gets several games
+    const SERVE_DELAY = 900;       // ms of stillness after a goal
+    const STALL_LIMIT = 3200;      // ms before a parked puck gets nudged
+
+    const AI = {
+      easy:   { speed: 0.62, react: 220, error: 0.075, aggression: 0.55, note: 'A gentle keeper. Good for a first game.' },
+      medium: { speed: 0.95, react: 110, error: 0.035, aggression: 0.75, note: 'Guards its goal and takes its chances.' },
+      hard:   { speed: 1.35, react: 45,  error: 0.012, aggression: 0.95, note: 'Fast, accurate, and it shoots to score.' }
+    };
+
+    let mode = 'solo';             // solo | duo
+    let currentDifficulty = 'easy';
+    let gameRunning = false;
+    let gamePaused = false;
+    let animationId = null;
+    let lastTime = 0;
+
+    let scale = 300, tableX = 0, tableY = 0, viewW = 0, viewH = 0;
+
+    const puck = { x: TABLE_W / 2, y: TABLE_H / 2, vx: 0, vy: 0 };
+    // Paddle 0 defends the bottom goal, paddle 1 the top.
+    const pads = [
+      { x: TABLE_W / 2, y: TABLE_H - 0.22, px: TABLE_W / 2, py: TABLE_H - 0.22, vx: 0, vy: 0, color: '#00f2ff' },
+      { x: TABLE_W / 2, y: 0.22, px: TABLE_W / 2, py: 0.22, vx: 0, vy: 0, color: '#ff00aa' }
+    ];
+
+    let score = [0, 0];
+    let streak = 0;
+    let serveT = 0;                // counts down while the puck is held still
+    let stallT = 0;
+    let rally = 0;                 // paddle touches since the last goal
+    let bestRally = 0;
+    let aiTimer = 0;
+    let aiTargetX = TABLE_W / 2;
+    let aiTargetY = 0.22;
+    let aiScramble = false;
+    let goalFlash = 0;
+    let serveDir = 1;
+
+    const pointerPad = new Map();  // pointerId -> paddle index
+    const keys = {};
+
+    // Audio, toast, best scores and fullscreen live in shared/arcade.js.
+    const initAudio = Arcade.initAudio;
+    function playTone(freq, type, duration, delay = 0, vol = 0.12) {
+      Arcade.playTone(freq, type, duration, delay, vol);
+    }
+    function playHitSound(power) { playTone(180 + power * 260, 'square', 0.05, 0, 0.07); }
+    function playWallSound()     { playTone(120, 'triangle', 0.04, 0, 0.05); }
+    function playGoalSound()     { playTone(660, 'sine', 0.12); playTone(880, 'sine', 0.15, 0.09); }
+    function playWinSound()      { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => playTone(f, 'sine', 0.25, i * 0.11)); }
+    function playLoseSound() {
+      playTone(392, 'sawtooth', 0.2);
+      playTone(294, 'sawtooth', 0.25, 0.15);
+      playTone(196, 'sawtooth', 0.35, 0.3);
+    }
+
+    function showToast(text, color, ms) {
+      Arcade.showToast(toast, text, color || '#ffd700', ms || 1000);
+    }
+
+    // ------------------------------------------------------------ layout ---
+
+    function layout() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      viewW = rect.width;
+      viewH = rect.height;
+      const topLimit = controlsBar.getBoundingClientRect().bottom - rect.top + 6;
+      const bottomLimit = bottomBar.getBoundingClientRect().top - rect.top - 6;
+      const availH = Math.max(160, bottomLimit - topLimit);
+      const availW = rect.width - 10;
+      scale = Math.min(availW / TABLE_W, availH / TABLE_H);
+      tableX = (rect.width - TABLE_W * scale) / 2;
+      tableY = topLimit + Math.max(0, (availH - TABLE_H * scale) / 2);
+    }
+    window.addEventListener('resize', layout);
+
+    const px = x => tableX + x * scale;
+    const py = y => tableY + y * scale;
+    const toTableX = clientX => (clientX - tableX) / scale;
+    const toTableY = clientY => (clientY - tableY) / scale;
+
+    // ----------------------------------------------------------- physics ---
+
+    function clampPad(pad, index) {
+      const top = index === 0 ? TABLE_H / 2 + PAD_R : PAD_R;
+      const bottom = index === 0 ? TABLE_H - PAD_R : TABLE_H / 2 - PAD_R;
+      pad.x = Math.max(PAD_R, Math.min(TABLE_W - PAD_R, pad.x));
+      pad.y = Math.max(top, Math.min(bottom, pad.y));
+    }
+
+    function speedOf(o) { return Math.hypot(o.vx, o.vy); }
+
+    function clampPuckSpeed() {
+      const s = speedOf(puck);
+      if (s > PUCK_MAX) {
+        puck.vx = puck.vx / s * PUCK_MAX;
+        puck.vy = puck.vy / s * PUCK_MAX;
+      }
+    }
+
+    function inGoalMouth(x) { return Math.abs(x - TABLE_W / 2) < GOAL_HALF; }
+
+    /**
+     * Forces the puck back inside the rink. Collision resolution places the
+     * puck at arm's length from a mallet with no regard for the walls, and it
+     * runs after the wall bounce each frame — so without this a mallet pressed
+     * into a corner parks the puck outside the wall, where it can neither be
+     * hit nor counted as a goal, and the match stops dead.
+     */
+    function clampPuckInside() {
+      puck.x = Math.max(PUCK_R, Math.min(TABLE_W - PUCK_R, puck.x));
+      // Past the goal line is legal, but only across the mouth.
+      if (!inGoalMouth(puck.x)) {
+        puck.y = Math.max(PUCK_R, Math.min(TABLE_H - PUCK_R, puck.y));
+      }
+    }
+
+    function updatePuck(dt) {
+      puck.x += puck.vx * dt;
+      puck.y += puck.vy * dt;
+
+      // Side walls always bounce.
+      if (puck.x - PUCK_R < 0) {
+        puck.x = PUCK_R;
+        puck.vx = Math.abs(puck.vx) * WALL_BOUNCE;
+        playWallSound();
+      } else if (puck.x + PUCK_R > TABLE_W) {
+        puck.x = TABLE_W - PUCK_R;
+        puck.vx = -Math.abs(puck.vx) * WALL_BOUNCE;
+        playWallSound();
+      }
+
+      // The ends bounce except across the goal mouth, which is open.
+      if (puck.y - PUCK_R < 0 && !inGoalMouth(puck.x)) {
+        puck.y = PUCK_R;
+        puck.vy = Math.abs(puck.vy) * WALL_BOUNCE;
+        playWallSound();
+      } else if (puck.y + PUCK_R > TABLE_H && !inGoalMouth(puck.x)) {
+        puck.y = TABLE_H - PUCK_R;
+        puck.vy = -Math.abs(puck.vy) * WALL_BOUNCE;
+        playWallSound();
+      }
+
+      // Drag: an air-hockey puck barely slows, but it must not glide forever.
+      const damp = Math.max(0, 1 - 0.22 * dt);
+      puck.vx *= damp;
+      puck.vy *= damp;
+
+      if (puck.y + PUCK_R < 0) { concede(1); return; }
+      if (puck.y - PUCK_R > TABLE_H) { concede(0); return; }
+
+      // A puck parked out of reach would stall the match, so nudge it home.
+      if (speedOf(puck) < 0.06) {
+        stallT += dt * 1000;
+        if (stallT > STALL_LIMIT) {
+          stallT = 0;
+          const dir = puck.y < TABLE_H / 2 ? 1 : -1;
+          puck.vx = (Math.random() - 0.5) * 0.3;
+          puck.vy = dir * 0.35;
+          showToast('PUCK LOOSE', '#00f2ff', 700);
+        }
+      } else {
+        stallT = 0;
+      }
+    }
+
+    function collidePad(pad) {
+      const dx = puck.x - pad.x;
+      const dy = puck.y - pad.y;
+      const minD = PUCK_R + PAD_R;
+      let dist = Math.hypot(dx, dy);
+      if (dist >= minD) { pad.touching = false; return false; }
+
+      // Dead centre: push straight out along the table instead of dividing by 0.
+      let nx, ny;
+      if (dist < 1e-6) { nx = 0; ny = pad.y < TABLE_H / 2 ? 1 : -1; dist = 1e-6; }
+      else { nx = dx / dist; ny = dy / dist; }
+
+      puck.x = pad.x + nx * minD;
+      puck.y = pad.y + ny * minD;
+      clampPuckInside();
+
+      // Clamping can shove the puck back under the mallet. When that happens it
+      // is trapped against a wall, so slide it out along the wall rather than
+      // through it.
+      if (Math.hypot(puck.x - pad.x, puck.y - pad.y) < minD - 1e-6) {
+        const againstEnd = puck.y <= PUCK_R + 1e-3 || puck.y >= TABLE_H - PUCK_R - 1e-3;
+        if (againstEnd) {
+          const away = pad.x > TABLE_W / 2 ? -1 : 1;
+          puck.x = pad.x + away * minD;
+          puck.vx += away * 0.35;
+        } else {
+          const away = pad.y > TABLE_H / 2 ? -1 : 1;
+          puck.y = pad.y + away * minD;
+          puck.vy += away * 0.35;
+        }
+        clampPuckInside();
+      }
+
+      const rvx = puck.vx - pad.vx;
+      const rvy = puck.vy - pad.vy;
+      const vn = rvx * nx + rvy * ny;
+
+      /*
+       * Only the frame contact begins is a hit. A mallet resting against the
+       * puck stays in contact for many frames, and treating each of those as a
+       * fresh strike both inflated the rally count into the thousands and kept
+       * pumping energy in, which could pin the puck against a wall.
+       */
+      if (!pad.touching) {
+        pad.touching = true;
+        if (vn < 0) {
+          const j = -1.9 * vn;
+          puck.vx += j * nx;
+          puck.vy += j * ny;
+        }
+        puck.vx += pad.vx * PADDLE_TRANSFER;
+        puck.vy += pad.vy * PADDLE_TRANSFER;
+        clampPuckSpeed();
+        rally++;
+        bestRally = Math.max(bestRally, rally);
+        playHitSound(Math.min(1, speedOf(puck) / PUCK_MAX));
+      } else if (vn < 0) {
+        // Still leaning on it: carry the puck along the mallet rather than
+        // letting it sink in, but add no energy.
+        puck.vx -= vn * nx;
+        puck.vy -= vn * ny;
+        clampPuckSpeed();
+      }
+      return true;
+    }
+
+    // ---------------------------------------------------------------- ai ---
+
+    function updateAI(dt) {
+      const cfg = AI[currentDifficulty];
+      const pad = pads[1];
+      aiTimer += dt * 1000;
+
+      if (aiTimer >= cfg.react) {
+        aiTimer = 0;
+        const home = 0.22;
+        const puckComing = puck.vy < 0 || puck.y < TABLE_H / 2;
+        // Caught between the puck and its own goal, driving at the puck shoves
+        // it over the line. Slow, wide-aiming keepers land here often, so go
+        // around the puck and strike it from above instead.
+        const wrongSide = puck.y < TABLE_H / 2 && pad.y > puck.y - (PUCK_R + PAD_R) * 0.4;
+        aiScramble = wrongSide;
+        if (wrongSide) {
+          const away = puck.x < TABLE_W / 2 ? 1 : -1;
+          aiTargetX = Math.max(PAD_R, Math.min(TABLE_W - PAD_R, puck.x + away * 0.24));
+          aiTargetY = Math.max(PAD_R, puck.y - (PUCK_R + PAD_R) * 1.1);
+        } else if (puckComing) {
+          // Line up behind the puck so the hit sends it back down the table.
+          const lead = puck.y < TABLE_H / 2 ? puck.vx * 0.12 : 0;
+          aiTargetX = puck.x + lead + (Math.random() - 0.5) * cfg.error * 2;
+          const attack = puck.y - (PUCK_R + PAD_R) * cfg.aggression;
+          aiTargetY = Math.min(TABLE_H / 2 - PAD_R, Math.max(PAD_R, attack));
+        } else {
+          // Drift back to the middle of its own end and wait.
+          aiTargetX = TABLE_W / 2 + (puck.x - TABLE_W / 2) * 0.35;
+          aiTargetY = home;
+        }
+      }
+
+      const dx = aiTargetX - pad.x;
+      const dy = aiTargetY - pad.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 1e-4) {
+        // Getting back onto the right side of the puck is a scramble, not a
+        // stroll: at its normal pace a slow keeper never finishes the move and
+        // the puck just sits in its half.
+        const step = Math.min(d, cfg.speed * (aiScramble ? 1.7 : 1) * dt);
+        pad.x += (dx / d) * step;
+        pad.y += (dy / d) * step;
+      }
+      clampPad(pad, 1);
+    }
+
+    // -------------------------------------------------------------- goals --
+
+    /** `side` is the paddle index that let the puck in. */
+    function concede(side) {
+      const scorer = side === 0 ? 1 : 0;
+      score[scorer]++;
+      goalFlash = 1;
+      playGoalSound();
+      rally = 0;
+
+      const name = scorer === 0 ? (mode === 'solo' ? 'YOU' : 'PLAYER 1') : (mode === 'solo' ? 'CPU' : 'PLAYER 2');
+      showToast(`${name} SCORES!`, scorer === 0 ? '#00f2ff' : '#ff00aa', 1200);
+
+      if (score[scorer] >= WIN_SCORE) { endMatch(scorer); return; }
+      resetPuck(scorer);
+    }
+
+    /** Serves toward whoever just conceded, so play restarts at their end. */
+    function resetPuck(scorer) {
+      puck.x = TABLE_W / 2;
+      puck.y = TABLE_H / 2;
+      puck.vx = 0;
+      puck.vy = 0;
+      serveT = SERVE_DELAY;
+      // Possession goes to whoever just conceded: player 0 defends the bottom,
+      // so a goal for them serves the puck back up the table, and vice versa.
+      serveDir = scorer === 0 ? -1 : 1;
+      stallT = 0;
+    }
+
+    function serve() {
+      puck.vx = (Math.random() - 0.5) * 0.5;
+      puck.vy = serveDir * SERVE_SPEED;
+    }
+
+    function endMatch(winner) {
+      gameRunning = false;
+      cancelAnimationFrame(animationId);
+
+      let isBest = false;
+      if (mode === 'solo') {
+        if (winner === 0) {
+          streak++;
+          setStreak(streak);
+          if (streak > getBestStreak()) { setBestStreak(streak); isBest = true; }
+        } else {
+          streak = 0;
+          setStreak(0);
+        }
+      }
+
+      const youWon = winner === 0;
+      document.getElementById('winTitle').textContent = mode === 'solo'
+        ? (youWon ? '🏆 You Win!' : '🤖 CPU Wins')
+        : (youWon ? '🏆 Player 1 Wins!' : '🏆 Player 2 Wins!');
+      document.getElementById('finalScore').textContent = `${score[0]} – ${score[1]}`;
+      document.getElementById('finalStreak').textContent = mode === 'solo' ? streak : '–';
+      document.getElementById('finalSaves').textContent = bestRally;
+      document.getElementById('finalBest').textContent = getBestStreak();
+      document.getElementById('newBestTag').style.display = isBest ? 'block' : 'none';
+      streakEl.textContent = mode === 'solo' ? streak : '–';
+      bestEl.textContent = getBestStreak();
+
+      if (youWon) { playWinSound(); if (isBest) setTimeout(() => Arcade.playBestJingle(), 400); }
+      else playLoseSound();
+
+      gameOverOverlay.classList.remove('hidden');
+    }
+
+    // ------------------------------------------------------------- input ---
+
+    function padForPoint(ty) {
+      if (mode === 'solo') return ty > TABLE_H / 2 ? 0 : -1;
+      return ty > TABLE_H / 2 ? 0 : 1;
+    }
+
+    canvas.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      initAudio();
+      if (!gameRunning || gamePaused) return;
+      const rect = canvas.getBoundingClientRect();
+      const ty = toTableY(e.clientY - rect.top);
+      const idx = padForPoint(ty);
+      if (idx < 0) return;
+      pointerPad.set(e.pointerId, idx);
+      const tx = toTableX(e.clientX - rect.left);
+      pads[idx].x = tx;
+      pads[idx].y = ty;
+      clampPad(pads[idx], idx);
+    });
+
+    canvas.addEventListener('pointermove', e => {
+      if (!pointerPad.has(e.pointerId)) return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const idx = pointerPad.get(e.pointerId);
+      pads[idx].x = toTableX(e.clientX - rect.left);
+      pads[idx].y = toTableY(e.clientY - rect.top);
+      clampPad(pads[idx], idx);
+    });
+
+    function releasePointer(e) { pointerPad.delete(e.pointerId); }
+    canvas.addEventListener('pointerup', releasePointer);
+    canvas.addEventListener('pointercancel', releasePointer);
+
+    document.addEventListener('keydown', e => {
+      initAudio();
+      keys[e.key.toLowerCase()] = true;
+      if (e.key === 'Escape') { e.preventDefault(); if (gameRunning) togglePause(); }
+      if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(e.key.toLowerCase())) e.preventDefault();
+    });
+    document.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+    /** Keyboard steering, so two people can play on a laptop as well. */
+    function applyKeys(dt) {
+      const move = (idx, up, down, left, right) => {
+        let dx = 0, dy = 0;
+        if (keys[left]) dx -= 1;
+        if (keys[right]) dx += 1;
+        if (keys[up]) dy -= 1;
+        if (keys[down]) dy += 1;
+        if (!dx && !dy) return;
+        const len = Math.hypot(dx, dy) || 1;
+        pads[idx].x += (dx / len) * KEY_SPEED * dt;
+        pads[idx].y += (dy / len) * KEY_SPEED * dt;
+        clampPad(pads[idx], idx);
+      };
+      move(0, 'w', 's', 'a', 'd');
+      if (mode === 'duo') move(1, 'arrowup', 'arrowdown', 'arrowleft', 'arrowright');
+    }
+
+    // ------------------------------------------------------------ drawing --
+
+    function drawTable() {
+      const w = TABLE_W * scale, h = TABLE_H * scale;
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(10, 16, 34, 0.85)';
+      ctx.beginPath();
+      ctx.roundRect(px(0), py(0), w, h, 14);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(0, 242, 255, 0.45)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+
+      // Centre line and circle.
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(px(0), py(TABLE_H / 2));
+      ctx.lineTo(px(TABLE_W), py(TABLE_H / 2));
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(px(TABLE_W / 2), py(TABLE_H / 2), 0.18 * scale, 0, Math.PI * 2);
+      ctx.stroke();
+      // Each end's crease.
+      [0, TABLE_H].forEach(y => {
+        ctx.beginPath();
+        ctx.arc(px(TABLE_W / 2), py(y), 0.26 * scale, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+      ctx.restore();
+
+      // Goal mouths.
+      [[0, '#ff00aa'], [TABLE_H, '#00f2ff']].forEach(([y, color]) => {
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = color;
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(px(TABLE_W / 2 - GOAL_HALF), py(y));
+        ctx.lineTo(px(TABLE_W / 2 + GOAL_HALF), py(y));
+        ctx.stroke();
+        ctx.restore();
+      });
+
+      if (goalFlash > 0) {
+        ctx.save();
+        ctx.globalAlpha = goalFlash * 0.35;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.roundRect(px(0), py(0), w, h, 14);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    /** Big scores at each end, the far one turned to face player two. */
+    function drawScores() {
+      const size = Math.round(0.16 * scale);
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `bold ${size}px 'Segoe UI', sans-serif`;
+
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = '#00f2ff';
+      ctx.fillText(String(score[0]), px(TABLE_W / 2), py(TABLE_H * 0.72));
+
+      ctx.save();
+      ctx.translate(px(TABLE_W / 2), py(TABLE_H * 0.28));
+      ctx.rotate(Math.PI);
+      ctx.fillStyle = '#ff00aa';
+      ctx.fillText(String(score[1]), 0, 0);
+      ctx.restore();
+      ctx.restore();
+    }
+
+    function drawPuck() {
+      ctx.save();
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = '#ffffff';
+      ctx.fillStyle = '#f5f5f5';
+      ctx.beginPath();
+      ctx.arc(px(puck.x), py(puck.y), PUCK_R * scale, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawPads() {
+      pads.forEach(pad => {
+        ctx.save();
+        ctx.shadowBlur = 16;
+        ctx.shadowColor = pad.color;
+        ctx.fillStyle = pad.color;
+        ctx.beginPath();
+        ctx.arc(px(pad.x), py(pad.y), PAD_R * scale, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(5, 5, 16, 0.75)';
+        ctx.beginPath();
+        ctx.arc(px(pad.x), py(pad.y), PAD_R * scale * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+    }
+
+    function drawServeCount() {
+      if (serveT <= 0) return;
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.font = `bold ${Math.round(0.11 * scale)}px 'Segoe UI', sans-serif`;
+      ctx.fillText(String(Math.ceil(serveT / 300)), px(TABLE_W / 2), py(TABLE_H / 2));
+      ctx.restore();
+    }
+
+    function drawPaused() {
+      ctx.save();
+      ctx.fillStyle = 'rgba(5, 5, 16, 0.6)';
+      ctx.fillRect(0, 0, viewW, viewH);
+      ctx.fillStyle = '#00f2ff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `bold ${Math.round(Math.min(viewW * 0.1, 44))}px 'Segoe UI', sans-serif`;
+      ctx.fillText('PAUSED', viewW / 2, viewH / 2);
+      ctx.restore();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, viewW, viewH);
+      drawTable();
+      drawScores();
+      drawPads();
+      drawPuck();
+      drawServeCount();
+      if (gamePaused) drawPaused();
+    }
+
+    function drawHUD() {
+      p1ScoreEl.textContent = score[0];
+      p2ScoreEl.textContent = score[1];
+    }
+
+    // ------------------------------------------------------------- update --
+
+    function update(dt) {
+      applyKeys(dt);
+      if (mode === 'solo') updateAI(dt);
+
+      // Mallet velocity is measured after every mover has had its say — keys,
+      // AI, and any dragging the pointer did since the last frame — so a swipe
+      // carries into the puck on the same frame it happens.
+      pads.forEach(pad => {
+        pad.vx = (pad.x - pad.px) / dt;
+        pad.vy = (pad.y - pad.py) / dt;
+        pad.px = pad.x;
+        pad.py = pad.y;
+      });
+
+      if (serveT > 0) {
+        serveT -= dt * 1000;
+        if (serveT <= 0) serve();
+        // The puck is held at centre until the serve, and a mallet parked on
+        // the halfway line must not shove it off its spot.
+        return;
+      }
+
+      updatePuck(dt);
+      if (!gameRunning) return;
+      pads.forEach(collidePad);
+      if (goalFlash > 0) goalFlash = Math.max(0, goalFlash - dt * 2.5);
+    }
+
+    // -------------------------------------------------------- run control --
+
+    function setMode(next) {
+      mode = next;
+      document.querySelectorAll('#modeBar button').forEach(b =>
+        b.classList.toggle('active', b.dataset.mode === next));
+      diffWrap.classList.toggle('dimmed', next === 'duo');
+      modeBlurb.textContent = next === 'solo'
+        ? `Slide your mallet to smack the puck into the far goal. First to ${WIN_SCORE} wins.`
+        : `One mallet each end, both at once. Player 2 sits at the far side of the screen. First to ${WIN_SCORE} wins.`;
+      p1LabelEl.textContent = next === 'solo' ? 'You' : 'P1';
+      p2LabelEl.textContent = next === 'solo' ? 'CPU' : 'P2';
+      streakEl.textContent = next === 'solo' ? getStreak() : '–';
+      hintLine.textContent = next === 'solo'
+        ? `Drag your mallet • First to ${WIN_SCORE} wins`
+        : `Two fingers, one each end • First to ${WIN_SCORE} wins`;
+    }
+
+    function setDifficulty(diff) {
+      currentDifficulty = diff;
+      document.querySelectorAll('#difficultyBar button').forEach(btn =>
+        btn.classList.toggle('active', btn.dataset.diff === diff));
+      diffNote.textContent = AI[diff].note;
+      bestEl.textContent = getBestStreak();
+      streakEl.textContent = mode === 'solo' ? getStreak() : '–';
+    }
+
+    function getBestStreak() { return Arcade.bestScore(`hockeyBest_${currentDifficulty}`); }
+    function setBestStreak(v) { Arcade.setBestScore(`hockeyBest_${currentDifficulty}`, v); }
+    function getStreak() { return Arcade.bestScore(`hockeyStreak_${currentDifficulty}`); }
+    function setStreak(v) { Arcade.setBestScore(`hockeyStreak_${currentDifficulty}`, v); }
+
+    function showStartOverlay() {
+      gameRunning = false;
+      gamePaused = false;
+      cancelAnimationFrame(animationId);
+      gameOverOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+      pauseBtn.textContent = 'Pause';
+    }
+
+    function startGame() {
+      initAudio();
+      score = [0, 0];
+      rally = 0;
+      bestRally = 0;
+      goalFlash = 0;
+      aiTimer = 0;
+      stallT = 0;
+      pointerPad.clear();
+      streak = mode === 'solo' ? getStreak() : 0;
+
+      pads[0].x = TABLE_W / 2; pads[0].y = TABLE_H - 0.22;
+      pads[1].x = TABLE_W / 2; pads[1].y = 0.22;
+      pads.forEach(p => { p.px = p.x; p.py = p.y; p.vx = 0; p.vy = 0; p.touching = false; });
+
+      resetPuck(Math.random() < 0.5 ? 0 : 1);
+
+      startOverlay.classList.add('hidden');
+      gameOverOverlay.classList.add('hidden');
+      document.getElementById('startBtn').textContent = 'Restart';
+
+      gameRunning = true;
+      gamePaused = false;
+      pauseBtn.textContent = 'Pause';
+      lastTime = 0;
+
+      layout();
+      streakEl.textContent = mode === 'solo' ? streak : '–';
+      bestEl.textContent = getBestStreak();
+      drawHUD();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function togglePause() {
+      if (!gameRunning) return;
+      gamePaused = !gamePaused;
+      pauseBtn.textContent = gamePaused ? 'Resume' : 'Pause';
+      if (!gamePaused) lastTime = 0;
+    }
+
+    function toggleFullscreen() { Arcade.toggleFullscreen(); }
+
+    Arcade.wireFullscreen(fullscreenBtn, layout);
+    Arcade.wireAutoPause(() => gameRunning && !gamePaused, togglePause);
+
+    function gameLoop(timestamp) {
+      if (!gameRunning) return;
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min((timestamp - lastTime) / 1000, 0.033);
+      lastTime = timestamp;
+
+      if (!gamePaused && dt > 0) update(dt);
+      if (!gameRunning) return;
+
+      draw();
+      drawHUD();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    if (!('ontouchstart' in window)) {
+      hintLine.textContent = 'Drag with the mouse, or W/A/S/D — Player 2 uses the arrow keys';
+    }
+
+    try {
+      setMode('solo');
+      setDifficulty('easy');
+      layout();
+    } catch (err) {
+      console.error('Neon Air Hockey init failed:', err);
+    }
+  </script>
+</body>
+</html>
