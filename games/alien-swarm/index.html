@@ -150,7 +150,7 @@
     const ARENA_W = 1;
     const ARENA_H = 1.6;
 
-    const PLAYER_R = 0.032;
+    const PLAYER_R = 0.036;
     const BULLET_R = 0.009;
     const PLAYER_SPEED = 0.58;
     const AIM_RANGE = 0.75;          // how far auto-aim will look for a target
@@ -191,7 +191,8 @@
       hp: 100, maxHp: 100,
       aim: -Math.PI / 2,
       cool: 0, weapon: 'blaster', ammo: Infinity,
-      shield: 0, iframe: 0, flash: 0
+      shield: 0, iframe: 0, flash: 0,
+      walk: 0, muzzle: 0
     };
 
     let aliens = [];
@@ -327,6 +328,7 @@
     function fire() {
       const w = WEAPONS[player.weapon];
       player.cool = w.cool;
+      player.muzzle = 70;
       for (let i = 0; i < w.pellets; i++) {
         const spread = w.pellets > 1
           ? (i / (w.pellets - 1) - 0.5) * w.spread
@@ -519,6 +521,10 @@
       if (player.shield > 0) player.shield -= dt * 1000;
       if (player.iframe > 0) player.iframe -= dt * 1000;
       if (player.flash > 0) player.flash -= dt;
+      if (player.muzzle > 0) player.muzzle -= dt * 1000;
+      // The walk cycle advances with distance covered, so the legs stop when
+      // the player does rather than running on the spot.
+      player.walk += Math.hypot(mx, my) * PLAYER_SPEED * dt * 26;
     }
 
     function updateAliens(dt) {
@@ -693,33 +699,129 @@
       ctx.restore();
     }
 
+    /*
+     * A top-down marine rather than a bare arrow: backpack, shoulders, helmet
+     * and a rifle held out front. Everything is drawn facing +x and the whole
+     * sprite is rotated to the aim angle, so the character always faces where
+     * the shots go. The rifle takes the colour of the equipped weapon, which
+     * makes the current gun readable without looking up at the HUD.
+     */
     function drawPlayer() {
       const x = px(player.x), y = py(player.y), r = PLAYER_R * scale;
+      const hurt = player.flash > 0;
+      const gunColor = WEAPONS[player.weapon].color;
+      const shell = hurt ? '#ff9a9a' : '#26d7f2';
+      const shellDark = hurt ? '#7a2020' : '#0e5c72';
+      const metal = '#16222e';
+
       ctx.save();
       ctx.translate(x, y);
 
       if (player.shield > 0) {
         ctx.save();
-        ctx.globalAlpha = 0.35 + 0.25 * Math.sin(performance.now() / 90);
+        // Blink out over the last second so it's clear when it's about to go.
+        const dying = player.shield < 1200;
+        ctx.globalAlpha = (dying ? 0.2 + 0.5 * Math.abs(Math.sin(player.shield / 90))
+                                 : 0.35 + 0.25 * Math.sin(performance.now() / 90));
         ctx.strokeStyle = '#00f2ff';
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = '#00f2ff';
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(0, 0, r * 1.7, 0, Math.PI * 2);
+        ctx.arc(0, 0, r * 1.75, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
 
       ctx.rotate(player.aim);
-      ctx.shadowBlur = 14;
-      ctx.shadowColor = player.flash > 0 ? '#ff2a2a' : '#00f2ff';
-      ctx.fillStyle = player.flash > 0 ? '#ff8080' : '#00f2ff';
+
+      // Boots, swinging with the walk cycle. Set wide enough to show either
+      // side of the torso, or the walk is invisible.
+      const swing = Math.sin(player.walk) * r * 0.32;
+      ctx.fillStyle = shellDark;
+      [1, -1].forEach(side => {
+        ctx.beginPath();
+        ctx.roundRect(-r * 0.42 + swing * side, side * r * 0.62 - r * 0.16, r * 0.66, r * 0.32, r * 0.14);
+        ctx.fill();
+      });
+
+      // Backpack.
+      ctx.fillStyle = metal;
       ctx.beginPath();
-      ctx.moveTo(r * 1.35, 0);
-      ctx.lineTo(-r * 0.85, r * 0.85);
-      ctx.lineTo(-r * 0.4, 0);
-      ctx.lineTo(-r * 0.85, -r * 0.85);
+      ctx.roundRect(-r * 1.0, -r * 0.42, r * 0.42, r * 0.84, r * 0.15);
+      ctx.fill();
+      ctx.fillStyle = gunColor;
+      ctx.beginPath();
+      ctx.roundRect(-r * 0.94, -r * 0.24, r * 0.14, r * 0.48, r * 0.06);
+      ctx.fill();
+
+      /*
+       * The rifle is drawn before the torso but in a light gunmetal: against a
+       * near-black floor a dark gun vanished, and the gun is the main cue for
+       * which way the marine is facing.
+       */
+      ctx.fillStyle = '#93a7b5';
+      ctx.beginPath();
+      ctx.roundRect(-r * 0.15, r * 0.16, r * 1.9, r * 0.26, r * 0.1);
+      ctx.fill();
+      ctx.fillStyle = gunColor;
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = gunColor;
+      ctx.beginPath();
+      ctx.roundRect(r * 1.3, r * 0.14, r * 0.48, r * 0.3, r * 0.09);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Torso: smaller than before so the boots and gun stay readable.
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = hurt ? '#ff2a2a' : '#00f2ff';
+      ctx.fillStyle = shell;
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.12, 0, r * 0.62, r * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Shoulder pads, set back so the gun arm reads as reaching forward.
+      ctx.fillStyle = shellDark;
+      [1, -1].forEach(side => {
+        ctx.beginPath();
+        ctx.arc(-r * 0.18, side * r * 0.52, r * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Helmet with a visor facing forward.
+      ctx.fillStyle = hurt ? '#ffc9c9' : '#4fe8ff';
+      ctx.beginPath();
+      ctx.arc(r * 0.2, 0, r * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#08202b';
+      ctx.beginPath();
+      ctx.arc(r * 0.3, 0, r * 0.28, -Math.PI * 0.55, Math.PI * 0.55);
       ctx.closePath();
       ctx.fill();
+      ctx.fillStyle = gunColor;
+      ctx.beginPath();
+      ctx.arc(r * 0.36, 0, r * 0.15, -Math.PI * 0.45, Math.PI * 0.45);
+      ctx.closePath();
+      ctx.fill();
+
+      // Muzzle flash on the frame after a shot.
+      if (player.muzzle > 0) {
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, player.muzzle / 70);
+        ctx.fillStyle = gunColor;
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = gunColor;
+        ctx.beginPath();
+        ctx.moveTo(r * 1.8, r * 0.29);
+        ctx.lineTo(r * 2.4, r * 0.29);
+        ctx.lineTo(r * 1.88, r * 0.04);
+        ctx.lineTo(r * 1.88, r * 0.54);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
       ctx.restore();
     }
 
@@ -969,6 +1071,8 @@
       player.shield = 0;
       player.iframe = 0;
       player.flash = 0;
+      player.walk = 0;
+      player.muzzle = 0;
       equip('blaster');
 
       startOverlay.classList.add('hidden');
