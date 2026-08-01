@@ -852,6 +852,20 @@
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
+
+    <a href="games/tower/index.html" class="game-card" data-game="tower" data-cat="action">
+      <span class="favorite-tag">🔥 Favorite</span>
+      <div class="card-content">
+        <span class="game-icon">🏗️</span>
+        <h2 class="game-title">Neon Tower</h2>
+        <p class="game-desc">Every floor swings in on a crane — tap to drop it. Real weight, real leaning: stack them straight and climb, stack them badly and the whole building comes down.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
   </main>
 
   <button class="to-top" id="toTop" type="button" onclick="scrollToTop()" aria-label="Back to top">↑</button>
@@ -1008,7 +1022,10 @@
         parseInt(localStorage.getItem(`poolBest_${d}`) || '0', 10))),
       // Sling's "best" is the most stars collected over a twelve-level run.
       sling: () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
-        parseInt(localStorage.getItem(`slingBest_${d}`) || '0', 10)))
+        parseInt(localStorage.getItem(`slingBest_${d}`) || '0', 10))),
+      // Tower's "best" is the tallest building completed.
+      tower: () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
+        parseInt(localStorage.getItem(`towerBest_${d}`) || '0', 10)))
     };
 
     // ---- Play counts ----
