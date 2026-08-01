@@ -838,6 +838,20 @@
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
+
+    <a href="games/sling/index.html" class="game-card" data-game="sling" data-cat="puzzle">
+      <span class="favorite-tag">🔥 Favorite</span>
+      <div class="card-content">
+        <span class="game-icon">🎯</span>
+        <h2 class="game-title">Neon Sling</h2>
+        <p class="game-desc">Pull back the sling and bring twelve towers of wood, glass and stone down on the bugs. Splitters, bombs and divers — tap in flight to set them off.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
   </main>
 
   <button class="to-top" id="toTop" type="button" onclick="scrollToTop()" aria-label="Back to top">↑</button>
@@ -991,7 +1005,10 @@
         parseInt(localStorage.getItem(`golfBest_${d}`) || '0', 10))),
       // Pool's "best" is the most balls potted in a single visit.
       pool: () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
-        parseInt(localStorage.getItem(`poolBest_${d}`) || '0', 10)))
+        parseInt(localStorage.getItem(`poolBest_${d}`) || '0', 10))),
+      // Sling's "best" is the most stars collected over a twelve-level run.
+      sling: () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
+        parseInt(localStorage.getItem(`slingBest_${d}`) || '0', 10)))
     };
 
     // ---- Play counts ----
