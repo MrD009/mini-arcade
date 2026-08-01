@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>⛳ Neon Mini Golf | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    :root { --play-max: 480px; }
+
+    #gameCanvas {
+      background: radial-gradient(ellipse at center, #0e1a20 0%, #050510 75%);
+    }
+
+    .mode-bar {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin: 4px 0 2px;
+    }
+
+    .mode-bar button {
+      padding: 10px 20px;
+      font-size: 0.85rem;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .mode-bar button.active {
+      background: rgba(255, 0, 170, 0.18);
+      border-color: var(--accent2);
+      box-shadow: 0 0 10px rgba(255, 0, 170, 0.3);
+    }
+
+    .course-key {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 5px 12px;
+      font-size: 0.72rem;
+      color: #aaa;
+      margin: 10px 0 4px;
+      text-align: left;
+      max-width: 320px;
+      align-items: center;
+    }
+
+    .course-key b { color: var(--text); font-weight: 600; }
+
+    .overlay .stats { max-width: 300px; }
+
+    /* Scorecard shown between holes and at the end. */
+    .card-table {
+      font-size: 0.75rem;
+      color: #ccc;
+      margin: 10px 0;
+      border-collapse: collapse;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    .card-table th, .card-table td {
+      padding: 3px 4px;
+      text-align: center;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+
+    .card-table th { color: #888; font-weight: normal; font-size: 0.68rem; }
+    .card-table .tot { color: var(--gold); font-weight: bold; }
+    .card-table .under { color: #00ff88; }
+    .card-table .over { color: #ff6b6b; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span>Hole</span>
+        <strong id="holeEl">1</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Par</span>
+        <strong id="parEl">2</strong>
+      </div>
+      <div class="hud-panel">
+        <span id="strokeLabel">Strokes</span>
+        <strong id="strokeEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button id="startBtn" onclick="showStartOverlay()">Restart</button>
+      <button id="pauseBtn" onclick="togglePause()">Pause</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="hint-line" id="hintLine">Drag back from the ball, release to putt</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">HOLE IN ONE!</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>⛳ Neon Mini Golf</h1>
+    <p id="modeBlurb">Nine holes. Drag back from the ball to aim and set power, then sink it in as few shots as you can.</p>
+
+    <div class="mode-bar" id="modeBar">
+      <button data-mode="solo" onclick="setMode('solo')">👤 1 Player</button>
+      <button data-mode="duo" onclick="setMode('duo')">👥 2 Players</button>
+    </div>
+
+    <div class="difficulty-bar" id="difficultyBar">
+      <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+      <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+      <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+    </div>
+    <div class="diff-note" id="diffNote"></div>
+
+    <div class="course-key">
+      <span>🟦 Water</span><span><b>+1 shot</b> and back where you were</span>
+      <span>🟨 Sand</span><span>drags the ball to a stop</span>
+      <span>⬜ Walls</span><span>bank your shots off them</span>
+      <span>🕳️ Hole</span><span>roll in gently — too fast and it rims out</span>
+    </div>
+
+    <button class="primary" onclick="startGame()">▶ Start Round</button>
+  </div>
+
+  <div class="overlay hidden" id="holeOverlay">
+    <h1 id="holeTitle">⛳ Hole 1</h1>
+    <p id="holeBlurb">Nice putt!</p>
+    <div id="cardWrap"></div>
+    <button class="primary" id="nextHoleBtn" onclick="nextHole()">▶ Next Hole</button>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <h1 id="winTitle">🏁 Round Complete</h1>
+    <p class="new-best" id="newBestTag">🏆 Best Round!</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalStrokes">0</div>
+        <div class="lbl" id="finalStrokesLbl">Total Strokes</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalPar">0</div>
+        <div class="lbl">Against Par</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalAces">0</div>
+        <div class="lbl">Holes in One</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBest">0</div>
+        <div class="lbl">Best Under Par</div>
+      </div>
+    </div>
+    <div id="finalCard"></div>
+    <button class="primary" onclick="startGame()">Play Again</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Mode</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const holeEl = document.getElementById('holeEl');
+    const parEl = document.getElementById('parEl');
+    const strokeEl = document.getElementById('strokeEl');
+    const strokeLabel = document.getElementById('strokeLabel');
+    const bestEl = document.getElementById('bestEl');
+    const startOverlay = document.getElementById('startOverlay');
+    const holeOverlay = document.getElementById('holeOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const diffNote = document.getElementById('diffNote');
+    const modeBlurb = document.getElementById('modeBlurb');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.querySelector('.bottom-bar');
+
+    /*
+     * The course is measured in course units: 1 wide by 1.7 tall, mapped to the
+     * screen by one scale factor, so a resize can never change how a putt rolls.
+     * Every hole fits on one screen — nothing scrolls.
+     */
+    const COURSE_W = 1;
+    const COURSE_H = 1.7;
+    const BALL_R = 0.022;
+    const HOLE_R = 0.038;
+    const MAX_POWER = 2.6;         // course units per second
+    const GREEN_FRICTION = 1.5;    // proportional, per second
+    const SAND_FRICTION = 7.0;
+    const WALL_BOUNCE = 0.72;
+    const SINK_SPEED = 1.0;        // roll in faster than this and it rims out
+    const STOP_SPEED = 0.012;
+    const MAX_STROKES = 10;        // pick up after this, and take the cap
+
+    /*
+     * Holes are data: walls, sand and water are all axis-aligned rectangles in
+     * course units, so a new hole is a few numbers rather than new code.
+     */
+    const HOLES = [
+      { par: 2, tee: [0.5, 1.45], cup: [0.5, 0.3], walls: [], sand: [], water: [] },
+      { par: 3, tee: [0.5, 1.45], cup: [0.5, 0.22],
+        walls: [[0.28, 0.85, 0.44, 0.05]], sand: [], water: [] },
+      { par: 3, tee: [0.22, 1.45], cup: [0.78, 0.28],
+        walls: [[0.42, 0.55, 0.05, 0.75]], sand: [], water: [] },
+      { par: 3, tee: [0.5, 1.45], cup: [0.5, 0.22],
+        walls: [], sand: [[0.3, 0.6, 0.4, 0.32]], water: [] },
+      { par: 3, tee: [0.5, 1.45], cup: [0.5, 0.2],
+        walls: [], sand: [], water: [[0.22, 0.62, 0.56, 0.26]] },
+      { par: 4, tee: [0.2, 1.5], cup: [0.8, 0.22],
+        walls: [[0.0, 1.05, 0.62, 0.05], [0.38, 0.55, 0.62, 0.05]], sand: [], water: [] },
+      { par: 3, tee: [0.5, 1.5], cup: [0.5, 0.18],
+        walls: [[0.0, 1.1, 0.35, 0.05], [0.65, 1.1, 0.35, 0.05],
+                [0.0, 0.62, 0.35, 0.05], [0.65, 0.62, 0.35, 0.05]],
+        sand: [], water: [] },
+      { par: 4, tee: [0.5, 1.5], cup: [0.5, 0.25],
+        walls: [], sand: [[0.0, 0.9, 0.3, 0.25], [0.7, 0.9, 0.3, 0.25]],
+        water: [[0.3, 0.5, 0.4, 0.3]] },
+      { par: 4, tee: [0.16, 1.5], cup: [0.84, 0.2],
+        walls: [[0.32, 1.05, 0.05, 0.45], [0.63, 0.35, 0.05, 0.5]],
+        sand: [[0.4, 0.75, 0.35, 0.2]], water: [[0.0, 0.35, 0.28, 0.22]] }
+    ];
+
+    const DIFFICULTIES = {
+      easy:   { guide: 1.0,  power: 0.9,  note: 'Long aim guide, gentler putts.' },
+      medium: { guide: 0.55, power: 1.0,  note: 'A shorter guide to judge by.' },
+      hard:   { guide: 0.0,  power: 1.12, note: 'No guide line at all. Read it yourself.' }
+    };
+
+    let mode = 'solo';
+    let currentDifficulty = 'easy';
+    let gameRunning = false;
+    let gamePaused = false;
+    let animationId = null;
+    let lastTime = 0;
+
+    let scale = 300, courseX = 0, courseY = 0, viewW = 0, viewH = 0;
+
+    const ball = { x: 0, y: 0, vx: 0, vy: 0, sunk: false };
+    let lastRest = { x: 0, y: 0 };
+    let holeIndex = 0;
+    let strokes = [0, 0];
+    let card = [[], []];           // strokes taken per hole, per player
+    let player = 0;                // whose turn on this hole
+    let holeDone = [false, false];
+    let aces = 0;
+    let phase = 'aim';             // aim | rolling | between | over
+    let aim = -Math.PI / 2;
+    let power = 0;
+    let dragging = false;
+    let dragId = null;
+    let sinkFlash = 0;
+
+    // Audio, toast, best scores and fullscreen live in shared/arcade.js.
+    const initAudio = Arcade.initAudio;
+    function playTone(freq, type, duration, delay = 0, vol = 0.12) {
+      Arcade.playTone(freq, type, duration, delay, vol);
+    }
+    function playPutt(p)      { playTone(220 + p * 240, 'square', 0.05, 0, 0.07); }
+    function playWall()       { playTone(160, 'triangle', 0.04, 0, 0.05); }
+    function playSink()       { playTone(660, 'sine', 0.1); playTone(880, 'sine', 0.13, 0.07); }
+    function playSplash()     { playTone(240, 'sine', 0.14, 0, 0.09); playTone(150, 'sine', 0.2, 0.08, 0.08); }
+    function playAce()        { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => playTone(f, 'sine', 0.22, i * 0.1)); }
+    function playRoundEnd()   { [392, 523.25, 659.25].forEach((f, i) => playTone(f, 'sine', 0.28, i * 0.13)); }
+
+    function showToast(text, color, ms) {
+      Arcade.showToast(toast, text, color || '#ffd700', ms || 1200);
+    }
+
+    // ------------------------------------------------------------ layout ---
+
+    function layout() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      viewW = rect.width;
+      viewH = rect.height;
+      const topLimit = controlsBar.getBoundingClientRect().bottom - rect.top + 6;
+      const bottomLimit = bottomBar.getBoundingClientRect().top - rect.top - 6;
+      // A strip above the course for the hole/par line, or it lands on top of
+      // the controls bar.
+      const STATUS_H = 22;
+      const availH = Math.max(160, bottomLimit - topLimit - STATUS_H);
+      scale = Math.min((rect.width - 10) / COURSE_W, availH / COURSE_H);
+      courseX = (rect.width - COURSE_W * scale) / 2;
+      courseY = topLimit + STATUS_H + Math.max(0, (availH - COURSE_H * scale) / 2);
+    }
+    window.addEventListener('resize', layout);
+
+    const px = x => courseX + x * scale;
+    const py = y => courseY + y * scale;
+    const toCourseX = cx => (cx - courseX) / scale;
+    const toCourseY = cy => (cy - courseY) / scale;
+
+    function hole() { return HOLES[holeIndex]; }
+
+    function inRect(x, y, r) {
+      return x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3];
+    }
+
+    // ----------------------------------------------------------- physics ---
+
+    function stepPhysics(dt) {
+      if (ball.sunk) return;
+      const h = hole();
+      const speed = Math.hypot(ball.vx, ball.vy);
+      // Substep so a fast putt cannot jump a wall or skip over the cup.
+      const steps = Math.max(1, Math.min(10, Math.ceil(speed * dt / (BALL_R * 0.5))));
+      const st = dt / steps;
+
+      for (let s = 0; s < steps; s++) {
+        ball.x += ball.vx * st;
+        ball.y += ball.vy * st;
+
+        const inSand = h.sand.some(r => inRect(ball.x, ball.y, r));
+        const k = inSand ? SAND_FRICTION : GREEN_FRICTION;
+        const decay = Math.max(0, 1 - k * st);
+        ball.vx *= decay;
+        ball.vy *= decay;
+        if (Math.hypot(ball.vx, ball.vy) < STOP_SPEED) { ball.vx = 0; ball.vy = 0; }
+
+        // The cup: roll in slowly enough and it drops, otherwise it rims out.
+        const cup = h.cup;
+        const dc = Math.hypot(ball.x - cup[0], ball.y - cup[1]);
+        if (dc < HOLE_R - BALL_R * 0.35) {
+          if (Math.hypot(ball.vx, ball.vy) < SINK_SPEED) { sink(); return; }
+        }
+
+        // Water: a stroke penalty, replayed from where the last shot came to rest.
+        if (h.water.some(r => inRect(ball.x, ball.y, r))) { splash(); return; }
+
+        // Course edges.
+        if (ball.x - BALL_R < 0) { ball.x = BALL_R; ball.vx = Math.abs(ball.vx) * WALL_BOUNCE; playWall(); }
+        else if (ball.x + BALL_R > COURSE_W) { ball.x = COURSE_W - BALL_R; ball.vx = -Math.abs(ball.vx) * WALL_BOUNCE; playWall(); }
+        if (ball.y - BALL_R < 0) { ball.y = BALL_R; ball.vy = Math.abs(ball.vy) * WALL_BOUNCE; playWall(); }
+        else if (ball.y + BALL_R > COURSE_H) { ball.y = COURSE_H - BALL_R; ball.vy = -Math.abs(ball.vy) * WALL_BOUNCE; playWall(); }
+
+        for (const w of h.walls) collideWall(w);
+      }
+    }
+
+    /** Circle against an axis-aligned rectangle: push out of the nearest face. */
+    function collideWall(w) {
+      const nearestX = Math.max(w[0], Math.min(ball.x, w[0] + w[2]));
+      const nearestY = Math.max(w[1], Math.min(ball.y, w[1] + w[3]));
+      const dx = ball.x - nearestX, dy = ball.y - nearestY;
+      const d2 = dx * dx + dy * dy;
+      if (d2 >= BALL_R * BALL_R) return;
+
+      if (d2 > 1e-9) {
+        const d = Math.sqrt(d2);
+        const nx = dx / d, ny = dy / d;
+        ball.x = nearestX + nx * BALL_R;
+        ball.y = nearestY + ny * BALL_R;
+        const vn = ball.vx * nx + ball.vy * ny;
+        if (vn < 0) {
+          ball.vx -= (1 + WALL_BOUNCE) * vn * nx;
+          ball.vy -= (1 + WALL_BOUNCE) * vn * ny;
+          playWall();
+        }
+        return;
+      }
+
+      // Dead centre of a face: push out along the shallowest axis.
+      const left = ball.x - w[0], right = w[0] + w[2] - ball.x;
+      const top = ball.y - w[1], bottom = w[1] + w[3] - ball.y;
+      const min = Math.min(left, right, top, bottom);
+      if (min === left) { ball.x = w[0] - BALL_R; ball.vx = -Math.abs(ball.vx) * WALL_BOUNCE; }
+      else if (min === right) { ball.x = w[0] + w[2] + BALL_R; ball.vx = Math.abs(ball.vx) * WALL_BOUNCE; }
+      else if (min === top) { ball.y = w[1] - BALL_R; ball.vy = -Math.abs(ball.vy) * WALL_BOUNCE; }
+      else { ball.y = w[1] + w[3] + BALL_R; ball.vy = Math.abs(ball.vy) * WALL_BOUNCE; }
+      playWall();
+    }
+
+    function sink() {
+      ball.sunk = true;
+      ball.vx = 0; ball.vy = 0;
+      sinkFlash = 1;
+      playSink();
+      finishHole();
+    }
+
+    function splash() {
+      playSplash();
+      strokes[player]++;
+      showToast('💦 SPLASH — +1', '#2979ff', 1300);
+      ball.x = lastRest.x;
+      ball.y = lastRest.y;
+      ball.vx = 0; ball.vy = 0;
+      phase = 'aim';
+      updateHUD();
+      if (strokes[player] >= MAX_STROKES) finishHole();
+    }
+
+    function stopped() { return ball.vx === 0 && ball.vy === 0; }
+
+    // ------------------------------------------------------------- round ---
+
+    function loadHole() {
+      const h = hole();
+      ball.x = h.tee[0];
+      ball.y = h.tee[1];
+      ball.vx = 0; ball.vy = 0;
+      ball.sunk = false;
+      lastRest = { x: ball.x, y: ball.y };
+      aim = -Math.PI / 2;
+      power = 0;
+      phase = 'aim';
+      updateHUD();
+    }
+
+    function finishHole() {
+      const taken = Math.min(strokes[player], MAX_STROKES);
+      card[player][holeIndex] = taken;
+      holeDone[player] = true;
+      if (taken === 1) { aces++; showToast('🏆 HOLE IN ONE!', '#ffd700', 1800); playAce(); }
+
+      // In two-player the other player takes the same hole before moving on.
+      if (mode === 'duo' && !holeDone[1 - player]) {
+        setTimeout(() => {
+          player = 1 - player;
+          strokes[player] = 0;
+          loadHole();
+          showToast(`${playerName(player)}'S TURN`, '#00f2ff', 1300);
+        }, 900);
+        phase = 'between';
+        return;
+      }
+      phase = 'between';
+      setTimeout(showHoleCard, 900);
+    }
+
+    function showHoleCard() {
+      const h = hole();
+      const taken = card[player][holeIndex];
+      document.getElementById('holeTitle').textContent = `⛳ Hole ${holeIndex + 1} done`;
+      const diff = taken - h.par;
+      const word = taken === 1 ? 'Hole in one!'
+        : diff <= -2 ? 'Eagle!' : diff === -1 ? 'Birdie!'
+        : diff === 0 ? 'Par.' : diff === 1 ? 'Bogey.' : `${diff} over par.`;
+      document.getElementById('holeBlurb').textContent = word;
+      document.getElementById('cardWrap').innerHTML = scoreCardHTML();
+      document.getElementById('nextHoleBtn').textContent =
+        holeIndex + 1 >= HOLES.length ? '🏁 Finish Round' : '▶ Next Hole';
+      holeOverlay.classList.remove('hidden');
+    }
+
+    function scoreCardHTML() {
+      const rows = mode === 'duo' ? [0, 1] : [0];
+      let html = '<table class="card-table"><tr><th>Hole</th>';
+      for (let i = 0; i < HOLES.length; i++) html += `<th>${i + 1}</th>`;
+      html += '<th>Tot</th></tr><tr><td>Par</td>';
+      HOLES.forEach(h => { html += `<td>${h.par}</td>`; });
+      html += `<td class="tot">${totalPar()}</td></tr>`;
+      rows.forEach(p => {
+        html += `<tr><td>${playerName(p)}</td>`;
+        for (let i = 0; i < HOLES.length; i++) {
+          const v = card[p][i];
+          const cls = v === undefined ? '' : v < HOLES[i].par ? 'under' : v > HOLES[i].par ? 'over' : '';
+          html += `<td class="${cls}">${v === undefined ? '–' : v}</td>`;
+        }
+        html += `<td class="tot">${totalStrokes(p) || '–'}</td></tr>`;
+      });
+      return html + '</table>';
+    }
+
+    function totalPar() { return HOLES.reduce((a, h) => a + h.par, 0); }
+    function totalStrokes(p) { return card[p].reduce((a, v) => a + (v || 0), 0); }
+    function playedPar(p) {
+      return card[p].reduce((a, v, i) => a + (v === undefined ? 0 : HOLES[i].par), 0);
+    }
+
+    function nextHole() {
+      holeOverlay.classList.add('hidden');
+      if (holeIndex + 1 >= HOLES.length) { finishRound(); return; }
+      holeIndex++;
+      holeDone = [false, false];
+      player = 0;
+      strokes = [0, 0];
+      loadHole();
+      lastTime = 0;
+      if (!animationId) animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function finishRound() {
+      phase = 'over';
+      gameRunning = false;
+      cancelAnimationFrame(animationId);
+      animationId = null;
+
+      const under = totalPar() - totalStrokes(0);
+      let isBest = false;
+      if (mode === 'solo') {
+        const stored = Math.max(0, under);
+        if (stored > getBestScore()) { Arcade.setBestScore(`golfBest_${currentDifficulty}`, stored); isBest = stored > 0; }
+      }
+
+      let title;
+      if (mode === 'duo') {
+        const a = totalStrokes(0), b = totalStrokes(1);
+        title = a === b ? '🤝 It\'s a Tie!' : `🏆 ${playerName(a < b ? 0 : 1)} Wins!`;
+      } else {
+        title = under > 0 ? '🏆 Under Par!' : under === 0 ? '🎯 Level Par' : '🏁 Round Complete';
+      }
+      document.getElementById('winTitle').textContent = title;
+      document.getElementById('finalStrokes').textContent =
+        mode === 'duo' ? `${totalStrokes(0)} – ${totalStrokes(1)}` : totalStrokes(0);
+      document.getElementById('finalStrokesLbl').textContent =
+        mode === 'duo' ? 'P1 – P2 Strokes' : 'Total Strokes';
+      document.getElementById('finalPar').textContent = under > 0 ? `-${under}` : under === 0 ? 'E' : `+${-under}`;
+      document.getElementById('finalAces').textContent = aces;
+      document.getElementById('finalBest').textContent = getBestScore();
+      document.getElementById('finalCard').innerHTML = scoreCardHTML();
+      document.getElementById('newBestTag').style.display = isBest ? 'block' : 'none';
+      bestEl.textContent = getBestScore();
+
+      playRoundEnd();
+      if (isBest) setTimeout(() => Arcade.playBestJingle(), 500);
+      gameOverOverlay.classList.remove('hidden');
+    }
+
+    function playerName(i) {
+      if (mode === 'solo') return 'You';
+      return i === 0 ? 'P1' : 'P2';
+    }
+
+    // ------------------------------------------------------------- input ---
+
+    function putt() {
+      lastRest = { x: ball.x, y: ball.y };
+      strokes[player]++;
+      ball.vx = Math.cos(aim) * power * MAX_POWER * DIFFICULTIES[currentDifficulty].power;
+      ball.vy = Math.sin(aim) * power * MAX_POWER * DIFFICULTIES[currentDifficulty].power;
+      phase = 'rolling';
+      playPutt(power);
+      updateHUD();
+    }
+
+    canvas.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      initAudio();
+      if (!gameRunning || gamePaused || phase !== 'aim') return;
+      const rect = canvas.getBoundingClientRect();
+      dragging = true;
+      dragId = e.pointerId;
+      updateAimFrom(toCourseX(e.clientX - rect.left), toCourseY(e.clientY - rect.top));
+    });
+
+    canvas.addEventListener('pointermove', e => {
+      if (!dragging || e.pointerId !== dragId) return;
+      const rect = canvas.getBoundingClientRect();
+      updateAimFrom(toCourseX(e.clientX - rect.left), toCourseY(e.clientY - rect.top));
+    });
+
+    function updateAimFrom(x, y) {
+      const dx = ball.x - x, dy = ball.y - y;
+      const d = Math.hypot(dx, dy);
+      if (d < 0.008) return;
+      aim = Math.atan2(dy, dx);
+      power = Math.max(0, Math.min(1, (d - BALL_R) / 0.45));
+    }
+
+    function releaseDrag(e) {
+      if (!dragging || (e && e.pointerId !== dragId)) return;
+      dragging = false;
+      dragId = null;
+      if (phase === 'aim' && power > 0.06) putt();
+      else power = 0;
+    }
+    canvas.addEventListener('pointerup', releaseDrag);
+    canvas.addEventListener('pointercancel', releaseDrag);
+
+    document.addEventListener('keydown', e => {
+      initAudio();
+      if (e.key === 'Escape') { e.preventDefault(); if (gameRunning) togglePause(); }
+    });
+
+    // ----------------------------------------------------------- drawing ---
+
+    function drawCourse() {
+      const h = hole();
+      const w = COURSE_W * scale, ht = COURSE_H * scale;
+
+      ctx.save();
+      ctx.fillStyle = '#123528';
+      ctx.beginPath();
+      ctx.roundRect(px(0), py(0), w, ht, 10);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0, 255, 136, 0.35)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+
+      // Faint mow stripes, so distance is easier to read.
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.022)';
+      for (let y = 0; y < COURSE_H; y += 0.17) {
+        ctx.fillRect(px(0), py(y), w, 0.085 * scale);
+      }
+      ctx.restore();
+
+      h.water.forEach(r => {
+        ctx.save();
+        ctx.fillStyle = 'rgba(41, 121, 255, 0.55)';
+        ctx.beginPath();
+        ctx.roundRect(px(r[0]), py(r[1]), r[2] * scale, r[3] * scale, 6);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(120, 190, 255, 0.7)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
+      });
+
+      h.sand.forEach(r => {
+        ctx.save();
+        ctx.fillStyle = 'rgba(226, 197, 118, 0.55)';
+        ctx.beginPath();
+        ctx.roundRect(px(r[0]), py(r[1]), r[2] * scale, r[3] * scale, 8);
+        ctx.fill();
+        ctx.restore();
+      });
+
+      h.walls.forEach(r => {
+        ctx.save();
+        ctx.fillStyle = '#dfe7ee';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        ctx.beginPath();
+        ctx.roundRect(px(r[0]), py(r[1]), r[2] * scale, r[3] * scale, 4);
+        ctx.fill();
+        ctx.restore();
+      });
+
+      // Cup, with a flag so it is obvious where to aim.
+      const cup = h.cup;
+      ctx.save();
+      ctx.fillStyle = '#04070c';
+      ctx.beginPath();
+      ctx.arc(px(cup[0]), py(cup[1]), HOLE_R * scale, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      if (sinkFlash > 0) {
+        ctx.globalAlpha = sinkFlash;
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(px(cup[0]), py(cup[1]), HOLE_R * scale * (1 + (1 - sinkFlash) * 1.6), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      ctx.strokeStyle = '#cfd8dc';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(px(cup[0]), py(cup[1]));
+      ctx.lineTo(px(cup[0]), py(cup[1]) - 0.13 * scale);
+      ctx.stroke();
+      ctx.fillStyle = '#ff2a2a';
+      ctx.beginPath();
+      ctx.moveTo(px(cup[0]), py(cup[1]) - 0.13 * scale);
+      ctx.lineTo(px(cup[0]) + 0.075 * scale, py(cup[1]) - 0.105 * scale);
+      ctx.lineTo(px(cup[0]), py(cup[1]) - 0.08 * scale);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawBall() {
+      if (ball.sunk) return;
+      ctx.save();
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = 'rgba(0,0,0,0.7)';
+      ctx.fillStyle = '#f7f7f7';
+      ctx.beginPath();
+      ctx.arc(px(ball.x), py(ball.y), BALL_R * scale, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.16)';
+      ctx.beginPath();
+      ctx.arc(px(ball.x) + BALL_R * scale * 0.28, py(ball.y) + BALL_R * scale * 0.28, BALL_R * scale * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawAim() {
+      if (phase !== 'aim' || ball.sunk) return;
+      const guide = DIFFICULTIES[currentDifficulty].guide;
+      const dx = Math.cos(aim), dy = Math.sin(aim);
+
+      if (guide > 0 && power > 0.02) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 6]);
+        ctx.beginPath();
+        ctx.moveTo(px(ball.x), py(ball.y));
+        ctx.lineTo(px(ball.x + dx * guide * power), py(ball.y + dy * guide * power));
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // The putter: length shows power, and it sits behind the ball.
+      if (power > 0.02) {
+        ctx.save();
+        ctx.strokeStyle = power > 0.85 ? '#ff2a2a' : '#ffd700';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(px(ball.x - dx * (BALL_R + 0.015)), py(ball.y - dy * (BALL_R + 0.015)));
+        ctx.lineTo(px(ball.x - dx * (BALL_R + 0.015 + power * 0.25)), py(ball.y - dy * (BALL_R + 0.015 + power * 0.25)));
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    function drawStatus() {
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.font = `bold ${Math.max(10, Math.round(scale * 0.045))}px 'Segoe UI', sans-serif`;
+      ctx.fillStyle = mode === 'duo' ? (player === 0 ? '#00f2ff' : '#ff00aa') : 'rgba(255,255,255,0.6)';
+      const who = mode === 'duo' ? `${playerName(player)} — ` : '';
+      ctx.fillText(`${who}HOLE ${holeIndex + 1} · PAR ${hole().par}`, px(COURSE_W / 2), py(0) - 7);
+      ctx.restore();
+    }
+
+    function drawPaused() {
+      ctx.save();
+      ctx.fillStyle = 'rgba(5, 5, 16, 0.6)';
+      ctx.fillRect(0, 0, viewW, viewH);
+      ctx.fillStyle = '#00f2ff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `bold ${Math.round(Math.min(viewW * 0.1, 44))}px 'Segoe UI', sans-serif`;
+      ctx.fillText('PAUSED', viewW / 2, viewH / 2);
+      ctx.restore();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, viewW, viewH);
+      drawCourse();
+      drawAim();
+      drawBall();
+      drawStatus();
+      if (gamePaused) drawPaused();
+    }
+
+    function updateHUD() {
+      holeEl.textContent = holeIndex + 1;
+      parEl.textContent = hole().par;
+      strokeEl.textContent = strokes[player];
+      strokeLabel.textContent = mode === 'duo' ? `${playerName(player)} shots` : 'Strokes';
+    }
+
+    // -------------------------------------------------------- run control --
+
+    function update(dt) {
+      if (sinkFlash > 0) sinkFlash = Math.max(0, sinkFlash - dt * 1.6);
+      if (phase !== 'rolling') return;
+      stepPhysics(dt);
+      if (phase !== 'rolling') return;          // sank or splashed mid-step
+      if (stopped()) {
+        if (strokes[player] >= MAX_STROKES) { finishHole(); return; }
+        phase = 'aim';
+        power = 0;
+      }
+    }
+
+    function setMode(next) {
+      mode = next;
+      document.querySelectorAll('#modeBar button').forEach(b =>
+        b.classList.toggle('active', b.dataset.mode === next));
+      modeBlurb.textContent = next === 'solo'
+        ? 'Nine holes. Drag back from the ball to aim and set power, then sink it in as few shots as you can.'
+        : 'Nine holes, taking turns at the same phone. Both play each hole; fewest shots over the round wins.';
+      updateHUD();
+    }
+
+    function setDifficulty(diff) {
+      currentDifficulty = diff;
+      document.querySelectorAll('#difficultyBar button').forEach(btn =>
+        btn.classList.toggle('active', btn.dataset.diff === diff));
+      diffNote.textContent = DIFFICULTIES[diff].note;
+      bestEl.textContent = getBestScore();
+    }
+
+    function getBestScore() { return Arcade.bestScore(`golfBest_${currentDifficulty}`); }
+
+    function showStartOverlay() {
+      gameRunning = false;
+      gamePaused = false;
+      cancelAnimationFrame(animationId);
+      animationId = null;
+      gameOverOverlay.classList.add('hidden');
+      holeOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+      pauseBtn.textContent = 'Pause';
+    }
+
+    function startGame() {
+      initAudio();
+      holeIndex = 0;
+      strokes = [0, 0];
+      card = [[], []];
+      holeDone = [false, false];
+      player = 0;
+      aces = 0;
+      sinkFlash = 0;
+      loadHole();
+
+      startOverlay.classList.add('hidden');
+      holeOverlay.classList.add('hidden');
+      gameOverOverlay.classList.add('hidden');
+      document.getElementById('startBtn').textContent = 'Restart';
+
+      gameRunning = true;
+      gamePaused = false;
+      pauseBtn.textContent = 'Pause';
+      lastTime = 0;
+
+      layout();
+      bestEl.textContent = getBestScore();
+      updateHUD();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function togglePause() {
+      if (!gameRunning) return;
+      gamePaused = !gamePaused;
+      pauseBtn.textContent = gamePaused ? 'Resume' : 'Pause';
+      if (!gamePaused) lastTime = 0;
+    }
+
+    function toggleFullscreen() { Arcade.toggleFullscreen(); }
+
+    Arcade.wireFullscreen(fullscreenBtn, layout);
+    Arcade.wireAutoPause(() => gameRunning && !gamePaused, togglePause);
+
+    function gameLoop(timestamp) {
+      if (!gameRunning) return;
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min((timestamp - lastTime) / 1000, 0.033);
+      lastTime = timestamp;
+
+      if (!gamePaused && dt > 0) update(dt);
+      if (!gameRunning) return;
+
+      draw();
+      updateHUD();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    if (!('ontouchstart' in window)) {
+      hintLine.textContent = 'Drag back from the ball with the mouse, release to putt • Esc to pause';
+    }
+
+    try {
+      setMode('solo');
+      setDifficulty('easy');
+      loadHole();
+      layout();
+    } catch (err) {
+      console.error('Neon Mini Golf init failed:', err);
+    }
+  </script>
+</body>
+</html>
