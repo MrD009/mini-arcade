@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🎱 Neon Snooker | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    :root { --play-max: 460px; }
+
+    #gameCanvas {
+      background: radial-gradient(ellipse at center, #0d1524 0%, #050510 75%);
+    }
+
+    .mode-bar {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin: 4px 0 2px;
+    }
+
+    .mode-bar button {
+      padding: 10px 20px;
+      font-size: 0.85rem;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .mode-bar button.active {
+      background: rgba(255, 0, 170, 0.18);
+      border-color: var(--accent2);
+      box-shadow: 0 0 10px rgba(255, 0, 170, 0.3);
+    }
+
+    .diff-wrap.dimmed { opacity: 0.35; pointer-events: none; }
+
+    .rules-list {
+      font-size: 0.72rem;
+      color: #aaa;
+      text-align: left;
+      max-width: 330px;
+      margin: 10px 0 4px;
+      line-height: 1.5;
+    }
+
+    .rules-list b { color: var(--text); }
+    .ball-key { color: var(--gold); }
+
+    .overlay .stats { max-width: 300px; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span id="p1Label">You</span>
+        <strong id="p1Score">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span id="p2Label">CPU</span>
+        <strong id="p2Score">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Break</span>
+        <strong id="breakEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button id="startBtn" onclick="showStartOverlay()">Restart</button>
+      <button id="pauseBtn" onclick="togglePause()">Pause</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="hint-line" id="hintLine">Drag back from the cue ball, release to shoot</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">FOUL!</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🎱 Neon Snooker</h1>
+    <p id="modeBlurb">Pot a red, then a colour, and keep the break going. Six reds, all six colours.</p>
+
+    <div class="mode-bar" id="modeBar">
+      <button data-mode="solo" onclick="setMode('solo')">👤 vs CPU</button>
+      <button data-mode="duo" onclick="setMode('duo')">👥 2 Players</button>
+    </div>
+
+    <div class="diff-wrap" id="diffWrap">
+      <div class="difficulty-bar" id="difficultyBar">
+        <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+        <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+        <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+      </div>
+      <div class="diff-note" id="diffNote"></div>
+    </div>
+
+    <div class="rules-list">
+      <b>Reds are on</b> — pot one for <span class="ball-key">1</span>, then any colour.<br>
+      <b>Colours respot</b> while reds remain: 🟡2 🟢3 🟤4 🔵5 🩷6 ⚫7.<br>
+      <b>Reds gone</b> — clear the colours in order, and they stay down.<br>
+      <b>Foul</b> gives your opponent at least <span class="ball-key">4</span> and the table.
+    </div>
+
+    <button class="primary" onclick="startGame()">▶ Start Game</button>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <h1 id="winTitle">🏆 You Win!</h1>
+    <p class="new-best" id="newBestTag">🏆 Highest Break!</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalScore">0 – 0</div>
+        <div class="lbl">Frame Score</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBreak">0</div>
+        <div class="lbl">Highest Break</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalPots">0</div>
+        <div class="lbl">Balls Potted</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBest">0</div>
+        <div class="lbl">Best Break</div>
+      </div>
+    </div>
+    <button class="primary" onclick="startGame()">Play Again</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Mode</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const p1ScoreEl = document.getElementById('p1Score');
+    const p2ScoreEl = document.getElementById('p2Score');
+    const p1LabelEl = document.getElementById('p1Label');
+    const p2LabelEl = document.getElementById('p2Label');
+    const breakEl = document.getElementById('breakEl');
+    const bestEl = document.getElementById('bestEl');
+    const startOverlay = document.getElementById('startOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const diffNote = document.getElementById('diffNote');
+    const diffWrap = document.getElementById('diffWrap');
+    const modeBlurb = document.getElementById('modeBlurb');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.querySelector('.bottom-bar');
+
+    /*
+     * The table is measured in table units: 1 wide by 2 long, the real 2:1
+     * snooker proportion, stood on end to suit a phone. The baulk end is at the
+     * bottom, nearest the player. One scale factor maps it to the screen, so a
+     * resize can never change the physics.
+     *
+     * This is six-red snooker — a real sanctioned format — rather than the
+     * fifteen-red game: twenty-two balls on a phone-width table would put the
+     * reds at about ten pixels across, too small to aim at.
+     */
+    const TABLE_W = 1;
+    const TABLE_H = 2;
+    const BALL_R = 0.024;          // a little larger than scale, for fingers
+    const POCKET_R = 0.05;
+    const CUSHION_BOUNCE = 0.92;
+    const ROLL_FRICTION = 1.35;    // per second, proportional
+    const STOP_SPEED = 0.012;
+    const MAX_POWER = 3.0;         // table units per second
+    const BAULK_Y = 1.6;
+    const D_R = 0.15;
+
+    const POCKETS = [
+      { x: 0, y: 0 }, { x: TABLE_W, y: 0 },
+      { x: 0, y: TABLE_H / 2 }, { x: TABLE_W, y: TABLE_H / 2 },
+      { x: 0, y: TABLE_H }, { x: TABLE_W, y: TABLE_H }
+    ];
+
+    const COLOURS = {
+      red:    { value: 1, color: '#ff2a2a', spot: null },
+      // Viewed from the baulk end — which is how the table is oriented here —
+      // the yellow sits on the right of the D and the green on the left.
+      yellow: { value: 2, color: '#ffd700', spot: { x: 0.5 + D_R, y: BAULK_Y } },
+      green:  { value: 3, color: '#00c853', spot: { x: 0.5 - D_R, y: BAULK_Y } },
+      brown:  { value: 4, color: '#a96a3c', spot: { x: 0.5, y: BAULK_Y } },
+      blue:   { value: 5, color: '#2979ff', spot: { x: 0.5, y: TABLE_H / 2 } },
+      pink:   { value: 6, color: '#ff7bac', spot: { x: 0.5, y: 0.5 } },
+      black:  { value: 7, color: '#333333', spot: { x: 0.5, y: 0.22 } }
+    };
+    const COLOUR_ORDER = ['yellow', 'green', 'brown', 'blue', 'pink', 'black'];
+
+    const AI = {
+      easy:   { error: 0.075, power: 0.22, note: 'Misses often, and plays soft.' },
+      medium: { error: 0.032, power: 0.12, note: 'Pots the easy ones.' },
+      hard:   { error: 0.012, power: 0.05, note: 'Punishes every loose shot.' }
+    };
+
+    let mode = 'solo';
+    let currentDifficulty = 'easy';
+    let gameRunning = false;
+    let gamePaused = false;
+    let animationId = null;
+    let lastTime = 0;
+
+    let scale = 300, tableX = 0, tableY = 0, viewW = 0, viewH = 0;
+
+    let balls = [];
+    let scores = [0, 0];
+    let turn = 0;
+    let breakScore = 0;
+    let highBreak = 0;
+    let potted = 0;
+    let ballOn = 'red';            // 'red' | 'colour' | a specific colour name
+    let phase = 'aim';             // aim | rolling | placing | over
+    let aim = -Math.PI / 2;
+    let power = 0;
+    let dragging = false;
+    let dragId = null;
+    let firstContact = null;
+    let pottedThisShot = [];
+    let cueBallPotted = false;
+    let aiTimer = 0;
+
+    // Audio, toast, best scores and fullscreen live in shared/arcade.js.
+    const initAudio = Arcade.initAudio;
+    function playTone(freq, type, duration, delay = 0, vol = 0.12) {
+      Arcade.playTone(freq, type, duration, delay, vol);
+    }
+    function playClack(power)  { playTone(320 + power * 260, 'square', 0.035, 0, 0.06); }
+    function playCushion()     { playTone(150, 'triangle', 0.04, 0, 0.04); }
+    function playPotSound()    { playTone(520, 'sine', 0.09); playTone(760, 'sine', 0.11, 0.06); }
+    function playFoulSound()   { playTone(190, 'sawtooth', 0.16, 0, 0.1); playTone(140, 'sawtooth', 0.2, 0.1, 0.1); }
+    function playWinSound()    { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => playTone(f, 'sine', 0.25, i * 0.11)); }
+    function playLoseSound() {
+      playTone(392, 'sawtooth', 0.2);
+      playTone(294, 'sawtooth', 0.25, 0.15);
+      playTone(196, 'sawtooth', 0.35, 0.3);
+    }
+
+    function showToast(text, color, ms) {
+      Arcade.showToast(toast, text, color || '#ffd700', ms || 1200);
+    }
+
+    // ------------------------------------------------------------ layout ---
+
+    function layout() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      viewW = rect.width;
+      viewH = rect.height;
+      const topLimit = controlsBar.getBoundingClientRect().bottom - rect.top + 6;
+      const bottomLimit = bottomBar.getBoundingClientRect().top - rect.top - 6;
+      const availH = Math.max(160, bottomLimit - topLimit);
+      // Room for the rail around the cloth.
+      const RAIL = 0.06;
+      scale = Math.min((rect.width - 8) / (TABLE_W + RAIL * 2), availH / (TABLE_H + RAIL * 2));
+      tableX = (rect.width - TABLE_W * scale) / 2;
+      tableY = topLimit + RAIL * scale + Math.max(0, (availH - (TABLE_H + RAIL * 2) * scale) / 2);
+    }
+    window.addEventListener('resize', layout);
+
+    const px = x => tableX + x * scale;
+    const py = y => tableY + y * scale;
+    const toTableX = cx => (cx - tableX) / scale;
+    const toTableY = cy => (cy - tableY) / scale;
+
+    // ------------------------------------------------------------- balls ---
+
+    function cueBall() { return balls.find(b => b.type === 'cue'); }
+    function ballsOfType(t) { return balls.filter(b => b.type === t && !b.potted); }
+    function redsLeft() { return ballsOfType('red').length; }
+
+    function rack() {
+      balls = [];
+      balls.push({ type: 'cue', x: 0.5 - D_R * 0.4, y: BAULK_Y + 0.06, vx: 0, vy: 0, potted: false, color: '#f5f5f5' });
+
+      // Reds: a 1-2-3 triangle packed behind the pink, apex nearest it.
+      const apexY = COLOURS.pink.spot.y - BALL_R * 2.3;
+      let n = 0;
+      for (let row = 0; row < 3; row++) {
+        for (let i = 0; i <= row; i++) {
+          if (n++ >= 6) break;
+          balls.push({
+            type: 'red',
+            x: 0.5 + (i - row / 2) * BALL_R * 2.06,
+            y: apexY - row * BALL_R * 1.8,
+            vx: 0, vy: 0, potted: false, color: COLOURS.red.color
+          });
+        }
+      }
+
+      COLOUR_ORDER.forEach(name => {
+        const c = COLOURS[name];
+        balls.push({ type: name, x: c.spot.x, y: c.spot.y, vx: 0, vy: 0, potted: false, color: c.color });
+      });
+    }
+
+    /** Puts a colour back on its spot, or the nearest free one behind it. */
+    function respot(name) {
+      const ball = balls.find(b => b.type === name);
+      if (!ball) return;
+      const home = COLOURS[name].spot;
+      const candidates = [home].concat(
+        COLOUR_ORDER.map(n => COLOURS[n].spot).filter(s => s !== home)
+      );
+      for (const spot of candidates) {
+        if (!balls.some(b => b !== ball && !b.potted && Math.hypot(b.x - spot.x, b.y - spot.y) < BALL_R * 2)) {
+          ball.x = spot.x; ball.y = spot.y; ball.vx = 0; ball.vy = 0; ball.potted = false;
+          return;
+        }
+      }
+      // Every spot occupied: drop it just above the home spot instead.
+      ball.x = home.x;
+      ball.y = Math.max(BALL_R, home.y - BALL_R * 2.2);
+      ball.vx = 0; ball.vy = 0; ball.potted = false;
+    }
+
+    // ----------------------------------------------------------- physics ---
+
+    function stepPhysics(dt) {
+      const active = balls.filter(b => !b.potted);
+      // Substep so a fast ball cannot tunnel through another or a cushion.
+      let maxV = 0;
+      for (const b of active) maxV = Math.max(maxV, Math.hypot(b.vx, b.vy));
+      const steps = Math.max(1, Math.min(12, Math.ceil(maxV * dt / (BALL_R * 0.5))));
+      const h = dt / steps;
+
+      for (let s = 0; s < steps; s++) {
+        for (const b of active) {
+          if (b.potted) continue;
+          b.x += b.vx * h;
+          b.y += b.vy * h;
+
+          // Rolling friction.
+          const decay = Math.max(0, 1 - ROLL_FRICTION * h);
+          b.vx *= decay;
+          b.vy *= decay;
+          if (Math.hypot(b.vx, b.vy) < STOP_SPEED) { b.vx = 0; b.vy = 0; }
+
+          // Pockets first: a ball at the mouth must drop, not bounce.
+          let sunk = false;
+          for (const p of POCKETS) {
+            if (Math.hypot(b.x - p.x, b.y - p.y) < POCKET_R) {
+              pot(b);
+              sunk = true;
+              break;
+            }
+          }
+          if (sunk) continue;
+
+          // Cushions.
+          if (b.x - BALL_R < 0) { b.x = BALL_R; b.vx = Math.abs(b.vx) * CUSHION_BOUNCE; playCushion(); }
+          else if (b.x + BALL_R > TABLE_W) { b.x = TABLE_W - BALL_R; b.vx = -Math.abs(b.vx) * CUSHION_BOUNCE; playCushion(); }
+          if (b.y - BALL_R < 0) { b.y = BALL_R; b.vy = Math.abs(b.vy) * CUSHION_BOUNCE; playCushion(); }
+          else if (b.y + BALL_R > TABLE_H) { b.y = TABLE_H - BALL_R; b.vy = -Math.abs(b.vy) * CUSHION_BOUNCE; playCushion(); }
+        }
+
+        // Ball-on-ball, equal masses, perfectly elastic along the normal.
+        for (let i = 0; i < active.length; i++) {
+          const a = active[i];
+          if (a.potted) continue;
+          for (let j = i + 1; j < active.length; j++) {
+            const b = active[j];
+            if (b.potted) continue;
+            const dx = b.x - a.x, dy = b.y - a.y;
+            const d = Math.hypot(dx, dy);
+            if (d === 0 || d >= BALL_R * 2) continue;
+
+            const nx = dx / d, ny = dy / d;
+            const overlap = BALL_R * 2 - d;
+            a.x -= nx * overlap / 2; a.y -= ny * overlap / 2;
+            b.x += nx * overlap / 2; b.y += ny * overlap / 2;
+
+            const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
+            const vn = rvx * nx + rvy * ny;
+            if (vn > 0) continue;
+            const imp = -vn;              // equal masses: swap the normal parts
+            a.vx -= imp * nx; a.vy -= imp * ny;
+            b.vx += imp * nx; b.vy += imp * ny;
+            playClack(Math.min(1, imp / MAX_POWER));
+
+            if (!firstContact && (a.type === 'cue' || b.type === 'cue')) {
+              firstContact = a.type === 'cue' ? b.type : a.type;
+            }
+          }
+        }
+      }
+    }
+
+    function pot(ball) {
+      ball.potted = true;
+      ball.vx = 0; ball.vy = 0;
+      playPotSound();
+      if (ball.type === 'cue') { cueBallPotted = true; return; }
+      pottedThisShot.push(ball.type);
+      potted++;
+    }
+
+    function allStopped() {
+      return balls.every(b => b.potted || (b.vx === 0 && b.vy === 0));
+    }
+
+    // ------------------------------------------------------------- rules ---
+
+    function ballOnLabel() {
+      if (ballOn === 'red') return 'RED';
+      if (ballOn === 'colour') return 'ANY COLOUR';
+      return ballOn.toUpperCase();
+    }
+
+    function valueOf(name) { return COLOURS[name] ? COLOURS[name].value : 0; }
+
+    /**
+     * The real rule: the highest of the ball on, the ball first struck and any
+     * ball potted, with a minimum of four.
+     */
+    function foulValue() {
+      let v = 4;
+      if (ballOn !== 'red' && ballOn !== 'colour') v = Math.max(v, valueOf(ballOn));
+      if (firstContact && firstContact !== 'cue') v = Math.max(v, valueOf(firstContact));
+      pottedThisShot.forEach(n => { v = Math.max(v, valueOf(n)); });
+      return v;
+    }
+
+    function endTurn(foul, reason) {
+      if (foul) {
+        const v = foulValue();
+        scores[1 - turn] += v;
+        playFoulSound();
+        showToast(`FOUL — ${v} TO ${playerName(1 - turn)}`, '#ff2a2a', 1600);
+      } else if (reason) {
+        showToast(reason, '#00f2ff', 1100);
+      }
+      highBreak = Math.max(highBreak, breakScore);
+      breakScore = 0;
+      turn = 1 - turn;
+      ballOn = redsLeft() > 0 ? 'red' : nextColourOn();
+      if (cueBallPotted) {
+        const cue = cueBall();
+        cue.potted = false;
+        cue.vx = 0; cue.vy = 0;
+        cue.x = 0.5 - D_R * 0.4;
+        cue.y = BAULK_Y + 0.06;
+        phase = 'placing';
+      } else {
+        phase = 'aim';
+      }
+      cueBallPotted = false;
+      updateHUD();
+      if (phase === 'aim' || phase === 'placing') maybeStartAI();
+    }
+
+    function continueTurn() {
+      // Potting a red always earns a colour next, even the last red — that
+      // colour respots, and only then do the colours have to be cleared in order.
+      if (ballOn === 'red') ballOn = 'colour';
+      else if (ballOn === 'colour') ballOn = redsLeft() > 0 ? 'red' : nextColourOn();
+      else ballOn = nextColourOn();
+      phase = 'aim';
+      updateHUD();
+      maybeStartAI();
+    }
+
+    function nextColourOn() {
+      for (const name of COLOUR_ORDER) {
+        const b = balls.find(x => x.type === name);
+        if (b && !b.potted) return name;
+      }
+      return null;
+    }
+
+    function resolveShot() {
+      const legalFirst = ballOn === 'colour'
+        ? (firstContact && firstContact !== 'red' && firstContact !== 'cue')
+        : firstContact === ballOn;
+
+      let foul = !firstContact || !legalFirst || cueBallPotted;
+      let scored = 0;
+
+      if (!foul) {
+        for (const name of pottedThisShot) {
+          const legalPot = ballOn === 'colour' ? name !== 'red' : name === ballOn;
+          if (!legalPot) { foul = true; break; }
+          scored += valueOf(name);
+        }
+      }
+
+      if (foul) {
+        // Anything potted illegally still comes back up, except reds.
+        pottedThisShot.forEach(name => { if (name !== 'red') respot(name); });
+        endTurn(true);
+        return;
+      }
+
+      if (!pottedThisShot.length) {
+        endTurn(false, 'NO POT');
+        return;
+      }
+
+      // A colour taken after a red always respots, including the one after the
+      // final red. Only in the ordered clearance do colours stay down.
+      if (ballOn === 'colour') {
+        pottedThisShot.forEach(name => respot(name));
+      }
+
+      scores[turn] += scored;
+      breakScore += scored;
+      highBreak = Math.max(highBreak, breakScore);
+      if (breakScore >= 10) showToast(`BREAK OF ${breakScore}!`, '#ffd700', 1100);
+
+      if (isFrameOver()) { finishFrame(); return; }
+      continueTurn();
+    }
+
+    function isFrameOver() {
+      if (redsLeft() > 0) return false;
+      // A colour missing from the array counts as gone, rather than throwing.
+      return COLOUR_ORDER.every(n => {
+        const b = balls.find(x => x.type === n);
+        return !b || b.potted;
+      });
+    }
+
+    function playerName(i) {
+      if (mode === 'solo') return i === 0 ? 'YOU' : 'CPU';
+      return i === 0 ? 'PLAYER 1' : 'PLAYER 2';
+    }
+
+    // ---------------------------------------------------------------- ai ---
+
+    function maybeStartAI() {
+      if (mode !== 'solo' || turn !== 1 || phase === 'over') return;
+      aiTimer = 900;
+    }
+
+    /**
+     * Picks the easiest legal pot it can see: for every legal target and every
+     * pocket it works out the ghost-ball contact point, rejects cut angles past
+     * ninety degrees, and scores what is left by distance and cut. Aim error and
+     * power jitter come from the difficulty.
+     */
+    /** True when nothing sits on the segment from (x1,y1) to (x2,y2). */
+    function pathClear(x1, y1, x2, y2, ignore) {
+      const dx = x2 - x1, dy = y2 - y1;
+      const len = Math.hypot(dx, dy);
+      if (len < 1e-6) return true;
+      const ux = dx / len, uy = dy / len;
+      for (const b of balls) {
+        if (b.potted || ignore.includes(b)) continue;
+        const t = (b.x - x1) * ux + (b.y - y1) * uy;
+        if (t <= 0 || t >= len) continue;
+        const perp = Math.abs((b.x - x1) * -uy + (b.y - y1) * ux);
+        if (perp < BALL_R * 2) return false;
+      }
+      return true;
+    }
+
+    function aiShot() {
+      const cfg = AI[currentDifficulty];
+      const cue = cueBall();
+      const targets = balls.filter(b => !b.potted && b.type !== 'cue' && isLegalTarget(b.type));
+      let best = null;
+
+      for (const t of targets) {
+        for (const p of POCKETS) {
+          const toPocket = Math.hypot(p.x - t.x, p.y - t.y);
+          const gx = t.x - (p.x - t.x) / toPocket * BALL_R * 2;
+          const gy = t.y - (p.y - t.y) / toPocket * BALL_R * 2;
+          const toGhost = Math.hypot(gx - cue.x, gy - cue.y);
+          if (toGhost < 1e-4) continue;
+
+          // Cut angle between the cue's path and the target's path to the pocket.
+          const cutCos = ((gx - cue.x) * (p.x - t.x) + (gy - cue.y) * (p.y - t.y)) / (toGhost * toPocket);
+          if (cutCos < 0.45) continue;                   // too thin to be worth it
+          // Both halves of the shot have to be on: cue to the contact point,
+          // and the object ball on to the pocket. Without this it kept firing
+          // at balls it could not see and simply fouled.
+          if (!pathClear(cue.x, cue.y, gx, gy, [cue, t])) continue;
+          if (!pathClear(t.x, t.y, p.x, p.y, [t])) continue;
+
+          const score = cutCos * 3 - toGhost * 0.6 - toPocket * 0.45;
+          if (!best || score > best.score) {
+            best = { score, angle: Math.atan2(gy - cue.y, gx - cue.x), dist: toGhost + toPocket };
+          }
+        }
+      }
+
+      if (!best) {
+        // Nothing on: roll gently at the nearest legal ball rather than foul.
+        const t = targets[0];
+        best = t
+          ? { angle: Math.atan2(t.y - cue.y, t.x - cue.x), dist: 0.6 }
+          : { angle: -Math.PI / 2, dist: 0.5 };
+      }
+
+      aim = best.angle + (Math.random() - 0.5) * cfg.error * 2;
+      // A shot decays as exp(-k t), so covering distance d needs roughly
+      // v = d * k, with headroom for the collision.
+      const want = Math.min(1, (best.dist * ROLL_FRICTION * 1.5) / MAX_POWER + 0.15);
+      power = Math.max(0.2, Math.min(1, want + (Math.random() - 0.5) * cfg.power * 2));
+      shoot();
+    }
+
+    function isLegalTarget(type) {
+      if (ballOn === 'red') return type === 'red';
+      if (ballOn === 'colour') return type !== 'red';
+      return type === ballOn;
+    }
+
+    // ------------------------------------------------------------- input ---
+
+    function shoot() {
+      const cue = cueBall();
+      firstContact = null;
+      pottedThisShot = [];
+      cueBallPotted = false;
+      cue.vx = Math.cos(aim) * power * MAX_POWER;
+      cue.vy = Math.sin(aim) * power * MAX_POWER;
+      phase = 'rolling';
+      playClack(power);
+    }
+
+    function inHand() { return phase === 'placing'; }
+
+    function insideD(x, y) {
+      return y >= BAULK_Y && Math.hypot(x - 0.5, y - BAULK_Y) <= D_R && y <= TABLE_H - BALL_R;
+    }
+
+    canvas.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      initAudio();
+      if (!gameRunning || gamePaused) return;
+      if (mode === 'solo' && turn === 1) return;          // the CPU is shooting
+      const rect = canvas.getBoundingClientRect();
+      const x = toTableX(e.clientX - rect.left);
+      const y = toTableY(e.clientY - rect.top);
+
+      if (inHand()) {
+        const cue = cueBall();
+        if (insideD(x, y)) { cue.x = x; cue.y = y; phase = 'aim'; }
+        return;
+      }
+      if (phase !== 'aim') return;
+      dragging = true;
+      dragId = e.pointerId;
+      updateAimFrom(x, y);
+    });
+
+    canvas.addEventListener('pointermove', e => {
+      if (!dragging || e.pointerId !== dragId) return;
+      const rect = canvas.getBoundingClientRect();
+      updateAimFrom(toTableX(e.clientX - rect.left), toTableY(e.clientY - rect.top));
+    });
+
+    function updateAimFrom(x, y) {
+      const cue = cueBall();
+      const dx = cue.x - x, dy = cue.y - y;
+      const d = Math.hypot(dx, dy);
+      if (d < 0.01) return;
+      // Pull back from the ball: the cue points the way you dragged from.
+      aim = Math.atan2(dy, dx);
+      power = Math.max(0, Math.min(1, (d - BALL_R) / 0.55));
+    }
+
+    function releaseDrag(e) {
+      if (!dragging || (e && e.pointerId !== dragId)) return;
+      dragging = false;
+      dragId = null;
+      if (phase === 'aim' && power > 0.06) shoot();
+      else power = 0;
+    }
+    canvas.addEventListener('pointerup', releaseDrag);
+    canvas.addEventListener('pointercancel', releaseDrag);
+
+    document.addEventListener('keydown', e => {
+      initAudio();
+      if (e.key === 'Escape') { e.preventDefault(); if (gameRunning) togglePause(); }
+    });
+
+    // ----------------------------------------------------------- drawing ---
+
+    function drawTable() {
+      const w = TABLE_W * scale, h = TABLE_H * scale;
+      const rail = 0.055 * scale;
+
+      ctx.save();
+      ctx.fillStyle = '#1b2a3a';
+      ctx.beginPath();
+      ctx.roundRect(px(0) - rail, py(0) - rail, w + rail * 2, h + rail * 2, rail);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0, 242, 255, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      const cloth = ctx.createLinearGradient(px(0), py(0), px(0), py(TABLE_H));
+      cloth.addColorStop(0, '#07403a');
+      cloth.addColorStop(0.5, '#095049');
+      cloth.addColorStop(1, '#07403a');
+      ctx.fillStyle = cloth;
+      ctx.fillRect(px(0), py(0), w, h);
+      ctx.restore();
+
+      // Baulk line and the D.
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(px(0), py(BAULK_Y));
+      ctx.lineTo(px(TABLE_W), py(BAULK_Y));
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(px(0.5), py(BAULK_Y), D_R * scale, 0, Math.PI);
+      ctx.stroke();
+      ctx.restore();
+
+      // Spots.
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      COLOUR_ORDER.forEach(n => {
+        const s = COLOURS[n].spot;
+        ctx.beginPath();
+        ctx.arc(px(s.x), py(s.y), Math.max(1, scale * 0.005), 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+
+      // Pockets.
+      ctx.save();
+      ctx.fillStyle = '#04070c';
+      POCKETS.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(px(p.x), py(p.y), POCKET_R * scale, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    function drawBalls() {
+      for (const b of balls) {
+        if (b.potted) continue;
+        const x = px(b.x), y = py(b.y), r = BALL_R * scale;
+        ctx.save();
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = 'rgba(0,0,0,0.7)';
+        ctx.fillStyle = b.color;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        // A rim so the black reads against the dark cloth.
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        // Highlight.
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx.beginPath();
+        ctx.arc(x - r * 0.32, y - r * 0.32, r * 0.26, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    /** Traces the cue ball's path to its first contact, and where that sends it. */
+    function drawAimLine() {
+      if (phase !== 'aim' && phase !== 'placing') return;
+      if (mode === 'solo' && turn === 1) return;
+      const cue = cueBall();
+      const dx = Math.cos(aim), dy = Math.sin(aim);
+
+      let hitDist = Infinity, hitBall = null;
+      for (const b of balls) {
+        if (b.potted || b === cue) continue;
+        const ox = b.x - cue.x, oy = b.y - cue.y;
+        const proj = ox * dx + oy * dy;
+        if (proj <= 0) continue;
+        const perp2 = ox * ox + oy * oy - proj * proj;
+        const rr = (BALL_R * 2) * (BALL_R * 2);
+        if (perp2 > rr) continue;
+        const d = proj - Math.sqrt(rr - perp2);
+        if (d > 0 && d < hitDist) { hitDist = d; hitBall = b; }
+      }
+      // Otherwise run to the cushion.
+      if (!hitBall) {
+        const cand = [];
+        if (dx > 0) cand.push((TABLE_W - BALL_R - cue.x) / dx);
+        if (dx < 0) cand.push((BALL_R - cue.x) / dx);
+        if (dy > 0) cand.push((TABLE_H - BALL_R - cue.y) / dy);
+        if (dy < 0) cand.push((BALL_R - cue.y) / dy);
+        hitDist = Math.max(0, Math.min(...cand.filter(v => v > 0)));
+      }
+
+      const ex = cue.x + dx * hitDist, ey = cue.y + dy * hitDist;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(px(cue.x), py(cue.y));
+      ctx.lineTo(px(ex), py(ey));
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      if (hitBall) {
+        // Ghost ball at contact, and the line the object ball will take.
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.beginPath();
+        ctx.arc(px(ex), py(ey), BALL_R * scale, 0, Math.PI * 2);
+        ctx.stroke();
+        const nx = hitBall.x - ex, ny = hitBall.y - ey;
+        const nd = Math.hypot(nx, ny) || 1;
+        ctx.strokeStyle = 'rgba(255, 215, 0, 0.65)';
+        ctx.beginPath();
+        ctx.moveTo(px(hitBall.x), py(hitBall.y));
+        ctx.lineTo(px(hitBall.x + nx / nd * 0.18), py(hitBall.y + ny / nd * 0.18));
+        ctx.stroke();
+      }
+
+      // Power shown as a growing cue behind the ball.
+      if (power > 0.02) {
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(px(cue.x - dx * (BALL_R + 0.02)), py(cue.y - dy * (BALL_R + 0.02)));
+        ctx.lineTo(px(cue.x - dx * (BALL_R + 0.02 + power * 0.3)), py(cue.y - dy * (BALL_R + 0.02 + power * 0.3)));
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawStatus() {
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.font = `bold ${Math.max(10, Math.round(scale * 0.045))}px 'Segoe UI', sans-serif`;
+      const onColour = ballOn === 'red' ? COLOURS.red.color
+        : ballOn === 'colour' ? '#ffffff' : COLOURS[ballOn].color;
+      ctx.fillStyle = onColour;
+      const who = mode === 'duo' || turn === 1 ? `${playerName(turn)} — ` : '';
+      ctx.fillText(`${who}ON: ${ballOnLabel()}`, px(TABLE_W / 2), py(0) - 8);
+
+      if (inHand()) {
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.font = `${Math.max(9, Math.round(scale * 0.035))}px 'Segoe UI', sans-serif`;
+        ctx.fillText('TAP INSIDE THE D TO PLACE THE CUE BALL', px(TABLE_W / 2), py(TABLE_H) + scale * 0.075);
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(px(0.5), py(BAULK_Y), D_R * scale, 0, Math.PI);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawPaused() {
+      ctx.save();
+      ctx.fillStyle = 'rgba(5, 5, 16, 0.6)';
+      ctx.fillRect(0, 0, viewW, viewH);
+      ctx.fillStyle = '#00f2ff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `bold ${Math.round(Math.min(viewW * 0.1, 44))}px 'Segoe UI', sans-serif`;
+      ctx.fillText('PAUSED', viewW / 2, viewH / 2);
+      ctx.restore();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, viewW, viewH);
+      drawTable();
+      drawAimLine();
+      drawBalls();
+      drawStatus();
+      if (gamePaused) drawPaused();
+    }
+
+    function updateHUD() {
+      p1ScoreEl.textContent = scores[0];
+      p2ScoreEl.textContent = scores[1];
+      breakEl.textContent = breakScore;
+    }
+
+    // -------------------------------------------------------- run control --
+
+    function update(dt) {
+      if (phase === 'rolling') {
+        stepPhysics(dt);
+        if (allStopped()) resolveShot();
+        return;
+      }
+      if (aiTimer > 0) {
+        aiTimer -= dt * 1000;
+        if (aiTimer <= 0 && mode === 'solo' && turn === 1) {
+          if (phase === 'placing') {
+            const cue = cueBall();
+            cue.x = 0.5 - D_R * 0.4; cue.y = BAULK_Y + 0.06;
+            phase = 'aim';
+          }
+          if (phase === 'aim') aiShot();
+        }
+      }
+    }
+
+    function setMode(next) {
+      mode = next;
+      document.querySelectorAll('#modeBar button').forEach(b =>
+        b.classList.toggle('active', b.dataset.mode === next));
+      diffWrap.classList.toggle('dimmed', next === 'duo');
+      p1LabelEl.textContent = next === 'solo' ? 'You' : 'P1';
+      p2LabelEl.textContent = next === 'solo' ? 'CPU' : 'P2';
+      modeBlurb.textContent = next === 'solo'
+        ? 'Pot a red, then a colour, and keep the break going. Six reds, all six colours.'
+        : 'Take turns at the same phone. Pot a red, then a colour, and keep the break going.';
+    }
+
+    function setDifficulty(diff) {
+      currentDifficulty = diff;
+      document.querySelectorAll('#difficultyBar button').forEach(btn =>
+        btn.classList.toggle('active', btn.dataset.diff === diff));
+      diffNote.textContent = AI[diff].note;
+      bestEl.textContent = getBestScore();
+    }
+
+    function getBestScore() { return Arcade.bestScore(`snookerBest_${currentDifficulty}`); }
+
+    function saveBestScore() {
+      if (highBreak <= getBestScore()) return false;
+      Arcade.setBestScore(`snookerBest_${currentDifficulty}`, highBreak);
+      return true;
+    }
+
+    function showStartOverlay() {
+      gameRunning = false;
+      gamePaused = false;
+      cancelAnimationFrame(animationId);
+      gameOverOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+      pauseBtn.textContent = 'Pause';
+    }
+
+    function startGame() {
+      initAudio();
+      scores = [0, 0];
+      turn = 0;
+      breakScore = 0;
+      highBreak = 0;
+      potted = 0;
+      ballOn = 'red';
+      phase = 'aim';
+      aim = -Math.PI / 2;
+      power = 0;
+      dragging = false;
+      dragId = null;
+      firstContact = null;
+      pottedThisShot = [];
+      cueBallPotted = false;
+      aiTimer = 0;
+      rack();
+
+      startOverlay.classList.add('hidden');
+      gameOverOverlay.classList.add('hidden');
+      document.getElementById('startBtn').textContent = 'Restart';
+
+      gameRunning = true;
+      gamePaused = false;
+      pauseBtn.textContent = 'Pause';
+      lastTime = 0;
+
+      layout();
+      bestEl.textContent = getBestScore();
+      updateHUD();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function togglePause() {
+      if (!gameRunning) return;
+      gamePaused = !gamePaused;
+      pauseBtn.textContent = gamePaused ? 'Resume' : 'Pause';
+      if (!gamePaused) lastTime = 0;
+    }
+
+    function toggleFullscreen() { Arcade.toggleFullscreen(); }
+
+    Arcade.wireFullscreen(fullscreenBtn, layout);
+    Arcade.wireAutoPause(() => gameRunning && !gamePaused, togglePause);
+
+    function finishFrame() {
+      phase = 'over';
+      gameRunning = false;
+      cancelAnimationFrame(animationId);
+      highBreak = Math.max(highBreak, breakScore);
+      const winner = scores[0] >= scores[1] ? 0 : 1;
+      const isBest = saveBestScore();
+
+      document.getElementById('winTitle').textContent = mode === 'solo'
+        ? (winner === 0 ? '🏆 You Win!' : '🤖 CPU Wins')
+        : `🏆 ${winner === 0 ? 'Player 1' : 'Player 2'} Wins!`;
+      document.getElementById('finalScore').textContent = `${scores[0]} – ${scores[1]}`;
+      document.getElementById('finalBreak').textContent = highBreak;
+      document.getElementById('finalPots').textContent = potted;
+      document.getElementById('finalBest').textContent = getBestScore();
+      document.getElementById('newBestTag').style.display = isBest ? 'block' : 'none';
+      bestEl.textContent = getBestScore();
+
+      if (winner === 0) { playWinSound(); if (isBest) setTimeout(() => Arcade.playBestJingle(), 400); }
+      else playLoseSound();
+      gameOverOverlay.classList.remove('hidden');
+    }
+
+    function gameLoop(timestamp) {
+      if (!gameRunning) return;
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min((timestamp - lastTime) / 1000, 0.033);
+      lastTime = timestamp;
+
+      if (!gamePaused && dt > 0) update(dt);
+      if (!gameRunning) return;
+
+      draw();
+      updateHUD();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    if (!('ontouchstart' in window)) {
+      hintLine.textContent = 'Drag back from the cue ball with the mouse, release to shoot • Esc to pause';
+    }
+
+    try {
+      setMode('solo');
+      setDifficulty('easy');
+      rack();
+      layout();
+    } catch (err) {
+      console.error('Neon Snooker init failed:', err);
+    }
+  </script>
+</body>
+</html>
