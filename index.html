@@ -162,6 +162,7 @@
     .game-card:nth-child(16) { animation-delay: 0.48s; }
     .game-card:nth-child(17) { animation-delay: 0.51s; }
     .game-card:nth-child(18) { animation-delay: 0.54s; }
+    .game-card:nth-child(19) { animation-delay: 0.57s; }
 
     .game-card::before {
       content: '';
@@ -793,6 +794,20 @@
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
+
+    <a href="games/snooker/index.html" class="game-card" data-game="snooker" data-cat="versus">
+      <span class="favorite-tag">🔥 Favorite</span>
+      <div class="card-content">
+        <span class="game-icon">🎱</span>
+        <h2 class="game-title">Neon Snooker</h2>
+        <p class="game-desc">Six-red snooker with a real cue and real rules. Drag back to aim and set power, watch the guide line, and take turns on one phone or play the CPU.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
   </main>
 
   <button class="to-top" id="toTop" type="button" onclick="scrollToTop()" aria-label="Back to top">↑</button>
@@ -937,7 +952,10 @@
       'air-hockey': () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
         parseInt(localStorage.getItem(`hockeyBest_${d}`) || '0', 10))),
       'alien-swarm': () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
-        parseInt(localStorage.getItem(`swarmBest_${d}`) || '0', 10)))
+        parseInt(localStorage.getItem(`swarmBest_${d}`) || '0', 10))),
+      // Snooker's "best" is the highest break made.
+      snooker: () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
+        parseInt(localStorage.getItem(`snookerBest_${d}`) || '0', 10)))
     };
 
     // ---- Play counts ----
