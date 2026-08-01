@@ -1,0 +1,1781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🎯 Neon Sling | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    :root { --play-max: 480px; }
+
+    #gameCanvas {
+      background: linear-gradient(180deg, #0a1030 0%, #101a3a 45%, #1a1230 100%);
+    }
+
+    .ammo-key {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 5px 12px;
+      font-size: 0.72rem;
+      color: #aaa;
+      margin: 10px 0 4px;
+      text-align: left;
+      max-width: 330px;
+      align-items: center;
+    }
+
+    .ammo-key b { color: var(--text); font-weight: 600; }
+
+    .star-row {
+      font-size: 1.9rem;
+      letter-spacing: 6px;
+      margin: 6px 0 2px;
+      text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+    }
+
+    .overlay .stats { max-width: 300px; }
+
+    /* Per-level star tally on the run-complete screen. */
+    .level-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 5px;
+      margin: 10px 0;
+      width: 100%;
+      max-width: 300px;
+    }
+
+    .level-cell {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      padding: 5px 2px;
+      font-size: 0.6rem;
+      color: #888;
+      text-align: center;
+    }
+
+    .level-cell .lv { display: block; color: #666; font-size: 0.55rem; }
+    .level-cell .st { color: var(--gold); font-size: 0.62rem; letter-spacing: 0; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span>Level</span>
+        <strong id="levelEl">1</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Shots</span>
+        <strong id="shotsEl">3</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Score</span>
+        <strong id="scoreEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best ⭐</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button id="startBtn" onclick="showStartOverlay()">Restart</button>
+      <button id="retryBtn" onclick="retryLevel()">↻ Level</button>
+      <button id="pauseBtn" onclick="togglePause()">Pause</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="hint-line" id="hintLine">Drag back from the sling, release to fire · tap in flight for the power</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">CLEARED!</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🎯 Neon Sling</h1>
+    <p id="modeBlurb">Twelve levels. Pull back the sling, let go, and bring the towers down on the bugs. Every bug squashed before you run out of shots.</p>
+
+    <div class="difficulty-bar" id="difficultyBar">
+      <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+      <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+      <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+    </div>
+    <div class="diff-note" id="diffNote"></div>
+
+    <div class="ammo-key">
+      <span>⚪ Rock</span><span>heavy and plain — just hits hard</span>
+      <span>🟡 Splitter</span><span><b>tap in flight</b> to break into three</span>
+      <span>🔴 Bomb</span><span><b>tap in flight</b> to blow a hole in the wall</span>
+      <span>🔵 Diver</span><span><b>tap in flight</b> to slam straight down</span>
+    </div>
+    <div class="legend">
+      <span style="color:#c89b6a">▬ Wood</span>
+      <span style="color:#7fe9ff">▬ Glass, weakest</span>
+      <span style="color:#b9c2cc">▬ Stone, toughest</span>
+    </div>
+
+    <button class="primary" onclick="startGame()">▶ Start</button>
+  </div>
+
+  <div class="overlay hidden" id="levelOverlay">
+    <h1 id="levelTitle">Level Cleared</h1>
+    <div class="star-row" id="starRow">⭐⭐⭐</div>
+    <p id="levelBlurb">Nice shot!</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="lvlScore">0</div>
+        <div class="lbl">Level Score</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="lvlTotal">0</div>
+        <div class="lbl">Run Total</div>
+      </div>
+    </div>
+    <button class="primary" id="nextBtn" onclick="advanceLevel()">▶ Next Level</button>
+    <div class="secondary-row">
+      <button onclick="retryLevel()">↻ Replay Level</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <h1 id="winTitle">🏁 Run Complete</h1>
+    <p class="new-best" id="newBestTag">🏆 Best Run!</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalStars">0</div>
+        <div class="lbl">Stars Earned</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalScore">0</div>
+        <div class="lbl">Total Score</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalLevels">0</div>
+        <div class="lbl">Levels Cleared</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBest">0</div>
+        <div class="lbl">Best Stars</div>
+      </div>
+    </div>
+    <div class="level-grid" id="levelGrid"></div>
+    <button class="primary" onclick="startGame()">Play Again</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Difficulty</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const levelEl = document.getElementById('levelEl');
+    const shotsEl = document.getElementById('shotsEl');
+    const scoreEl = document.getElementById('scoreEl');
+    const bestEl = document.getElementById('bestEl');
+    const startOverlay = document.getElementById('startOverlay');
+    const levelOverlay = document.getElementById('levelOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const diffNote = document.getElementById('diffNote');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.querySelector('.bottom-bar');
+
+    /*
+     * The field is measured in world units: 1 wide by 1.25 tall, mapped to the
+     * screen by one scale factor, so a resize or a rotate can never change how
+     * a tower falls. Everything fits on one screen — nothing scrolls.
+     */
+    const WORLD_W = 1.0;
+    const WORLD_H = 1.25;
+    const GROUND_Y = 1.16;
+    const GRAVITY = 2.4;              // world units per second squared
+    const MAX_LAUNCH = 1.62;          // world units per second at full stretch
+    // The pull has to fit between the sling and the left edge, or a full-power
+    // stretch drags the shot off the side of the field.
+    const DRAG_MAX = 0.13;            // pull this far back for full power
+    const SLING = { x: 0.15, y: 0.78 };
+    const MAX_SPEED = 2.5;            // clamp, so nothing tunnels a thin plank
+    const BUG_R = 0.026;
+    const PHYS_DT = 1 / 120;          // fixed step: the solver wants consistency
+    const SOLVER_ITERS = 12;
+    const SETTLE_SPEED = 0.035;       // below this everywhere counts as quiet
+    const SETTLE_SPIN = 0.25;
+    const SETTLE_TIME = 0.35;         // ...for this long, and the shot is over
+    const SHOT_TIMEOUT = 7;           // hard stop, in case something never rests
+
+    /*
+     * Damage is dealt on impact only: a contact that is already resting never
+     * hurts anything, so a standing tower does not grind itself to bits. The
+     * numbers below are in "impact units" — see impactDamage().
+     */
+    const DMG_SCALE = 900;
+    const DMG_FLOOR = 0.45;           // approach speed below this is harmless
+
+    const MATERIALS = {
+      wood:  { density: 1.0,  hp: 0.55, fill: '#a9743f', edge: '#c89b6a', score: 100 },
+      glass: { density: 0.75, hp: 0.16, fill: '#2b6b85', edge: '#7fe9ff', score: 80 },
+      stone: { density: 2.4,  hp: 2.2,  fill: '#5a6572', edge: '#b9c2cc', score: 150 },
+      bug:   { density: 1.1,  hp: 0.38, fill: '#3ddc6b', edge: '#0e5c2c', score: 1000 }
+    };
+
+    const AMMO = {
+      rock:  { r: 0.030, density: 9.0, fill: '#e8eef5', edge: '#9fb2c4', label: 'Rock' },
+      split: { r: 0.025, density: 8.0, fill: '#ffd93d', edge: '#a8850c', label: 'Splitter' },
+      bomb:  { r: 0.032, density: 8.5, fill: '#ff4d4d', edge: '#7a1414', label: 'Bomb' },
+      dive:  { r: 0.027, density: 10.0, fill: '#4dd2ff', edge: '#0d5f7a', label: 'Diver' }
+    };
+
+    const DIFFICULTIES = {
+      easy:   { guide: 34, bonusShots: 1, starMul: 0.85, note: 'Full flight path shown, one spare shot per level.' },
+      medium: { guide: 12, bonusShots: 0, starMul: 1.0,  note: 'A short flight path to judge the rest by.' },
+      hard:   { guide: 0,  bonusShots: 0, starMul: 1.15, note: 'No flight path at all. Read the arc yourself.' }
+    };
+
+    // ------------------------------------------------------- level content ---
+
+    /*
+     * Structures are built from three helpers so a level is a handful of
+     * numbers rather than a wall of coordinates. Every block is given by its
+     * centre, which is what the physics wants anyway.
+     */
+    const T = 0.028;                  // standard plank thickness
+
+    function post(cx, groundY, len, mat, t) {
+      t = t || T;
+      return { x: cx, y: groundY - len / 2, w: t, h: len, a: 0, mat: mat };
+    }
+
+    function beam(cx, groundY, len, mat, t) {
+      t = t || T;
+      return { x: cx, y: groundY - t / 2, w: len, h: t, a: 0, mat: mat };
+    }
+
+    /** Two posts and a roof. Returns the blocks; the shelter floor is groundY. */
+    function hut(cx, groundY, span, height, mat, t) {
+      t = t || T;
+      return [
+        post(cx - span / 2, groundY, height, mat, t),
+        post(cx + span / 2, groundY, height, mat, t),
+        beam(cx, groundY - height, span + t, mat, t)
+      ];
+    }
+
+    /** The ground level of the storey above a hut of this height. */
+    function roofOf(groundY, height, t) { return groundY - height - (t || T); }
+
+    /** Huts stacked into a tower. Storeys are given bottom-up. */
+    function tower(cx, groundY, span, storeys) {
+      const out = [];
+      let g = groundY;
+      for (const s of storeys) {
+        out.push(...hut(cx, g, span, s.h, s.mat, s.t));
+        g = roofOf(g, s.h, s.t);
+      }
+      return out;
+    }
+
+    /**
+     * The floor level of every storey of such a tower, plus its roof at the
+     * end — so bugs are placed from the same numbers that built the tower and
+     * cannot drift out of sync with it.
+     */
+    function floors(groundY, storeys) {
+      const out = [];
+      let g = groundY;
+      for (const s of storeys) { out.push(g); g = roofOf(g, s.h, s.t); }
+      out.push(g);
+      return out;
+    }
+
+    const GY = GROUND_Y;
+
+    const S3 = [{ h: 0.17, mat: 'glass' }, { h: 0.17, mat: 'glass' }, { h: 0.17, mat: 'glass' }];
+    const F3 = floors(GY, S3);
+    const S4 = [{ h: 0.18, mat: 'wood' }, { h: 0.18, mat: 'wood' }, { h: 0.13, mat: 'glass' }];
+    const F4 = floors(GY, S4);
+    const S8 = [{ h: 0.16, mat: 'glass' }];
+    const S9 = [{ h: 0.16, mat: 'wood' }, { h: 0.14, mat: 'glass' }];
+    const F9 = floors(GY, S9);
+    const S10 = [{ h: 0.18, mat: 'glass' }, { h: 0.17, mat: 'wood' }];
+    const F10 = floors(GY, S10);
+    const S11 = [{ h: 0.16, mat: 'wood' }, { h: 0.16, mat: 'wood' }, { h: 0.16, mat: 'wood' }];
+    const F11 = floors(GY, S11);
+    const S12 = [{ h: 0.16, mat: 'wood' }, { h: 0.16, mat: 'wood' }, { h: 0.12, mat: 'glass' }];
+    const F12 = floors(GY, S12);
+
+    const LEVELS = [
+      {
+        name: 'First Sling',
+        blurb: 'One hut, one bug. Aim a little high and let it drop.',
+        shots: ['rock', 'rock', 'rock'],
+        build: () => hut(0.72, GY, 0.16, 0.22, 'wood'),
+        bugs: [[0.72, GY - BUG_R]]
+      },
+      {
+        name: 'Two Up',
+        blurb: 'Two huts, wide apart. Two hits needed, so take your time.',
+        // Four rocks, not three: two separated targets this early asks for more
+        // accuracy than the taller single towers that follow it.
+        shots: ['rock', 'rock', 'rock', 'rock'],
+        build: () => [...hut(0.60, GY, 0.15, 0.20, 'wood'),
+                      ...hut(0.88, GY, 0.15, 0.20, 'wood')],
+        bugs: [[0.60, GY - BUG_R], [0.88, GY - BUG_R]]
+      },
+      {
+        name: 'Glass House',
+        blurb: 'Three floors of glass. It barely holds itself up.',
+        shots: ['rock', 'rock', 'rock'],
+        build: () => [...tower(0.72, GY, 0.17, S3),
+                      beam(0.72, F3[3], 0.21, 'wood')],
+        bugs: [[0.72, F3[0] - BUG_R], [0.72, F3[2] - BUG_R]]
+      },
+      {
+        name: 'Watchtower',
+        blurb: 'Knock the legs out and the whole thing comes down.',
+        shots: ['rock', 'rock', 'rock', 'rock'],
+        build: () => tower(0.76, GY, 0.16, S4),
+        bugs: [[0.76, F4[0] - BUG_R], [0.76, F4[2] - BUG_R]]
+      },
+      {
+        name: 'Stone Face',
+        blurb: 'Rocks bounce off stone. The bomb does not.',
+        shots: ['bomb', 'rock', 'rock'],
+        build: () => [post(0.58, GY, 0.42, 'stone', 0.040),
+                      ...hut(0.78, GY, 0.15, 0.20, 'wood'),
+                      ...hut(0.78, roofOf(GY, 0.20), 0.15, 0.16, 'wood')],
+        bugs: [[0.78, GY - BUG_R], [0.78, roofOf(GY, 0.20) - BUG_R]]
+      },
+      {
+        name: 'Spread Out',
+        blurb: 'Three huts, far apart. Split the shot and cover them all.',
+        shots: ['split', 'split', 'rock'],
+        build: () => [...hut(0.55, GY, 0.12, 0.18, 'glass'),
+                      ...hut(0.74, GY, 0.12, 0.18, 'glass'),
+                      ...hut(0.92, GY, 0.12, 0.18, 'glass')],
+        bugs: [[0.55, GY - BUG_R], [0.74, GY - BUG_R], [0.92, GY - BUG_R]]
+      },
+      {
+        name: 'Under the Lid',
+        blurb: 'A stone lid. Go over the top and drop straight down.',
+        shots: ['dive', 'dive', 'rock'],
+        build: () => [post(0.58, GY, 0.34, 'stone', 0.036),
+                      post(0.94, GY, 0.34, 'stone', 0.036),
+                      beam(0.76, GY - 0.34, 0.40, 'stone', 0.036),
+                      beam(0.76, GY - 0.34 - 0.036, 0.30, 'wood')],
+        bugs: [[0.68, GY - BUG_R], [0.85, GY - BUG_R]]
+      },
+      {
+        name: 'The Bridge',
+        blurb: 'A long deck on thin legs. Take a leg and the rest follows.',
+        shots: ['rock', 'rock', 'rock', 'rock'],
+        build: () => [post(0.52, GY, 0.26, 'wood'),
+                      post(0.72, GY, 0.26, 'wood'),
+                      post(0.92, GY, 0.26, 'wood'),
+                      beam(0.62, GY - 0.26, 0.19, 'wood'),
+                      beam(0.82, GY - 0.26, 0.19, 'wood'),
+                      ...tower(0.72, GY - 0.26 - T, 0.14, S8)],
+        bugs: [[0.62, GY - BUG_R], [0.82, GY - BUG_R],
+               [0.72, GY - 0.26 - T - BUG_R]]
+      },
+      {
+        name: 'Fortress',
+        blurb: 'Stone outside, wood inside. Break in, then bring it down.',
+        shots: ['bomb', 'rock', 'rock', 'rock'],
+        build: () => [post(0.56, GY, 0.46, 'stone', 0.038),
+                      post(0.96, GY, 0.46, 'stone', 0.038),
+                      beam(0.76, GY - 0.46, 0.44, 'stone', 0.038),
+                      ...tower(0.76, GY, 0.16, S9)],
+        bugs: [[0.76, F9[0] - BUG_R], [0.76, F9[1] - BUG_R],
+               [0.63, GY - BUG_R]]
+      },
+      {
+        name: 'Top Heavy',
+        blurb: 'All that stone is sitting on glass. Be nice to it.',
+        shots: ['rock', 'rock', 'rock'],
+        build: () => [...tower(0.74, GY, 0.17, S10),
+                      beam(0.74, F10[2], 0.27, 'stone', 0.038),
+                      post(0.66, F10[2] - 0.038, 0.12, 'stone', 0.034),
+                      post(0.82, F10[2] - 0.038, 0.12, 'stone', 0.034)],
+        bugs: [[0.74, F10[0] - BUG_R], [0.74, F10[1] - BUG_R]]
+      },
+      {
+        name: 'Twin Towers',
+        blurb: 'Two towers with a bug in the gap. Topple one inwards.',
+        shots: ['split', 'rock', 'rock', 'rock'],
+        build: () => [...tower(0.58, GY, 0.12, S11),
+                      ...tower(0.92, GY, 0.12, S11),
+                      beam(0.75, GY, 0.14, 'glass')],
+        bugs: [[0.75, GY - T - BUG_R], [0.58, F11[2] - BUG_R],
+               [0.92, F11[2] - BUG_R]]
+      },
+      {
+        name: 'The Keep',
+        blurb: 'Everything at once. Four bugs, five shots, no mercy.',
+        shots: ['bomb', 'split', 'dive', 'rock', 'rock'],
+        build: () => [post(0.54, GY, 0.60, 'stone', 0.038),
+                      post(0.98, GY, 0.60, 'stone', 0.038),
+                      beam(0.76, GY - 0.60, 0.48, 'stone', 0.038),
+                      ...tower(0.68, GY, 0.13, S12),
+                      ...hut(0.87, GY, 0.13, 0.18, 'wood'),
+                      beam(0.76, GY - 0.60 - 0.038, 0.30, 'wood')],
+        bugs: [[0.68, F12[0] - BUG_R], [0.87, GY - BUG_R],
+               [0.68, F12[2] - BUG_R],
+               [0.76, GY - 0.60 - 0.038 - T - BUG_R]]
+      }
+    ];
+
+    // ------------------------------------------------------- runtime state ---
+
+    let currentDifficulty = 'easy';
+    let gameRunning = false;
+    let gamePaused = false;
+    let animationId = null;
+    let lastTime = 0;
+    let physAccum = 0;
+
+    let scale = 300, worldX = 0, worldY = 0, viewW = 0, viewH = 0, bandTop = 0;
+
+    // Fixed star field, seeded once so the sky does not shimmer between frames.
+    const STARS = Array.from({ length: 40 }, (_, i) => {
+      const r = Math.sin((i + 1) * 12.9898) * 43758.5453;
+      const s = Math.sin((i + 1) * 78.233) * 12345.6789;
+      // Kept dim on purpose: the aim guide is also small white dots, and the
+      // sky must never be mistaken for it.
+      return { x: r - Math.floor(r), y: (s - Math.floor(s)) * 0.62, m: (i % 3) * 0.05 + 0.07 };
+    });
+
+    let bodies = [];
+    let particles = [];
+    let nextBodyId = 1;
+    const contactCache = new Map();   // pair key -> [{ id, pn, pt }] for warm starting
+    let prevPairs = new Set();
+
+    let levelIndex = 0;
+    let ammo = [];                    // remaining shot types, index 0 is next up
+    let shotsUsed = 0;
+    let projectiles = [];             // live shots in the air
+    let phase = 'aim';                // aim | flying | settling | between | over
+    let settleTimer = 0;
+    let shotClock = 0;
+    let abilityUsed = false;
+
+    let runScore = 0;
+    let levelScore = 0;
+    let runStars = 0;
+    let starCard = [];                // stars earned per level this run
+    let levelsCleared = 0;
+
+    let aim = 0;
+    let power = 0;
+    let dragging = false;
+    let dragId = null;
+    let dragPoint = { x: SLING.x, y: SLING.y };
+    let cameraShake = 0;
+
+    // Audio, toast, best scores and fullscreen live in shared/arcade.js.
+    const initAudio = Arcade.initAudio;
+    function playTone(freq, type, duration, delay = 0, vol = 0.12) {
+      Arcade.playTone(freq, type, duration, delay, vol);
+    }
+    function playLaunch(p) { playTone(180 + p * 260, 'square', 0.07, 0, 0.07); }
+    function playThud()    { playTone(120, 'triangle', 0.06, 0, 0.06); }
+    function playBreak(m)  {
+      if (m === 'glass') { playTone(1400, 'square', 0.05, 0, 0.05); playTone(1900, 'square', 0.05, 0.03, 0.04); }
+      else if (m === 'stone') { playTone(90, 'sawtooth', 0.12, 0, 0.08); }
+      else playTone(200, 'square', 0.08, 0, 0.06);
+    }
+    function playPop()     { playTone(620, 'sine', 0.08); playTone(880, 'sine', 0.1, 0.05); }
+    function playBoom()    { playTone(70, 'sawtooth', 0.28, 0, 0.13); playTone(140, 'square', 0.16, 0, 0.08); }
+    function playCleared() { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => playTone(f, 'sine', 0.24, i * 0.1)); }
+    function playFail()    { [330, 262, 196].forEach((f, i) => playTone(f, 'sawtooth', 0.24, i * 0.13, 0.09)); }
+
+    function showToast(text, color, ms) {
+      Arcade.showToast(toast, text, color || '#ffd700', ms || 1200);
+    }
+
+    // ------------------------------------------------------------ layout ---
+
+    function layout() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      viewW = rect.width;
+      viewH = rect.height;
+      const topLimit = controlsBar.getBoundingClientRect().bottom - rect.top + 6;
+      const bottomLimit = bottomBar.getBoundingClientRect().top - rect.top - 6;
+      const availH = Math.max(170, bottomLimit - topLimit);
+      bandTop = topLimit;
+      scale = Math.min((rect.width - 8) / WORLD_W, availH / WORLD_H);
+      worldX = (rect.width - WORLD_W * scale) / 2;
+      // Sit the field on the bottom of the available band: the sky above it is
+      // where the arc lives, and dead space below the ground helps nobody.
+      worldY = topLimit + Math.max(0, availH - WORLD_H * scale);
+    }
+    window.addEventListener('resize', layout);
+
+    const px = x => worldX + x * scale;
+    const py = y => worldY + y * scale;
+    const toWorldX = cx => (cx - worldX) / scale;
+    const toWorldY = cy => (cy - worldY) / scale;
+
+    // ============================================================ physics ===
+    /*
+     * A compact impulse-based rigid body solver: oriented boxes and circles,
+     * SAT contact generation with face clipping, and sequential impulses with
+     * warm starting. It is the smallest thing that makes a stack of planks
+     * stand still and then fall over convincingly.
+     */
+
+    function addBox(spec) {
+      const mat = MATERIALS[spec.mat];
+      const m = spec.w * spec.h * mat.density;
+      const b = {
+        id: nextBodyId++, shape: 'box', kind: 'block', mat: spec.mat,
+        x: spec.x, y: spec.y, a: spec.a || 0,
+        vx: 0, vy: 0, av: 0,
+        hw: spec.w / 2, hh: spec.h / 2,
+        mass: m, im: 1 / m,
+        ii: 1 / (m * (spec.w * spec.w + spec.h * spec.h) / 12),
+        e: 0.05, fric: 0.62,
+        hp: mat.hp, maxHp: mat.hp, dead: false
+      };
+      bodies.push(b);
+      return b;
+    }
+
+    function addCircle(x, y, r, matName, kind, density, e, fric) {
+      const mat = MATERIALS[matName] || { density: density || 1 };
+      const d = density || mat.density;
+      const m = Math.PI * r * r * d;
+      const b = {
+        id: nextBodyId++, shape: 'circle', kind: kind || 'block', mat: matName,
+        x: x, y: y, a: 0, vx: 0, vy: 0, av: 0,
+        r: r, mass: m, im: 1 / m, ii: 1 / (m * r * r / 2),
+        e: e === undefined ? 0.12 : e, fric: fric === undefined ? 0.45 : fric,
+        hp: mat.hp || 1, maxHp: mat.hp || 1, dead: false
+      };
+      bodies.push(b);
+      return b;
+    }
+
+    function addStatic(x, y, w, h) {
+      const b = {
+        id: nextBodyId++, shape: 'box', kind: 'static', mat: 'ground',
+        x: x, y: y, a: 0, vx: 0, vy: 0, av: 0,
+        hw: w / 2, hh: h / 2,
+        mass: Infinity, im: 0, ii: 0,
+        e: 0.02, fric: 0.85,
+        hp: Infinity, maxHp: Infinity, dead: false
+      };
+      bodies.push(b);
+      return b;
+    }
+
+    function boxVerts(b) {
+      const c = Math.cos(b.a), s = Math.sin(b.a);
+      const ux = c * b.hw, uy = s * b.hw;
+      const vx = -s * b.hh, vy = c * b.hh;
+      return [
+        [b.x - ux - vx, b.y - uy - vy],
+        [b.x + ux - vx, b.y + uy - vy],
+        [b.x + ux + vx, b.y + uy + vy],
+        [b.x - ux + vx, b.y - uy + vy]
+      ];
+    }
+
+    /** Outward normals of the four faces, in the same order as boxVerts edges. */
+    function faceNormals(b) {
+      const c = Math.cos(b.a), s = Math.sin(b.a);
+      return [[s, -c], [c, s], [-s, c], [-c, -s]];
+    }
+
+    function boxRadius(b) { return Math.hypot(b.hw, b.hh); }
+    function bodyRadius(b) { return b.shape === 'circle' ? b.r : boxRadius(b); }
+
+    function projectVerts(verts, nx, ny) {
+      let min = Infinity, max = -Infinity;
+      for (let i = 0; i < 4; i++) {
+        const d = verts[i][0] * nx + verts[i][1] * ny;
+        if (d < min) min = d;
+        if (d > max) max = d;
+      }
+      return [min, max];
+    }
+
+    /** Clip a segment to the half-plane dot(n, p) - offset <= 0, keeping ids. */
+    function clipSegment(pts, nx, ny, offset, clipId) {
+      const out = [];
+      const d0 = nx * pts[0].p[0] + ny * pts[0].p[1] - offset;
+      const d1 = nx * pts[1].p[0] + ny * pts[1].p[1] - offset;
+      if (d0 <= 0) out.push(pts[0]);
+      if (d1 <= 0) out.push(pts[1]);
+      if (d0 * d1 < 0) {
+        const t = d0 / (d0 - d1);
+        out.push({
+          p: [pts[0].p[0] + t * (pts[1].p[0] - pts[0].p[0]),
+              pts[0].p[1] + t * (pts[1].p[1] - pts[0].p[1])],
+          id: 4 + clipId
+        });
+      }
+      return out.slice(0, 2);
+    }
+
+    /** Oriented box against oriented box. Up to two contact points. */
+    function collideBoxBox(A, B) {
+      const va = boxVerts(A), vb = boxVerts(B);
+      const ca = Math.cos(A.a), sa = Math.sin(A.a);
+      const cb = Math.cos(B.a), sb = Math.sin(B.a);
+      const axes = [[ca, sa, true], [-sa, ca, true], [cb, sb, false], [-sb, cb, false]];
+
+      let depth = Infinity, nx = 0, ny = 0, refIsA = true;
+      for (let i = 0; i < axes.length; i++) {
+        const ax = axes[i][0], ay = axes[i][1];
+        const pa = projectVerts(va, ax, ay);
+        const pb = projectVerts(vb, ax, ay);
+        const overlap = Math.min(pa[1], pb[1]) - Math.max(pa[0], pb[0]);
+        if (overlap <= 0) return null;
+        if (overlap < depth) { depth = overlap; nx = ax; ny = ay; refIsA = axes[i][2]; }
+      }
+
+      const R = refIsA ? A : B, I = refIsA ? B : A;
+      // Orient the axis so it points from the reference body to the incident one.
+      if ((I.x - R.x) * nx + (I.y - R.y) * ny < 0) { nx = -nx; ny = -ny; }
+
+      const rNorms = faceNormals(R), iNorms = faceNormals(I);
+      const rVerts = refIsA ? va : vb, iVerts = refIsA ? vb : va;
+
+      let refI = 0, bestDot = -Infinity;
+      for (let i = 0; i < 4; i++) {
+        const d = rNorms[i][0] * nx + rNorms[i][1] * ny;
+        if (d > bestDot) { bestDot = d; refI = i; }
+      }
+      let incI = 0, worstDot = Infinity;
+      for (let i = 0; i < 4; i++) {
+        const d = iNorms[i][0] * nx + iNorms[i][1] * ny;
+        if (d < worstDot) { worstDot = d; incI = i; }
+      }
+
+      const r0 = rVerts[refI], r1 = rVerts[(refI + 1) % 4];
+      let sx = r1[0] - r0[0], sy = r1[1] - r0[1];
+      const sl = Math.hypot(sx, sy) || 1;
+      sx /= sl; sy /= sl;
+
+      let pts = [{ p: iVerts[incI], id: incI },
+                 { p: iVerts[(incI + 1) % 4], id: (incI + 1) % 4 }];
+      pts = clipSegment(pts, -sx, -sy, -(sx * r0[0] + sy * r0[1]), 0);
+      if (pts.length < 2) return null;
+      pts = clipSegment(pts, sx, sy, sx * r1[0] + sy * r1[1], 1);
+      if (pts.length < 2) return null;
+
+      const frontOffset = nx * r0[0] + ny * r0[1];
+      const contacts = [];
+      for (let k = 0; k < pts.length; k++) {
+        const sep = nx * pts[k].p[0] + ny * pts[k].p[1] - frontOffset;
+        if (sep > 0) continue;
+        contacts.push({
+          px: pts[k].p[0], py: pts[k].p[1],
+          nx: nx, ny: ny, sep: sep,
+          fid: (refIsA ? 512 : 0) + refI * 64 + incI * 8 + pts[k].id
+        });
+      }
+      if (!contacts.length) return null;
+      // Normals are stored pointing from A to B.
+      if (!refIsA) {
+        for (const c of contacts) { c.nx = -c.nx; c.ny = -c.ny; }
+      }
+      return contacts;
+    }
+
+    /** Circle against oriented box. Normal points from the circle towards the box. */
+    function collideCircleBox(C, B) {
+      const c = Math.cos(B.a), s = Math.sin(B.a);
+      const dx = C.x - B.x, dy = C.y - B.y;
+      const lx = dx * c + dy * s;              // circle centre in box space
+      const ly = -dx * s + dy * c;
+      const qx = Math.max(-B.hw, Math.min(lx, B.hw));
+      const qy = Math.max(-B.hh, Math.min(ly, B.hh));
+
+      let ndx = lx - qx, ndy = ly - qy;
+      let d2 = ndx * ndx + ndy * ndy;
+      let sep, nlx, nly;
+
+      if (d2 > 1e-12) {
+        const d = Math.sqrt(d2);
+        if (d >= C.r) return null;
+        sep = d - C.r;
+        nlx = ndx / d; nly = ndy / d;
+      } else {
+        // Centre inside the box: push out through the nearest face.
+        const ox = B.hw - Math.abs(lx), oy = B.hh - Math.abs(ly);
+        if (ox < oy) { nlx = lx < 0 ? -1 : 1; nly = 0; sep = -ox - C.r; }
+        else { nlx = 0; nly = ly < 0 ? -1 : 1; sep = -oy - C.r; }
+      }
+
+      // Back to world space. nl points box -> circle, so flip for circle -> box.
+      const wnx = -(nlx * c - nly * s);
+      const wny = -(nlx * s + nly * c);
+      return [{
+        px: C.x - wnx * (C.r + sep * 0.5),
+        py: C.y - wny * (C.r + sep * 0.5),
+        nx: wnx, ny: wny, sep: sep, fid: 1
+      }];
+    }
+
+    function collideCircleCircle(A, B) {
+      const dx = B.x - A.x, dy = B.y - A.y;
+      const d = Math.hypot(dx, dy);
+      const rr = A.r + B.r;
+      if (d >= rr) return null;
+      const nx = d > 1e-9 ? dx / d : 0, ny = d > 1e-9 ? dy / d : 1;
+      return [{
+        px: A.x + nx * (A.r + (d - rr) * 0.5),
+        py: A.y + ny * (A.r + (d - rr) * 0.5),
+        nx: nx, ny: ny, sep: d - rr, fid: 1
+      }];
+    }
+
+    function collide(A, B) {
+      if (A.shape === 'circle' && B.shape === 'circle') return collideCircleCircle(A, B);
+      if (A.shape === 'circle') return collideCircleBox(A, B);
+      if (B.shape === 'circle') {
+        const cs = collideCircleBox(B, A);
+        if (!cs) return null;
+        for (const c of cs) { c.nx = -c.nx; c.ny = -c.ny; }   // flip to A -> B
+        return cs;
+      }
+      return collideBoxBox(A, B);
+    }
+
+    function cross(rx, ry, vx, vy) { return rx * vy - ry * vx; }
+
+    /*
+     * Impact damage. Only pairs that were not touching on the previous step can
+     * do harm, so resting contacts are free and a settled tower never erodes.
+     */
+    function impactDamage(A, B, rel) {
+      const s = rel - DMG_FLOOR;
+      if (s <= 0) return;
+      const invSum = A.im + B.im;
+      const redMass = invSum > 1e-9 ? 1 / invSum : 0;
+      const energy = 0.5 * redMass * s * s * DMG_SCALE;
+      if (energy <= 0) return;
+      hurt(A, energy, B);
+      hurt(B, energy, A);
+    }
+
+    function hurt(b, energy, by) {
+      if (b.kind === 'static' || b.dead || b.kind === 'shot') return;
+      b.hp -= energy;
+      if (b.hp <= 0) destroyBody(b, by);
+      else if (energy > 0.05) b.flash = 1;
+    }
+
+    function destroyBody(b, by) {
+      if (b.dead) return;
+      b.dead = true;
+      const mat = MATERIALS[b.mat];
+      if (b.kind === 'bug') {
+        addScore(MATERIALS.bug.score);
+        burst(b.x, b.y, '#3ddc6b', 16);
+        playPop();
+      } else {
+        addScore(mat ? mat.score : 100);
+        burst(b.x, b.y, mat ? mat.edge : '#ffffff', 10);
+        playBreak(b.mat);
+      }
+    }
+
+    function burst(x, y, colour, n) {
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 0.15 + Math.random() * 0.45;
+        particles.push({
+          x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.15,
+          life: 0.5 + Math.random() * 0.4, age: 0,
+          size: 0.004 + Math.random() * 0.006, colour: colour
+        });
+      }
+    }
+
+    function pairKey(a, b) { return a.id < b.id ? a.id * 8192 + b.id : b.id * 8192 + a.id; }
+
+    /** One fixed physics step: integrate, find contacts, solve, clean up. */
+    function stepPhysics(dt) {
+      for (const b of bodies) {
+        if (b.im === 0 || b.dead) continue;
+        b.vy += GRAVITY * dt;
+        b.vx *= 0.9992;
+        b.vy *= 0.9992;
+        b.av *= 0.996;
+        const sp = Math.hypot(b.vx, b.vy);
+        if (sp > MAX_SPEED) { b.vx = b.vx / sp * MAX_SPEED; b.vy = b.vy / sp * MAX_SPEED; }
+        if (b.av > 12) b.av = 12; else if (b.av < -12) b.av = -12;
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+        b.a += b.av * dt;
+      }
+
+      // --- broadphase + contact generation ---
+      const contacts = [];
+      const pairs = new Set();
+      const live = bodies.filter(b => !b.dead);
+      for (let i = 0; i < live.length; i++) {
+        const A = live[i];
+        for (let j = i + 1; j < live.length; j++) {
+          const B = live[j];
+          if (A.im === 0 && B.im === 0) continue;
+          const reach = bodyRadius(A) + bodyRadius(B);
+          const dx = B.x - A.x, dy = B.y - A.y;
+          if (dx * dx + dy * dy > reach * reach) continue;
+
+          const cs = collide(A, B);
+          if (!cs) continue;
+
+          const key = pairKey(A, B);
+          pairs.add(key);
+          if (A.kind === 'shot') A.touched = true;
+          if (B.kind === 'shot') B.touched = true;
+          if (!prevPairs.has(key)) {
+            // A brand new touch: this is the only moment anything takes damage.
+            const c = cs[0];
+            const rax = c.px - A.x, ray = c.py - A.y;
+            const rbx = c.px - B.x, rby = c.py - B.y;
+            const dvx = (B.vx - B.av * rby) - (A.vx - A.av * ray);
+            const dvy = (B.vy + B.av * rbx) - (A.vy + A.av * rax);
+            const approach = -(dvx * c.nx + dvy * c.ny);
+            if (approach > 0) impactDamage(A, B, approach);
+          }
+          if (A.dead || B.dead) continue;
+
+          const cached = contactCache.get(key);
+          for (const c of cs) {
+            c.A = A; c.B = B; c.key = key;
+            c.pn = 0; c.pt = 0;
+            if (cached) {
+              for (const old of cached) {
+                if (old.fid === c.fid) { c.pn = old.pn; c.pt = old.pt; break; }
+              }
+            }
+            contacts.push(c);
+          }
+        }
+      }
+      prevPairs = pairs;
+
+      // --- prepare ---
+      const BIAS = 0.22, SLOP = 0.0006;
+      for (const c of contacts) {
+        const A = c.A, B = c.B;
+        c.rax = c.px - A.x; c.ray = c.py - A.y;
+        c.rbx = c.px - B.x; c.rby = c.py - B.y;
+
+        const rnA = cross(c.rax, c.ray, c.nx, c.ny);
+        const rnB = cross(c.rbx, c.rby, c.nx, c.ny);
+        c.massN = 1 / (A.im + B.im + A.ii * rnA * rnA + B.ii * rnB * rnB);
+
+        const tx = -c.ny, ty = c.nx;
+        c.tx = tx; c.ty = ty;
+        const rtA = cross(c.rax, c.ray, tx, ty);
+        const rtB = cross(c.rbx, c.rby, tx, ty);
+        c.massT = 1 / (A.im + B.im + A.ii * rtA * rtA + B.ii * rtB * rtB);
+
+        c.bias = -BIAS / PHYS_DT * Math.min(0, c.sep + SLOP);
+        c.fric = Math.sqrt(A.fric * B.fric);
+
+        const dvx = (B.vx - B.av * c.rby) - (A.vx - A.av * c.ray);
+        const dvy = (B.vy + B.av * c.rbx) - (A.vy + A.av * c.rax);
+        const vn = dvx * c.nx + dvy * c.ny;
+        c.restitution = vn < -0.6 ? -Math.min(A.e, B.e) * vn : 0;
+
+        applyImpulse(c, c.pn * c.nx + c.pt * tx, c.pn * c.ny + c.pt * ty);
+      }
+
+      // --- solve ---
+      for (let it = 0; it < SOLVER_ITERS; it++) {
+        for (const c of contacts) {
+          const A = c.A, B = c.B;
+          let dvx = (B.vx - B.av * c.rby) - (A.vx - A.av * c.ray);
+          let dvy = (B.vy + B.av * c.rbx) - (A.vy + A.av * c.rax);
+          const vn = dvx * c.nx + dvy * c.ny;
+          let dPn = c.massN * (-vn + c.bias + c.restitution);
+          const newPn = Math.max(c.pn + dPn, 0);
+          dPn = newPn - c.pn;
+          c.pn = newPn;
+          applyImpulse(c, dPn * c.nx, dPn * c.ny);
+
+          dvx = (B.vx - B.av * c.rby) - (A.vx - A.av * c.ray);
+          dvy = (B.vy + B.av * c.rbx) - (A.vy + A.av * c.rax);
+          const vt = dvx * c.tx + dvy * c.ty;
+          let dPt = c.massT * -vt;
+          const maxPt = c.fric * c.pn;
+          const newPt = Math.max(-maxPt, Math.min(c.pt + dPt, maxPt));
+          dPt = newPt - c.pt;
+          c.pt = newPt;
+          applyImpulse(c, dPt * c.tx, dPt * c.ty);
+        }
+      }
+
+      // --- stash impulses for the next step's warm start ---
+      contactCache.clear();
+      for (const c of contacts) {
+        let list = contactCache.get(c.key);
+        if (!list) { list = []; contactCache.set(c.key, list); }
+        list.push({ fid: c.fid, pn: c.pn, pt: c.pt });
+      }
+
+      // Anything that falls off the field is gone — and a bug that falls off is
+      // just as squashed as one that was hit.
+      for (const b of bodies) {
+        if (b.dead || b.kind === 'static') continue;
+        if (b.y > WORLD_H + 0.35 || b.x < -0.35 || b.x > WORLD_W + 0.35) {
+          if (b.kind === 'shot') b.dead = true;
+          else destroyBody(b, null);
+        }
+      }
+    }
+
+    function applyImpulse(c, ix, iy) {
+      const A = c.A, B = c.B;
+      A.vx -= ix * A.im; A.vy -= iy * A.im;
+      A.av -= A.ii * cross(c.rax, c.ray, ix, iy);
+      B.vx += ix * B.im; B.vy += iy * B.im;
+      B.av += B.ii * cross(c.rbx, c.rby, ix, iy);
+    }
+
+    function quiet() {
+      for (const b of bodies) {
+        if (b.dead || b.im === 0) continue;
+        if (Math.hypot(b.vx, b.vy) > SETTLE_SPEED) return false;
+        if (Math.abs(b.av) > SETTLE_SPIN) return false;
+      }
+      return true;
+    }
+
+    function freezeAll() {
+      for (const b of bodies) { b.vx = 0; b.vy = 0; b.av = 0; }
+    }
+
+    // ============================================================== level ===
+
+    function level() { return LEVELS[levelIndex]; }
+
+    function bugsLeft() {
+      return bodies.filter(b => b.kind === 'bug' && !b.dead).length;
+    }
+
+    function loadLevel() {
+      bodies = [];
+      particles = [];
+      projectiles = [];
+      nextBodyId = 1;
+      contactCache.clear();
+      prevPairs = new Set();
+
+      // Ground: one wide static slab whose top face is the playing surface.
+      addStatic(WORLD_W / 2, GROUND_Y + 0.5, 3.0, 1.0);
+
+      const lv = level();
+      for (const spec of lv.build()) addBox(spec);
+      for (const p of lv.bugs) {
+        const bug = addCircle(p[0], p[1], BUG_R, 'bug', 'bug', undefined, 0.05, 0.5);
+        bug.kind = 'bug';
+      }
+
+      const diff = DIFFICULTIES[currentDifficulty];
+      ammo = lv.shots.slice();
+      for (let i = 0; i < diff.bonusShots; i++) ammo.push('rock');
+      shotsUsed = 0;
+      levelScore = 0;
+      abilityUsed = false;
+
+      // Let the structure find its own footing before the player sees it, so
+      // nothing twitches on the first frame.
+      for (let i = 0; i < 400; i++) {
+        stepPhysics(PHYS_DT);
+        if (i > 30 && quiet()) break;
+      }
+      freezeAll();
+
+      phase = 'aim';
+      power = 0;
+      aim = -Math.PI / 5;
+      dragPoint = { x: SLING.x, y: SLING.y };
+      settleTimer = 0;
+      shotClock = 0;
+      updateHUD();
+    }
+
+    function addScore(n) {
+      levelScore += n;
+      runScore += n;
+      updateHUD();
+    }
+
+    // ============================================================ shooting ===
+
+    function nextAmmo() { return ammo.length ? ammo[0] : null; }
+
+    function spawnShot(type, x, y, vx, vy) {
+      const spec = AMMO[type];
+      const b = addCircle(x, y, spec.r, null, 'shot', spec.density, 0.24, 0.5);
+      b.ammo = type;
+      b.hp = Infinity;
+      b.maxHp = Infinity;
+      b.vx = vx;
+      b.vy = vy;
+      b.born = 0;
+      b.hitAt = -1;
+      b.touched = false;
+      projectiles.push(b);
+      return b;
+    }
+
+    function launch() {
+      const type = ammo.shift();
+      if (!type) return;
+      shotsUsed++;
+      const strength = power;
+      const v = strength * MAX_LAUNCH;
+      spawnShot(type, SLING.x, SLING.y, Math.cos(aim) * v, Math.sin(aim) * v);
+      phase = 'flying';
+      abilityUsed = false;
+      settleTimer = 0;
+      shotClock = 0;
+      power = 0;
+      playLaunch(strength);
+      updateHUD();
+    }
+
+    /** The tap-in-flight power of whichever shot is currently airborne. */
+    function useAbility() {
+      if (abilityUsed) return;
+      const live = projectiles.filter(p => !p.dead);
+      if (!live.length) return;
+      const p = live[0];
+      if (p.ammo === 'split') {
+        abilityUsed = true;
+        const sp = Math.hypot(p.vx, p.vy);
+        const base = Math.atan2(p.vy, p.vx);
+        p.dead = true;
+        for (const off of [-0.22, 0, 0.22]) {
+          spawnShot('split', p.x, p.y, Math.cos(base + off) * sp * 1.05,
+                    Math.sin(base + off) * sp * 1.05);
+        }
+        playTone(880, 'square', 0.08, 0, 0.07);
+      } else if (p.ammo === 'bomb') {
+        abilityUsed = true;
+        explode(p.x, p.y);
+        p.dead = true;
+      } else if (p.ammo === 'dive') {
+        abilityUsed = true;
+        p.vx *= 0.55;
+        p.vy = Math.max(p.vy, 0) + 1.9;
+        playTone(300, 'sawtooth', 0.12, 0, 0.08);
+      }
+    }
+
+    function explode(x, y) {
+      const RADIUS = 0.20, KICK = 1.7, REF_MASS = 0.006;   // a plank's worth
+      for (const b of bodies) {
+        if (b.dead || b.im === 0) continue;
+        const dx = b.x - x, dy = b.y - y;
+        const d = Math.hypot(dx, dy);
+        if (d > RADIUS) continue;
+        const fall = 1 - d / RADIUS;
+        const nx = d > 1e-6 ? dx / d : 0, ny = d > 1e-6 ? dy / d : -1;
+        // Heavy things shrug the blast off; light ones get thrown. Capped, so
+        // a bug is never simply deleted off the field by one bomb.
+        const heft = Math.min(1.4, REF_MASS / Math.max(REF_MASS * 0.3, b.mass));
+        b.vx += nx * KICK * fall * heft;
+        b.vy += ny * KICK * fall * heft - fall * 0.4;
+        // Spin away from the blast. Deterministic on purpose: the same shot
+        // must always give the same wreckage, or replaying a level is a lottery.
+        b.av += (dx >= 0 ? 1 : -1) * 4.5 * fall;
+        // The bomb is the answer to stone, so its blast has to be able to
+        // break it outright at close range.
+        hurt(b, 3.2 * fall * fall, null);
+      }
+      burst(x, y, '#ff9d3d', 26);
+      cameraShake = 1;
+      playBoom();
+    }
+
+    // Rest of the shot: wait for the world to stop moving, then judge it.
+    function resolveShot() {
+      projectiles = projectiles.filter(p => !p.dead);
+      if (bugsLeft() === 0) { finishLevel(true); return; }
+      if (!ammo.length) { finishLevel(false); return; }
+      // Spent shots stop being physics objects once the dust settles, so they
+      // do not prop up a tower for the rest of the level.
+      for (const p of projectiles) p.dead = true;
+      projectiles = [];
+      phase = 'aim';
+      power = 0;
+      dragPoint = { x: SLING.x, y: SLING.y };
+      updateHUD();
+    }
+
+    /*
+     * Thresholds are read off what the level actually contains rather than
+     * typed in by hand, so editing a tower can never leave its star bars
+     * pointing at a level that no longer exists.
+     */
+    function starThresholds() {
+      const lv = level();
+      const base = lv.bugs.length * MATERIALS.bug.score;
+      const blocks = lv.build().length;
+      const mul = DIFFICULTIES[currentDifficulty].starMul;
+      return [
+        Math.round((base + blocks * 45) * mul),
+        Math.round((base + blocks * 85 + 2000) * mul),
+        Math.round((base + blocks * 115 + 4200) * mul)
+      ];
+    }
+
+    function starsFor(score) {
+      const th = starThresholds();
+      if (score >= th[2]) return 3;
+      if (score >= th[1]) return 2;
+      if (score >= th[0]) return 1;
+      return 0;
+    }
+
+    function finishLevel(cleared) {
+      phase = 'between';
+      if (cleared) {
+        // Every shot you did not need is worth keeping.
+        const spare = ammo.length;
+        if (spare) addScore(spare * 2000);
+        levelsCleared++;
+        const stars = Math.max(1, starsFor(levelScore));
+        starCard[levelIndex] = stars;
+        runStars += stars;
+        playCleared();
+        showToast(stars === 3 ? 'PERFECT!' : 'CLEARED!', '#ffd700', 1100);
+      } else {
+        starCard[levelIndex] = 0;
+        playFail();
+      }
+      setTimeout(() => showLevelOverlay(cleared), cleared ? 900 : 700);
+    }
+
+    function showLevelOverlay(cleared) {
+      if (phase !== 'between') return;
+      const stars = starCard[levelIndex] || 0;
+      document.getElementById('levelTitle').textContent =
+        cleared ? `Level ${levelIndex + 1} Cleared` : `Level ${levelIndex + 1} Failed`;
+      document.getElementById('starRow').textContent =
+        cleared ? '⭐'.repeat(stars) + '☆'.repeat(3 - stars) : '☆☆☆';
+      document.getElementById('levelBlurb').textContent = cleared
+        ? (stars === 3 ? 'Not a shot wasted.' : stars === 2 ? 'Solid. There is a cleaner way through.' : 'Cleared — but that cost you.')
+        : `${bugsLeft()} bug${bugsLeft() === 1 ? '' : 's'} still standing. Try a different angle.`;
+      document.getElementById('lvlScore').textContent = levelScore;
+      document.getElementById('lvlTotal').textContent = runScore;
+      const nextBtn = document.getElementById('nextBtn');
+      const isLast = levelIndex >= LEVELS.length - 1;
+      nextBtn.textContent = cleared ? (isLast ? '🏁 Finish Run' : '▶ Next Level') : '↻ Try Again';
+      nextBtn.onclick = cleared ? advanceLevel : retryLevel;
+      levelOverlay.classList.remove('hidden');
+    }
+
+    function advanceLevel() {
+      levelOverlay.classList.add('hidden');
+      if (levelIndex >= LEVELS.length - 1) { endRun(); return; }
+      levelIndex++;
+      loadLevel();
+      phase = 'aim';
+    }
+
+    function retryLevel() {
+      if (!gameRunning) return;
+      levelOverlay.classList.add('hidden');
+      // Replaying a level takes back what it awarded, so the run total stays honest.
+      runScore -= levelScore;
+      if (starCard[levelIndex]) { runStars -= starCard[levelIndex]; }
+      if (starCard[levelIndex] > 0) levelsCleared--;
+      starCard[levelIndex] = undefined;
+      loadLevel();
+      phase = 'aim';
+    }
+
+    function endRun() {
+      phase = 'over';
+      gameRunning = false;
+      cancelAnimationFrame(animationId);
+      animationId = null;
+
+      const key = `slingBest_${currentDifficulty}`;
+      const prev = Arcade.bestScore(key);
+      const isBest = runStars > prev;
+      if (isBest) { Arcade.setBestScore(key, runStars); Arcade.playBestJingle(); }
+
+      document.getElementById('newBestTag').style.display = isBest ? 'block' : 'none';
+      document.getElementById('finalStars').textContent = runStars;
+      document.getElementById('finalScore').textContent = runScore;
+      document.getElementById('finalLevels').textContent = `${levelsCleared}/${LEVELS.length}`;
+      document.getElementById('finalBest').textContent = Arcade.bestScore(key);
+      document.getElementById('winTitle').textContent =
+        runStars === LEVELS.length * 3 ? '🏆 Every Star!' : '🏁 Run Complete';
+
+      const grid = document.getElementById('levelGrid');
+      grid.innerHTML = LEVELS.map((lv, i) => {
+        const s = starCard[i] || 0;
+        return `<div class="level-cell"><span class="lv">${i + 1}</span><span class="st">${s ? '⭐'.repeat(s) : '–'}</span></div>`;
+      }).join('');
+
+      gameOverOverlay.classList.remove('hidden');
+      bestEl.textContent = Arcade.bestScore(key);
+    }
+
+    // ============================================================== update ===
+
+    function update(dt) {
+      if (cameraShake > 0) cameraShake = Math.max(0, cameraShake - dt * 3.2);
+
+      for (const p of particles) {
+        p.age += dt;
+        p.vy += GRAVITY * 0.55 * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+      }
+      particles = particles.filter(p => p.age < p.life);
+
+      for (const b of bodies) if (b.flash > 0) b.flash = Math.max(0, b.flash - dt * 3);
+
+      if (phase !== 'flying' && phase !== 'settling') return;
+
+      physAccum += dt;
+      let steps = 0;
+      while (physAccum >= PHYS_DT && steps < 8) {
+        stepPhysics(PHYS_DT);
+        physAccum -= PHYS_DT;
+        steps++;
+        for (const p of projectiles) {
+          p.born += PHYS_DT;
+          // A bomb that has struck something goes off by itself shortly after,
+          // so a missed tap is not a wasted shot.
+          if (p.ammo === 'bomb' && !p.dead && !abilityUsed) {
+            if (p.hitAt < 0 && p.touched) p.hitAt = p.born;
+            if (p.hitAt >= 0 && p.born - p.hitAt > 0.35) { abilityUsed = true; explode(p.x, p.y); p.dead = true; }
+          }
+        }
+      }
+      if (steps === 8) physAccum = 0;      // never spiral after a stall
+
+      shotClock += dt;
+      if (quiet()) {
+        settleTimer += dt;
+        if (settleTimer >= SETTLE_TIME) { freezeAll(); resolveShot(); }
+      } else {
+        settleTimer = 0;
+      }
+      if (shotClock > SHOT_TIMEOUT) { freezeAll(); resolveShot(); }
+    }
+
+    // ============================================================= drawing ===
+
+    function drawSky() {
+      ctx.save();
+      for (const s of STARS) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${s.m})`;
+        ctx.beginPath();
+        ctx.arc(px(s.x), py(s.y), s.m * 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // Hills, so the arc has something to read height against.
+      ctx.save();
+      ctx.fillStyle = 'rgba(120, 90, 200, 0.10)';
+      ctx.beginPath();
+      ctx.moveTo(px(0), py(GROUND_Y));
+      ctx.quadraticCurveTo(px(0.25), py(GROUND_Y - 0.30), px(0.5), py(GROUND_Y));
+      ctx.quadraticCurveTo(px(0.75), py(GROUND_Y - 0.22), px(1), py(GROUND_Y));
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawGround() {
+      ctx.save();
+      const g = ctx.createLinearGradient(0, py(GROUND_Y), 0, py(WORLD_H));
+      g.addColorStop(0, '#1d5c3a');
+      g.addColorStop(1, '#0b2a1b');
+      ctx.fillStyle = g;
+      ctx.fillRect(px(-0.2), py(GROUND_Y), WORLD_W * scale + 0.4 * scale,
+                   Math.max((WORLD_H - GROUND_Y) * scale, viewH - py(GROUND_Y)) + 4);
+      ctx.strokeStyle = 'rgba(0, 255, 136, 0.45)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(px(-0.2), py(GROUND_Y));
+      ctx.lineTo(px(1.2), py(GROUND_Y));
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawBlock(b) {
+      const mat = MATERIALS[b.mat];
+      if (!mat) return;
+      ctx.save();
+      ctx.translate(px(b.x), py(b.y));
+      ctx.rotate(b.a);
+      const w = b.hw * 2 * scale, h = b.hh * 2 * scale;
+      const r = Math.min(3, w * 0.3, h * 0.3);
+      ctx.beginPath();
+      ctx.roundRect(-w / 2, -h / 2, w, h, r);
+      ctx.fillStyle = mat.fill;
+      if (b.mat === 'glass') ctx.globalAlpha = 0.75;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = mat.edge;
+      ctx.stroke();
+
+      // Cracks: the closer to breaking, the more of the block they cover.
+      const dmg = 1 - b.hp / b.maxHp;
+      if (dmg > 0.18) {
+        ctx.strokeStyle = `rgba(0, 0, 0, ${Math.min(0.6, dmg)})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-w * 0.3, -h * 0.2);
+        ctx.lineTo(0, h * 0.12);
+        ctx.lineTo(w * 0.28, -h * 0.16);
+        ctx.stroke();
+      }
+      if (b.flash > 0) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${b.flash * 0.5})`;
+        ctx.beginPath();
+        ctx.roundRect(-w / 2, -h / 2, w, h, r);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawBug(b) {
+      const R = b.r * scale;
+      const x = px(b.x), y = py(b.y);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(b.a);
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = 'rgba(61, 220, 107, 0.6)';
+      ctx.fillStyle = MATERIALS.bug.fill;
+      ctx.beginPath();
+      ctx.arc(0, 0, R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = MATERIALS.bug.edge;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Two antennae, so a bug never reads as just another ball.
+      ctx.strokeStyle = MATERIALS.bug.edge;
+      ctx.lineWidth = Math.max(1, R * 0.1);
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.4, -R * 0.75);
+      ctx.lineTo(-R * 0.62, -R * 1.35);
+      ctx.moveTo(R * 0.4, -R * 0.75);
+      ctx.lineTo(R * 0.62, -R * 1.35);
+      ctx.stroke();
+
+      ctx.fillStyle = '#0a2f18';
+      ctx.beginPath();
+      ctx.arc(-R * 0.34, -R * 0.16, R * 0.2, 0, Math.PI * 2);
+      ctx.arc(R * 0.34, -R * 0.16, R * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      const hurtLevel = 1 - b.hp / b.maxHp;
+      ctx.strokeStyle = '#0a2f18';
+      ctx.lineWidth = Math.max(1, R * 0.13);
+      ctx.beginPath();
+      if (hurtLevel > 0.35) ctx.arc(0, R * 0.55, R * 0.35, Math.PI, Math.PI * 2);
+      else ctx.arc(0, R * 0.18, R * 0.38, 0.25 * Math.PI, 0.75 * Math.PI);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawShot(b) {
+      const spec = AMMO[b.ammo];
+      const R = b.r * scale;
+      ctx.save();
+      ctx.translate(px(b.x), py(b.y));
+      ctx.rotate(b.a);
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = spec.fill;
+      ctx.fillStyle = spec.fill;
+      ctx.beginPath();
+      ctx.arc(0, 0, R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = spec.edge;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = spec.edge;
+      if (b.ammo === 'split') {
+        for (const a of [-2.1, -Math.PI / 2, -1.05]) {
+          ctx.beginPath();
+          ctx.arc(Math.cos(a) * R * 0.45, Math.sin(a) * R * 0.45, R * 0.17, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (b.ammo === 'bomb') {
+        ctx.beginPath();
+        ctx.arc(0, 0, R * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffd93d';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, -R);
+        ctx.lineTo(R * 0.35, -R * 1.5);
+        ctx.stroke();
+      } else if (b.ammo === 'dive') {
+        ctx.strokeStyle = spec.edge;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-R * 0.45, -R * 0.2);
+        ctx.lineTo(0, R * 0.4);
+        ctx.lineTo(R * 0.45, -R * 0.2);
+        ctx.stroke();
+      } else {
+        ctx.globalAlpha = 0.35;
+        ctx.beginPath();
+        ctx.arc(R * 0.3, R * 0.28, R * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+    }
+
+    function drawSling() {
+      const bx = px(SLING.x), by = py(SLING.y);
+      const armH = (GROUND_Y - SLING.y) * scale;
+      const fork = 0.026 * scale;
+
+      // Back prong first, so a loaded shot sits between the two.
+      ctx.save();
+      ctx.strokeStyle = '#6b4a2f';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = Math.max(3, 0.014 * scale);
+      ctx.beginPath();
+      ctx.moveTo(bx, by + armH);
+      ctx.lineTo(bx, by + armH * 0.35);
+      ctx.lineTo(bx - fork * 0.55, by);
+      ctx.stroke();
+      ctx.restore();
+
+      const loaded = phase === 'aim' && nextAmmo();
+      const hx = loaded ? px(dragPoint.x) : bx;
+      const hy = loaded ? py(dragPoint.y) : by;
+
+      if (loaded) {
+        ctx.save();
+        ctx.strokeStyle = '#d95f5f';
+        ctx.lineWidth = Math.max(2, 0.008 * scale);
+        ctx.beginPath();
+        ctx.moveTo(bx - fork * 0.55, by);
+        ctx.lineTo(hx, hy);
+        ctx.moveTo(bx + fork * 0.55, by);
+        ctx.lineTo(hx, hy);
+        ctx.stroke();
+        ctx.restore();
+
+        const spec = AMMO[nextAmmo()];
+        ctx.save();
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = spec.fill;
+        ctx.fillStyle = spec.fill;
+        ctx.beginPath();
+        ctx.arc(hx, hy, spec.r * scale, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = spec.edge;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      ctx.save();
+      ctx.strokeStyle = '#8a613d';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = Math.max(3, 0.014 * scale);
+      ctx.beginPath();
+      ctx.moveTo(bx, by + armH);
+      ctx.lineTo(bx, by + armH * 0.35);
+      ctx.lineTo(bx + fork * 0.55, by);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawGuide() {
+      const dots = DIFFICULTIES[currentDifficulty].guide;
+      if (phase !== 'aim' || !dots || power < 0.05 || !nextAmmo()) return;
+      let x = SLING.x, y = SLING.y;
+      let vx = Math.cos(aim) * power * MAX_LAUNCH;
+      let vy = Math.sin(aim) * power * MAX_LAUNCH;
+      const step = 1 / 30;
+      ctx.save();
+      for (let i = 0; i < dots * 3; i++) {
+        vy += GRAVITY * step;
+        x += vx * step;
+        y += vy * step;
+        if (y > GROUND_Y || x > WORLD_W + 0.1) break;
+        if (i % 2) continue;
+        const t = i / (dots * 2);
+        ctx.fillStyle = `rgba(120, 245, 255, ${0.9 - 0.55 * t})`;
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = 'rgba(0, 242, 255, 0.8)';
+        ctx.beginPath();
+        ctx.arc(px(x), py(y), Math.max(1.6, scale * 0.0095 * (1 - t * 0.45)), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawAmmoRow() {
+      if (!ammo.length) return;
+      const y = py(GROUND_Y) + 0.032 * scale;
+      let x = px(0.03);
+      ctx.save();
+      for (let i = 0; i < ammo.length; i++) {
+        const spec = AMMO[ammo[i]];
+        const r = spec.r * scale * 0.72;
+        ctx.globalAlpha = i === 0 ? 1 : 0.5;
+        ctx.fillStyle = spec.fill;
+        ctx.beginPath();
+        ctx.arc(x + r, y, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = spec.edge;
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        x += r * 2 + 0.012 * scale;
+      }
+      ctx.restore();
+    }
+
+    function drawParticles() {
+      ctx.save();
+      for (const p of particles) {
+        ctx.globalAlpha = Math.max(0, 1 - p.age / p.life);
+        ctx.fillStyle = p.colour;
+        ctx.beginPath();
+        ctx.arc(px(p.x), py(p.y), Math.max(1, p.size * scale), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawStatus() {
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font = `bold ${Math.max(10, Math.round(scale * 0.036))}px 'Segoe UI', sans-serif`;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      // Pinned just under the controls rather than to the top of the world, or
+      // it ends up marooned in the middle of the empty sky.
+      ctx.fillText(`${levelIndex + 1}. ${level().name.toUpperCase()}`, viewW / 2, bandTop + 4);
+      if (phase === 'flying' && !abilityUsed && projectiles.length) {
+        const type = projectiles[0].ammo;
+        if (type !== 'rock') {
+          ctx.fillStyle = AMMO[type].fill;
+          ctx.font = `bold ${Math.max(10, Math.round(scale * 0.038))}px 'Segoe UI', sans-serif`;
+          ctx.fillText('TAP!', viewW / 2, bandTop + 4 + Math.max(14, scale * 0.05));
+        }
+      }
+      ctx.restore();
+    }
+
+    function drawPaused() {
+      ctx.save();
+      ctx.fillStyle = 'rgba(5, 5, 16, 0.6)';
+      ctx.fillRect(0, 0, viewW, viewH);
+      ctx.fillStyle = '#00f2ff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `bold ${Math.round(Math.min(viewW * 0.1, 44))}px 'Segoe UI', sans-serif`;
+      ctx.fillText('PAUSED', viewW / 2, viewH / 2);
+      ctx.restore();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, viewW, viewH);
+      ctx.save();
+      if (cameraShake > 0) {
+        ctx.translate((Math.random() - 0.5) * cameraShake * 8, (Math.random() - 0.5) * cameraShake * 8);
+      }
+      drawSky();
+      drawGround();
+      drawGuide();
+      drawSling();
+      for (const b of bodies) {
+        if (b.dead || b.kind === 'static') continue;
+        if (b.kind === 'bug') drawBug(b);
+        else if (b.kind === 'shot') drawShot(b);
+        else drawBlock(b);
+      }
+      drawParticles();
+      drawAmmoRow();
+      drawStatus();
+      ctx.restore();
+      if (gamePaused) drawPaused();
+    }
+
+    function updateHUD() {
+      levelEl.textContent = levelIndex + 1;
+      shotsEl.textContent = ammo.length;
+      scoreEl.textContent = runScore;
+    }
+
+    // =============================================================== input ===
+
+    // Pull back, fire forward. Clamped to a sensible arc so that dragging the
+    // wrong way lobs the shot straight up rather than silently backwards off
+    // the field, which just costs a beginner a shot with nothing to learn from.
+    const AIM_MIN = -1.45, AIM_MAX = 0.30;
+
+    function updateAimFrom(wx, wy) {
+      const dx = SLING.x - wx, dy = SLING.y - wy;
+      const d = Math.hypot(dx, dy);
+      if (d < 0.004) { power = 0; dragPoint = { x: SLING.x, y: SLING.y }; return; }
+      aim = Math.max(AIM_MIN, Math.min(AIM_MAX, Math.atan2(dy, dx)));
+      power = Math.max(0, Math.min(1, d / DRAG_MAX));
+      const pull = Math.min(d, DRAG_MAX);
+      dragPoint = { x: SLING.x - Math.cos(aim) * pull, y: SLING.y - Math.sin(aim) * pull };
+    }
+
+    canvas.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      initAudio();
+      if (!gameRunning || gamePaused) return;
+      if (phase === 'flying') { useAbility(); return; }
+      if (phase !== 'aim' || !nextAmmo()) return;
+      const rect = canvas.getBoundingClientRect();
+      dragging = true;
+      dragId = e.pointerId;
+      updateAimFrom(toWorldX(e.clientX - rect.left), toWorldY(e.clientY - rect.top));
+    });
+
+    canvas.addEventListener('pointermove', e => {
+      if (!dragging || e.pointerId !== dragId) return;
+      const rect = canvas.getBoundingClientRect();
+      updateAimFrom(toWorldX(e.clientX - rect.left), toWorldY(e.clientY - rect.top));
+    });
+
+    function releaseDrag(e) {
+      if (!dragging || (e && e.pointerId !== dragId)) return;
+      dragging = false;
+      dragId = null;
+      if (phase === 'aim' && power > 0.08) launch();
+      else { power = 0; dragPoint = { x: SLING.x, y: SLING.y }; }
+    }
+    canvas.addEventListener('pointerup', releaseDrag);
+    canvas.addEventListener('pointercancel', releaseDrag);
+
+    document.addEventListener('keydown', e => {
+      initAudio();
+      if (e.key === 'Escape') { e.preventDefault(); if (gameRunning) togglePause(); }
+      if (e.key === ' ' && phase === 'flying') { e.preventDefault(); useAbility(); }
+    });
+
+    // ========================================================= run control ===
+
+    function setDifficulty(diff) {
+      currentDifficulty = diff;
+      document.querySelectorAll('#difficultyBar button').forEach(btn =>
+        btn.classList.toggle('active', btn.dataset.diff === diff));
+      diffNote.textContent = DIFFICULTIES[diff].note;
+      bestEl.textContent = Arcade.bestScore(`slingBest_${currentDifficulty}`);
+    }
+
+    function showStartOverlay() {
+      gameRunning = false;
+      gamePaused = false;
+      cancelAnimationFrame(animationId);
+      animationId = null;
+      gameOverOverlay.classList.add('hidden');
+      levelOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+      pauseBtn.textContent = 'Pause';
+    }
+
+    function startGame() {
+      initAudio();
+      levelIndex = 0;
+      runScore = 0;
+      runStars = 0;
+      levelsCleared = 0;
+      starCard = [];
+      cameraShake = 0;
+      physAccum = 0;
+
+      startOverlay.classList.add('hidden');
+      levelOverlay.classList.add('hidden');
+      gameOverOverlay.classList.add('hidden');
+
+      gameRunning = true;
+      gamePaused = false;
+      pauseBtn.textContent = 'Pause';
+      lastTime = 0;
+
+      layout();
+      loadLevel();
+      bestEl.textContent = Arcade.bestScore(`slingBest_${currentDifficulty}`);
+      updateHUD();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function togglePause() {
+      if (!gameRunning) return;
+      gamePaused = !gamePaused;
+      pauseBtn.textContent = gamePaused ? 'Resume' : 'Pause';
+      if (!gamePaused) lastTime = 0;
+    }
+
+    function toggleFullscreen() { Arcade.toggleFullscreen(); }
+
+    Arcade.wireFullscreen(fullscreenBtn, layout);
+    Arcade.wireAutoPause(() => gameRunning && !gamePaused, togglePause);
+
+    function gameLoop(timestamp) {
+      if (!gameRunning) return;
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min((timestamp - lastTime) / 1000, 0.033);
+      lastTime = timestamp;
+
+      if (!gamePaused && dt > 0) update(dt);
+      if (!gameRunning) return;
+
+      draw();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    if (!('ontouchstart' in window)) {
+      hintLine.textContent = 'Drag back from the sling and release · click or Space in flight for the power';
+    }
+
+    try {
+      setDifficulty('easy');
+      loadLevel();
+      layout();
+    } catch (err) {
+      console.error('Neon Sling init failed:', err);
+    }
+  </script>
+</body>
+</html>
