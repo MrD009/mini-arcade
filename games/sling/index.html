@@ -329,17 +329,21 @@
      * structures sit — levels are still authored around x 0.5-1.0 and shifted
      * by it on load, so the level data stays readable.
      */
-    const FIELD_X = 1.15;
-    const WORLD_W = 2.25;
+    const FIELD_X = 1.00;
+    const WORLD_W = 2.05;
     const WORLD_H = 1.25;
     const GROUND_Y = 1.16;
     const GRAVITY = 2.4;              // world units per second squared
     const MAX_LAUNCH = 2.25;          // world units per second at full stretch
-    // The pull has to fit between the sling and the left edge, or a full-power
-    // stretch drags the shot off the side of the field.
-    const DRAG_MAX = 0.16;            // pull this far back for full power
+    /*
+     * A long pull, for control. Aiming down a long field magnifies every
+     * wobble of the finger, so the drag is deliberately generous: the further
+     * back the ball travels, the less a shaky thumb moves the angle. It still
+     * has to fit between the sling and the left edge of the field.
+     */
+    const DRAG_MAX = 0.26;            // pull this far back for full power
     // A short sling: it should read as smaller than what it is shooting at.
-    const SLING = { x: 0.22, y: 1.02 };
+    const SLING = { x: 0.30, y: 1.02 };
     const MAX_SPEED = 3.2;            // clamp, so nothing tunnels a thin plank
     const BUG_R = 0.026;
     // Fixed step: the solver wants consistency. 1/180 rather than 1/120
