@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>📦 Neon Sokoban | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    /* Width of this game's play column; the rest of the chrome is
+       inherited from the shared arcade sheet. */
+    :root { --play-max: 560px; }
+
+    #gameCanvas {
+      background: radial-gradient(ellipse at top, #101024 0%, #050510 100%);
+    }
+
+    /* Specific to this game. */
+    .hud-panel.par strong { color: var(--gold); }
+
+    .d-pad {
+      display: grid;
+      grid-template-columns: repeat(3, 46px);
+      gap: 6px;
+      justify-content: center;
+    }
+
+    .pad-btn {
+      width: 46px;
+      height: 42px;
+      border-radius: 10px;
+      background: rgba(15, 15, 36, 0.85);
+      border: 1px solid rgba(0, 242, 255, 0.3);
+      color: #fff;
+      font-size: 1.05rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .pad-btn:active { background: rgba(0, 242, 255, 0.28); }
+    .d-pad .empty { visibility: hidden; }
+
+    @media (pointer: fine) {
+      .d-pad { display: none; }
+    }
+
+    button:disabled { opacity: 0.4; cursor: default; }
+    button:disabled:hover { background: rgba(15, 15, 36, 0.8); transform: none; }
+
+    /* The ten-level picker on the start screen, and the same grid again on
+       the pack-complete card. */
+    .lvl-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      margin: 12px 0 4px;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    .lvl-cell {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 6px 2px 5px;
+      font-size: 0.7rem;
+      font-weight: bold;
+      color: var(--text);
+      line-height: 1.25;
+    }
+
+    .lvl-cell.done {
+      border-color: rgba(0, 255, 136, 0.55);
+      background: rgba(0, 255, 136, 0.08);
+    }
+
+    .lvl-cell .st {
+      display: block;
+      font-size: 0.55rem;
+      color: var(--gold);
+      letter-spacing: -1px;
+      min-height: 0.8em;
+    }
+
+    .lvl-cell .st.none { color: #555; }
+
+    .stars-line {
+      font-size: 1.5rem;
+      line-height: 1.2;
+      letter-spacing: 4px;
+      color: var(--gold);
+      text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+      margin: 6px 0 4px;
+    }
+
+    /* The shared .new-best pulls itself up under an <h1>; here it follows the
+       star row instead, which needs the space back. */
+    .stars-line + .new-best { margin-top: 0; }
+
+    .pack-line {
+      font-size: 0.72rem;
+      color: var(--accent);
+      margin-bottom: 2px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span>Level</span>
+        <strong id="levelEl">1</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Moves</span>
+        <strong id="movesEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Pushes</span>
+        <strong id="pushesEl">0</strong>
+      </div>
+      <div class="hud-panel par">
+        <span>Par</span>
+        <strong id="parEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best</span>
+        <strong id="bestEl">–</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button id="undoBtn" onclick="undoMove()">↩ Undo</button>
+      <button onclick="restartLevel()">↻ Level</button>
+      <button onclick="showStartOverlay()">☰ Levels</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar" id="bottomBar">
+      <div class="hint-line" id="hintLine">Swipe or use the pad to push</div>
+      <div class="d-pad" id="dPad">
+        <div class="empty"></div>
+        <button type="button" class="pad-btn" id="btnUp">▲</button>
+        <div class="empty"></div>
+        <button type="button" class="pad-btn" id="btnLeft">◀</button>
+        <button type="button" class="pad-btn" id="btnUndo">↩</button>
+        <button type="button" class="pad-btn" id="btnRight">▶</button>
+        <div class="empty"></div>
+        <button type="button" class="pad-btn" id="btnDown">▼</button>
+        <div class="empty"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Stuck!</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>📦 Neon Sokoban</h1>
+    <p>Push every crate onto a glowing pad. You can only push — never pull — so think before you shove.</p>
+
+    <div class="difficulty-bar" id="difficultyBar">
+      <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+      <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+      <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+    </div>
+    <p class="diff-note" id="diffNote"></p>
+
+    <div class="lvl-grid" id="levelGrid"></div>
+    <p class="pack-line" id="packLine">0 / 10 solved</p>
+
+    <div class="legend">
+      <span>📦 Crate</span>
+      <span>🎯 Pad</span>
+      <span>↩ Unlimited undo</span>
+    </div>
+
+    <button class="primary" id="playBtn" onclick="playFromGrid()">▶ Play</button>
+  </div>
+
+  <div class="overlay hidden" id="clearOverlay">
+    <h1 id="clearTitle">Level Cleared</h1>
+    <div class="stars-line" id="clearStars">⭐⭐⭐</div>
+    <p class="new-best" id="clearBestTag">🏆 New Best!</p>
+    <p id="clearBlurb">Every crate is home.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="clearMoves">0</div>
+        <div class="lbl">Moves</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="clearPushes">0</div>
+        <div class="lbl">Pushes</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="clearPar">0</div>
+        <div class="lbl">Par</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="clearBest">0</div>
+        <div class="lbl">Your Best</div>
+      </div>
+    </div>
+    <button class="primary" id="nextBtn" onclick="nextLevel()">▶ Next Level</button>
+    <div class="secondary-row">
+      <button onclick="restartLevel()">↻ Replay</button>
+      <button onclick="showStartOverlay()">☰ Levels</button>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="packOverlay">
+    <h1>🏆 Pack Cleared</h1>
+    <p id="packBlurb">Every room in this pack is solved.</p>
+    <div class="stars-line" id="packStars">⭐ 0 / 30</div>
+    <div class="lvl-grid" id="packGrid"></div>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="packSolved">0</div>
+        <div class="lbl">Levels Solved</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="packTotal">0</div>
+        <div class="lbl">Total Moves</div>
+      </div>
+    </div>
+    <button class="primary" id="packNextBtn" onclick="showStartOverlay()">☰ Level Select</button>
+    <div class="secondary-row">
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    /*
+     * Neon Sokoban — thirty rooms across three packs.
+     *
+     * Every level below was produced by reverse search from its solved
+     * position, so all thirty are solvable by construction, and `par` is the
+     * true move-optimal solution length found by a breadth-first search. Par
+     * is therefore always reachable, which is what three stars asks for.
+     */
+    const PACKS = {
+      // ---------------------------------------------------------- easy ---
+      easy: [
+        { name: "First Push", par: 4, rows: [
+          "#######",
+          "#     #",
+          "#  .$ #",
+          "#  @  #",
+          "#######"
+        ] },
+        { name: "Corner Turn", par: 9, rows: [
+          "#######",
+          "#     #",
+          "#@ .  #",
+          "#   $ #",
+          "#     #",
+          "#######"
+        ] },
+        { name: "Twin Lanes", par: 14, rows: [
+          "########",
+          "#     @#",
+          "# $..  #",
+          "# $    #",
+          "#      #",
+          "########"
+        ] },
+        { name: "Pillar", par: 19, rows: [
+          "########",
+          "#     @#",
+          "# .  . #",
+          "#  $   #",
+          "# $##  #",
+          "#      #",
+          "########"
+        ] },
+        { name: "Detour", par: 21, rows: [
+          "#########",
+          "#      @#",
+          "# .   . #",
+          "# $$#   #",
+          "#       #",
+          "#       #",
+          "#########"
+        ] },
+        { name: "Three Up", par: 26, rows: [
+          "#########",
+          "#       #",
+          "#  ...@ #",
+          "# $     #",
+          "# $$    #",
+          "#       #",
+          "#########"
+        ] },
+        { name: "Low Wall", par: 30, rows: [
+          "#########",
+          "#       #",
+          "# .$$$. #",
+          "#       #",
+          "#  ###  #",
+          "#   .  @#",
+          "#       #",
+          "#########"
+        ] },
+        { name: "Island", par: 33, rows: [
+          "##########",
+          "#        #",
+          "#  .  . @#",
+          "# $      #",
+          "#   ##   #",
+          "# $ $    #",
+          "#     .  #",
+          "#        #",
+          "##########"
+        ] },
+        { name: "The Column", par: 36, rows: [
+          "##########",
+          "#       @#",
+          "# .    . #",
+          "# $ ##   #",
+          "# $$##   #",
+          "#    .   #",
+          "#        #",
+          "##########"
+        ] },
+        { name: "Scatter", par: 39, rows: [
+          "##########",
+          "#        #",
+          "#  .$$   #",
+          "#    #   #",
+          "#  #$  # #",
+          "#     .  #",
+          "#  .     #",
+          "#       @#",
+          "##########"
+        ] }
+      ],
+      // ---------------------------------------------------------- medium ---
+      medium: [
+        { name: "Quarters", par: 44, rows: [
+          "##########",
+          "#@       #",
+          "# .    . #",
+          "#        #",
+          "#  # $#$ #",
+          "#    $ $ #",
+          "# .    . #",
+          "#        #",
+          "##########"
+        ] },
+        { name: "Gatehouse", par: 46, rows: [
+          "###########",
+          "#         #",
+          "#   ...   #",
+          "# $$      #",
+          "#  #   # @#",
+          "# $$  .   #",
+          "#         #",
+          "###########"
+        ] },
+        { name: "Grid Lock", par: 46, rows: [
+          "##########",
+          "#       @#",
+          "#  .  .  #",
+          "# $      #",
+          "# $#  #  #",
+          "# $   $  #",
+          "#  .  .  #",
+          "#        #",
+          "##########"
+        ] },
+        { name: "Under the Ledge", par: 50, rows: [
+          "###########",
+          "#   ###  @#",
+          "# $$...   #",
+          "# $       #",
+          "#  ##  #  #",
+          "# $    .  #",
+          "#         #",
+          "###########"
+        ] },
+        { name: "Four in a Row", par: 51, rows: [
+          "##########",
+          "#  @     #",
+          "#  ....  #",
+          "#        #",
+          "#  $##   #",
+          "# $$ $   #",
+          "#        #",
+          "##########"
+        ] },
+        { name: "Diamond", par: 56, rows: [
+          "###########",
+          "#  @      #",
+          "#  .   .  #",
+          "#    #  $ #",
+          "#  #   #$ #",
+          "#  $ #  $ #",
+          "#  .   .  #",
+          "#         #",
+          "###########"
+        ] },
+        { name: "Bookends", par: 56, rows: [
+          "############",
+          "#         @#",
+          "#  ..  ..  #",
+          "#          #",
+          "# $ #  #   #",
+          "# $$$      #",
+          "#          #",
+          "############"
+        ] },
+        { name: "The Bar", par: 67, rows: [
+          "###########",
+          "#@        #",
+          "#  ....   #",
+          "#         #",
+          "#   ###   #",
+          "#      $  #",
+          "#     $$$ #",
+          "#         #",
+          "###########"
+        ] },
+        { name: "Left Bank", par: 71, rows: [
+          "###########",
+          "#@        #",
+          "# ....    #",
+          "#         #",
+          "#     ##  #",
+          "#  ##   $ #",
+          "#     $$$ #",
+          "#         #",
+          "###########"
+        ] },
+        { name: "Split Shelf", par: 76, rows: [
+          "###########",
+          "#         #",
+          "# ..   .. #",
+          "#   $ $ $ #",
+          "#  #####$ #",
+          "#         #",
+          "#         #",
+          "#     @   #",
+          "###########"
+        ] }
+      ],
+      // ---------------------------------------------------------- hard ---
+      hard: [
+        { name: "Between Posts", par: 48, rows: [
+          "###########",
+          "#         #",
+          "#  #   #$ #",
+          "#  . .$.$ #",
+          "#  #   #$ #",
+          "#    .    #",
+          "#@        #",
+          "###########"
+        ] },
+        { name: "Four Alcoves", par: 49, rows: [
+          "############",
+          "#         @#",
+          "# $##  ##  #",
+          "# $.$   .  #",
+          "#          #",
+          "#  .    .  #",
+          "# $##  ##  #",
+          "#          #",
+          "############"
+        ] },
+        { name: "Ring Road", par: 49, rows: [
+          "############",
+          "#          #",
+          "#  .    .  #",
+          "# $ ####   #",
+          "# $.    . @#",
+          "# $$       #",
+          "#          #",
+          "############"
+        ] },
+        { name: "Two Rooms", par: 50, rows: [
+          "###########",
+          "#    #   @#",
+          "#  ..#..  #",
+          "# $  #    #",
+          "# $       #",
+          "# $$      #",
+          "#         #",
+          "###########"
+        ] },
+        { name: "Crosshatch", par: 53, rows: [
+          "###########",
+          "#         #",
+          "#   ###$$ #",
+          "#  . $ .$ #",
+          "#  # # #  #",
+          "#  .   .  #",
+          "#         #",
+          "#@        #",
+          "###########"
+        ] },
+        { name: "The Gallery", par: 56, rows: [
+          "###########",
+          "#    @    #",
+          "# ####### #",
+          "# .     . #",
+          "# ##   ## #",
+          "#   . .   #",
+          "# $$   $$ #",
+          "#         #",
+          "###########"
+        ] },
+        { name: "Narrow Gates", par: 61, rows: [
+          "###########",
+          "# @  #    #",
+          "# $. # .$ #",
+          "#    #    #",
+          "#### # ####",
+          "# $     $ #",
+          "#  .   .  #",
+          "#         #",
+          "###########"
+        ] },
+        { name: "Top Shelf", par: 77, rows: [
+          "###########",
+          "#        @#",
+          "#  ....   #",
+          "#  ####   #",
+          "#         #",
+          "# $       #",
+          "# $$$     #",
+          "#         #",
+          "###########"
+        ] },
+        { name: "Last Stand", par: 86, rows: [
+          "############",
+          "#   @      #",
+          "#  ..  ..  #",
+          "#  ##  ##  #",
+          "#          #",
+          "#   ####   #",
+          "#  $ $ $$  #",
+          "#          #",
+          "############"
+        ] },
+        { name: "The Vault", par: 108, rows: [
+          "############",
+          "#          #",
+          "# $######$ #",
+          "#  #...+#  #",
+          "# $#    #$ #",
+          "#  ##  ##  #",
+          "#          #",
+          "#          #",
+          "############"
+        ] }
+      ]
+    };
+
+    const DIFFICULTIES = {
+      easy:   { note: '🌱 Small rooms, one to three crates.' },
+      medium: { note: '📦 Four crates and more wall in the way.' },
+      hard:   { note: '🔥 Tight rooms. Every push counts.' }
+    };
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const levelEl = document.getElementById('levelEl');
+    const movesEl = document.getElementById('movesEl');
+    const pushesEl = document.getElementById('pushesEl');
+    const parEl = document.getElementById('parEl');
+    const bestEl = document.getElementById('bestEl');
+    const undoBtn = document.getElementById('undoBtn');
+    const startOverlay = document.getElementById('startOverlay');
+    const clearOverlay = document.getElementById('clearOverlay');
+    const packOverlay = document.getElementById('packOverlay');
+    const levelGrid = document.getElementById('levelGrid');
+    const packGrid = document.getElementById('packGrid');
+    const packLine = document.getElementById('packLine');
+    const diffNote = document.getElementById('diffNote');
+    const nextBtn = document.getElementById('nextBtn');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.getElementById('bottomBar');
+
+    const ANIM_MS = 90;
+    const MAX_CELL = 62;
+    const TOTAL_LEVELS = PACKS.easy.length + PACKS.medium.length + PACKS.hard.length;
+
+    let currentDifficulty = 'easy';
+    let levelIndex = 0;
+
+    // Board state. Walls and goals are flat W*H lookups; boxes are a set of
+    // the same indices, which is what makes the push test a single has().
+    let W = 0, H = 0;
+    let wall = [], goal = [];
+    let boxes = new Set();
+    let playerIdx = 0;
+    let moves = 0, pushes = 0;
+    let history = [];
+    let facing = { dx: 0, dy: 1 };
+    let gameRunning = false;
+    let warnedStuck = false;
+
+    // While a step plays we draw the mover between its two cells rather than
+    // on the committed one, so a push reads as a push.
+    let anim = null;                 // { t, from, to, box: { from, to } | null }
+    let animationId = null;
+    let lastTime = 0;
+
+    let cellSize = 40;
+    let boardX = 0, boardY = 0;
+
+    // Audio, toast, best scores and fullscreen come from shared/arcade.js.
+    const initAudio = Arcade.initAudio;
+    function playTone(freq, type, duration, delay = 0, vol = 0.12) {
+      Arcade.playTone(freq, type, duration, delay, vol);
+    }
+
+    function playStepSound()    { playTone(150, 'square', 0.03, 0, 0.035); }
+    function playPushSound()    { playTone(90, 'square', 0.07, 0, 0.06); playTone(140, 'triangle', 0.05, 0.02, 0.04); }
+    function playSeatedSound()  { playTone(660, 'sine', 0.1, 0, 0.08); playTone(880, 'sine', 0.09, 0.06, 0.06); }
+    function playLiftedSound()  { playTone(330, 'sine', 0.07, 0, 0.05); }
+    function playBlockedSound() { playTone(110, 'square', 0.05, 0, 0.045); }
+    function playUndoSound()    { playTone(420, 'triangle', 0.08, 0, 0.06); playTone(300, 'triangle', 0.08, 0.05, 0.045); }
+    function playStuckSound()   { playTone(200, 'sawtooth', 0.16, 0, 0.06); playTone(150, 'sawtooth', 0.2, 0.12, 0.05); }
+    function playWinSound()     { [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => playTone(f, 'sine', 0.26, i * 0.1)); }
+
+    function showToast(text, color) {
+      Arcade.showToast(toast, text, color, 1400);
+    }
+
+    function toggleFullscreen() {
+      Arcade.toggleFullscreen();
+    }
+
+    // ------------------------------------------------------------ progress ---
+    /**
+     * Per-pack progress is one JSON blob of { levelIndex: fewestMoves }, so a
+     * level is solved exactly when it has an entry. The arcade home page reads
+     * these three keys to count how much of the game is done.
+     */
+    function progressKey(diff) {
+      return `sokobanBest_${diff}`;
+    }
+
+    function loadProgress(diff) {
+      try {
+        const raw = localStorage.getItem(progressKey(diff));
+        return raw ? JSON.parse(raw) : {};
+      } catch (err) {
+        return {};
+      }
+    }
+
+    function saveProgress(diff, data) {
+      localStorage.setItem(progressKey(diff), JSON.stringify(data));
+    }
+
+    /** Records a solve, keeping the fewest moves. Returns true if it beat it. */
+    function recordSolve(diff, index, movesUsed) {
+      const data = loadProgress(diff);
+      const prev = data[index];
+      if (prev === undefined || movesUsed < prev) {
+        data[index] = movesUsed;
+        saveProgress(diff, data);
+        return prev !== undefined;
+      }
+      return false;
+    }
+
+    function starsFor(diff, index) {
+      const best = loadProgress(diff)[index];
+      if (best === undefined) return 0;
+      return starsForMoves(PACKS[diff][index].par, best);
+    }
+
+    /** Par is the proven optimum, so three stars means an optimal solve. */
+    function starsForMoves(par, movesUsed) {
+      if (movesUsed <= par) return 3;
+      if (movesUsed <= Math.ceil(par * 1.4)) return 2;
+      return 1;
+    }
+
+    function packSolvedCount(diff) {
+      return Object.keys(loadProgress(diff)).length;
+    }
+
+    function totalStars() {
+      return ['easy', 'medium', 'hard'].reduce((sum, diff) =>
+        sum + PACKS[diff].reduce((s, _, i) => s + starsFor(diff, i), 0), 0);
+    }
+
+    // --------------------------------------------------------------- board ---
+    function loadLevel(diff, index) {
+      const spec = PACKS[diff][index];
+      const rows = spec.rows;
+      H = rows.length;
+      W = Math.max(...rows.map(r => r.length));
+      wall = new Array(W * H).fill(false);
+      goal = new Array(W * H).fill(false);
+      boxes = new Set();
+
+      for (let y = 0; y < H; y++) {
+        const row = rows[y].padEnd(W, ' ');
+        for (let x = 0; x < W; x++) {
+          const i = y * W + x;
+          const ch = row[x];
+          wall[i] = ch === '#';
+          goal[i] = ch === '.' || ch === '*' || ch === '+';
+          if (ch === '$' || ch === '*') boxes.add(i);
+          if (ch === '@' || ch === '+') playerIdx = i;
+        }
+      }
+
+      moves = 0;
+      pushes = 0;
+      history = [];
+      anim = null;
+      facing = { dx: 0, dy: 1 };
+      warnedStuck = false;
+      gameRunning = true;
+
+      levelEl.textContent = index + 1;
+      parEl.textContent = spec.par;
+      const best = loadProgress(diff)[index];
+      bestEl.textContent = best === undefined ? '–' : best;
+      updateHUD();
+      resizeCanvas();
+    }
+
+    function isWon() {
+      for (const b of boxes) if (!goal[b]) return false;
+      return true;
+    }
+
+    /**
+     * The two deadlocks worth warning about: a crate wedged into a corner, and
+     * a 2x2 block of crates and walls that can never come apart. Neither can be
+     * undone by playing on, so the game says so rather than letting someone
+     * push around a dead board.
+     */
+    function isDeadlocked() {
+      const solid = i => wall[i] || boxes.has(i);
+      for (const b of boxes) {
+        if (goal[b]) continue;
+        if ((wall[b - W] || wall[b + W]) && (wall[b - 1] || wall[b + 1])) return true;
+      }
+      for (const b of boxes) {
+        for (const [dx, dy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+          const side = b + dx;
+          const below = b + dy * W;
+          const diag = b + dx + dy * W;
+          if (solid(side) && solid(below) && solid(diag)) {
+            const clump = [b, side, below, diag].filter(i => boxes.has(i));
+            if (clump.some(i => !goal[i])) return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function step(dx, dy) {
+      if (anim) finishAnim();
+      if (!gameRunning) return;
+
+      facing = { dx, dy };
+      const from = playerIdx;
+      const to = from + dy * W + dx;
+      if (wall[to]) { playBlockedSound(); render(); return; }
+
+      let box = null;
+      if (boxes.has(to)) {
+        const beyond = to + dy * W + dx;
+        if (wall[beyond] || boxes.has(beyond)) { playBlockedSound(); render(); return; }
+        box = { from: to, to: beyond };
+      }
+
+      history.push({ player: from, boxes: [...boxes], moves, pushes });
+
+      if (box) {
+        boxes.delete(box.from);
+        boxes.add(box.to);
+        pushes++;
+        if (goal[box.to]) playSeatedSound();
+        else if (goal[box.from]) playLiftedSound();
+        else playPushSound();
+      } else {
+        playStepSound();
+      }
+
+      playerIdx = to;
+      moves++;
+      anim = { t: 0, from, to, box };
+      updateHUD();
+    }
+
+    /** Lands the current step at once, so quick taps chain without dropping. */
+    function finishAnim() {
+      const done = anim;
+      anim = null;
+      if (!done || !gameRunning) return;
+
+      if (isWon()) { clearLevel(); return; }
+      if (done.box && !warnedStuck && isDeadlocked()) {
+        warnedStuck = true;
+        playStuckSound();
+        showToast('Stuck — press ↩', '#ff2a2a');
+      }
+    }
+
+    function undoMove() {
+      if (!gameRunning || !history.length) return;
+      anim = null;
+      const prev = history.pop();
+      playerIdx = prev.player;
+      boxes = new Set(prev.boxes);
+      moves = prev.moves;
+      pushes = prev.pushes;
+      warnedStuck = false;
+      playUndoSound();
+      updateHUD();
+      render();
+    }
+
+    function restartLevel() {
+      initAudio();
+      clearOverlay.classList.add('hidden');
+      packOverlay.classList.add('hidden');
+      startOverlay.classList.add('hidden');
+      loadLevel(currentDifficulty, levelIndex);
+      lastTime = 0;
+      cancelAnimationFrame(animationId);
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    // ----------------------------------------------------------- rendering ---
+    function resizeCanvas() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      const topOffset = Math.max(0, controlsBar.getBoundingClientRect().bottom - rect.top) + 10;
+      const bottomOffset = Math.max(0, rect.bottom - bottomBar.getBoundingClientRect().top) + 10;
+      const availW = rect.width * 0.94;
+      const availH = Math.max(120, rect.height - topOffset - bottomOffset);
+
+      cellSize = Math.min(MAX_CELL, availW / W, availH / H);
+      boardX = (rect.width - cellSize * W) / 2;
+      boardY = topOffset + Math.max(0, (availH - cellSize * H) / 2);
+      render();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function cellX(i) { return boardX + (i % W) * cellSize; }
+    function cellY(i) { return boardY + Math.floor(i / W) * cellSize; }
+
+    function drawWall(x, y) {
+      const inset = cellSize * 0.03;
+      const s = cellSize - inset * 2;
+      ctx.save();
+      ctx.fillStyle = '#1b1b3d';
+      ctx.strokeStyle = 'rgba(0, 242, 255, 0.35)';
+      ctx.lineWidth = Math.max(1, cellSize * 0.035);
+      ctx.beginPath();
+      ctx.roundRect(x + inset, y + inset, s, s, Math.max(2, cellSize * 0.12));
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawFloor(x, y) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.035)';
+      ctx.beginPath();
+      ctx.roundRect(x + 1, y + 1, cellSize - 2, cellSize - 2, Math.max(2, cellSize * 0.1));
+      ctx.fill();
+    }
+
+    /** The target pad: a gold ring that a seated crate glows through. */
+    function drawGoal(x, y) {
+      const cx = x + cellSize / 2;
+      const cy = y + cellSize / 2;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 215, 0, 0.85)';
+      ctx.lineWidth = Math.max(1.5, cellSize * 0.06);
+      ctx.shadowBlur = cellSize * 0.3;
+      ctx.shadowColor = 'rgba(255, 215, 0, 0.7)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, cellSize * 0.19, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawBox(x, y, seated) {
+      const inset = cellSize * 0.11;
+      const s = cellSize - inset * 2;
+      const body = seated ? '#00b866' : '#a63bff';
+      const edge = seated ? '#00ff88' : '#ff00aa';
+      ctx.save();
+      ctx.shadowBlur = seated ? cellSize * 0.45 : cellSize * 0.22;
+      ctx.shadowColor = edge;
+      ctx.fillStyle = body;
+      ctx.beginPath();
+      ctx.roundRect(x + inset, y + inset, s, s, Math.max(3, cellSize * 0.14));
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Crate bracing, so a seated crate still reads as a crate.
+      ctx.strokeStyle = edge;
+      ctx.lineWidth = Math.max(1.5, cellSize * 0.055);
+      ctx.beginPath();
+      ctx.roundRect(x + inset, y + inset, s, s, Math.max(3, cellSize * 0.14));
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x + inset, y + inset);
+      ctx.lineTo(x + inset + s, y + inset + s);
+      ctx.moveTo(x + inset + s, y + inset);
+      ctx.lineTo(x + inset, y + inset + s);
+      ctx.globalAlpha = 0.55;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawPlayer(x, y) {
+      const cx = x + cellSize / 2;
+      const cy = y + cellSize / 2;
+      const r = cellSize * 0.3;
+      ctx.save();
+      ctx.shadowBlur = cellSize * 0.35;
+      ctx.shadowColor = '#00f2ff';
+      ctx.fillStyle = '#0b2f3a';
+      ctx.strokeStyle = '#00f2ff';
+      ctx.lineWidth = Math.max(1.5, cellSize * 0.06);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Two eyes pushed toward the way we last moved, so the mover has a front.
+      const ex = facing.dx * r * 0.34;
+      const ey = facing.dy * r * 0.34;
+      const px = -facing.dy * r * 0.34;
+      const py = facing.dx * r * 0.34;
+      ctx.fillStyle = '#00f2ff';
+      [1, -1].forEach(side => {
+        ctx.beginPath();
+        ctx.arc(cx + ex + px * side, cy + ey + py * side, Math.max(1.2, r * 0.17), 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    function render() {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      if (!W) return;
+
+      for (let i = 0; i < W * H; i++) {
+        const x = cellX(i), y = cellY(i);
+        if (wall[i]) drawWall(x, y);
+        else {
+          drawFloor(x, y);
+          if (goal[i]) drawGoal(x, y);
+        }
+      }
+
+      const p = anim ? Math.min(1, anim.t / ANIM_MS) : 1;
+      const ease = 1 - Math.pow(1 - p, 3);
+
+      boxes.forEach(i => {
+        if (anim && anim.box && anim.box.to === i) return;   // drawn below, moving
+        drawBox(cellX(i), cellY(i), goal[i]);
+      });
+
+      if (anim && anim.box) {
+        const fx = cellX(anim.box.from), fy = cellY(anim.box.from);
+        const tx = cellX(anim.box.to), ty = cellY(anim.box.to);
+        drawBox(fx + (tx - fx) * ease, fy + (ty - fy) * ease, goal[anim.box.to] && p > 0.6);
+      }
+
+      if (anim) {
+        const fx = cellX(anim.from), fy = cellY(anim.from);
+        const tx = cellX(anim.to), ty = cellY(anim.to);
+        drawPlayer(fx + (tx - fx) * ease, fy + (ty - fy) * ease);
+      } else {
+        drawPlayer(cellX(playerIdx), cellY(playerIdx));
+      }
+    }
+
+    function updateHUD() {
+      movesEl.textContent = moves;
+      pushesEl.textContent = pushes;
+      undoBtn.disabled = !history.length || !gameRunning;
+    }
+
+    function gameLoop(timestamp) {
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min(timestamp - lastTime, 50);
+      lastTime = timestamp;
+
+      if (anim) {
+        anim.t += dt;
+        if (anim.t >= ANIM_MS) finishAnim();
+      }
+
+      render();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    // ------------------------------------------------------------- level UI ---
+    function starText(n) {
+      return n ? '⭐'.repeat(n) : '';
+    }
+
+    function renderLevelGrid(container, onPick) {
+      const pack = PACKS[currentDifficulty];
+      const progress = loadProgress(currentDifficulty);
+      container.innerHTML = '';
+      pack.forEach((spec, i) => {
+        const solved = progress[i] !== undefined;
+        const cell = document.createElement('button');
+        cell.type = 'button';
+        cell.className = 'lvl-cell' + (solved ? ' done' : '');
+        cell.innerHTML = `${i + 1}<span class="st${solved ? '' : ' none'}">${solved ? starText(starsFor(currentDifficulty, i)) : '–'}</span>`;
+        cell.title = spec.name;
+        if (onPick) cell.addEventListener('click', () => onPick(i));
+        container.appendChild(cell);
+      });
+    }
+
+    function refreshStartOverlay() {
+      renderLevelGrid(levelGrid, index => {
+        levelIndex = index;
+        startGame();
+      });
+      const solved = packSolvedCount(currentDifficulty);
+      const pack = PACKS[currentDifficulty];
+      packLine.textContent = `${solved} / ${pack.length} solved · ⭐ ${totalStars()} / ${TOTAL_LEVELS * 3}`;
+      document.getElementById('playBtn').textContent =
+        solved ? '▶ Continue' : '▶ Play';
+    }
+
+    function firstUnsolved(diff) {
+      const progress = loadProgress(diff);
+      for (let i = 0; i < PACKS[diff].length; i++) {
+        if (progress[i] === undefined) return i;
+      }
+      return 0;
+    }
+
+    function playFromGrid() {
+      levelIndex = firstUnsolved(currentDifficulty);
+      startGame();
+    }
+
+    function setDifficulty(diff) {
+      currentDifficulty = diff;
+      document.querySelectorAll('#difficultyBar button').forEach(btn =>
+        btn.classList.toggle('active', btn.dataset.diff === diff));
+      diffNote.textContent = DIFFICULTIES[diff].note;
+      refreshStartOverlay();
+    }
+
+    // ------------------------------------------------------------------ flow ---
+    function showStartOverlay() {
+      gameRunning = false;
+      cancelAnimationFrame(animationId);
+      clearOverlay.classList.add('hidden');
+      packOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+      refreshStartOverlay();
+    }
+
+    function startGame() {
+      initAudio();
+      cancelAnimationFrame(animationId);
+      startOverlay.classList.add('hidden');
+      clearOverlay.classList.add('hidden');
+      packOverlay.classList.add('hidden');
+      loadLevel(currentDifficulty, levelIndex);
+      lastTime = 0;
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function clearLevel() {
+      gameRunning = false;
+      const spec = PACKS[currentDifficulty][levelIndex];
+      const previous = loadProgress(currentDifficulty)[levelIndex];
+      const improved = recordSolve(currentDifficulty, levelIndex, moves);
+      const best = loadProgress(currentDifficulty)[levelIndex];
+      const stars = starsForMoves(spec.par, moves);
+
+      playWinSound();
+      updateHUD();
+      render();
+
+      document.getElementById('clearTitle').textContent = `${spec.name} Cleared`;
+      document.getElementById('clearStars').textContent = starText(stars) + '☆'.repeat(3 - stars);
+      document.getElementById('clearBlurb').textContent = stars === 3
+        ? 'Optimal — nobody solves it in fewer moves.'
+        : `Every crate is home. Par is ${spec.par} moves.`;
+      document.getElementById('clearMoves').textContent = moves;
+      document.getElementById('clearPushes').textContent = pushes;
+      document.getElementById('clearPar').textContent = spec.par;
+      document.getElementById('clearBest').textContent = best;
+      document.getElementById('clearBestTag').style.display =
+        (improved || previous === undefined) ? 'block' : 'none';
+      document.getElementById('clearBestTag').textContent =
+        previous === undefined ? '🏆 Solved!' : '🏆 New Best!';
+
+      bestEl.textContent = best;
+      if (previous === undefined || improved) setTimeout(() => Arcade.playBestJingle(), 320);
+
+      const isLast = levelIndex >= PACKS[currentDifficulty].length - 1;
+      nextBtn.textContent = isLast ? '🏁 Finish Pack' : '▶ Next Level';
+      setTimeout(() => clearOverlay.classList.remove('hidden'), 380);
+    }
+
+    function nextLevel() {
+      clearOverlay.classList.add('hidden');
+      if (levelIndex >= PACKS[currentDifficulty].length - 1) { endPack(); return; }
+      levelIndex++;
+      startGame();
+    }
+
+    function endPack() {
+      gameRunning = false;
+      cancelAnimationFrame(animationId);
+      const progress = loadProgress(currentDifficulty);
+      const pack = PACKS[currentDifficulty];
+      const solved = Object.keys(progress).length;
+      const totalMoves = Object.values(progress).reduce((a, b) => a + b, 0);
+
+      document.getElementById('packBlurb').textContent = solved === pack.length
+        ? 'Every room in this pack is solved.'
+        : `${pack.length - solved} still unsolved — pick them off from the grid.`;
+      document.getElementById('packStars').textContent = `⭐ ${totalStars()} / ${TOTAL_LEVELS * 3}`;
+      document.getElementById('packSolved').textContent = `${solved}/${pack.length}`;
+      document.getElementById('packTotal').textContent = totalMoves;
+      renderLevelGrid(packGrid, null);
+      packOverlay.classList.remove('hidden');
+    }
+
+    // ----------------------------------------------------------------- input ---
+    const NAV_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '];
+    document.addEventListener('keydown', e => {
+      if (NAV_KEYS.includes(e.key)) e.preventDefault();
+      initAudio();
+      switch (e.key) {
+        case 'ArrowUp': case 'w': case 'W': step(0, -1); break;
+        case 'ArrowDown': case 's': case 'S': step(0, 1); break;
+        case 'ArrowLeft': case 'a': case 'A': step(-1, 0); break;
+        case 'ArrowRight': case 'd': case 'D': step(1, 0); break;
+        case 'z': case 'Z': case 'u': case 'U': undoMove(); break;
+        case 'r': case 'R': if (gameRunning) restartLevel(); break;
+      }
+    });
+
+    function bindPad(id, fn) {
+      document.getElementById(id).addEventListener('pointerdown', e => {
+        e.preventDefault();
+        initAudio();
+        fn();
+      });
+    }
+    bindPad('btnUp', () => step(0, -1));
+    bindPad('btnDown', () => step(0, 1));
+    bindPad('btnLeft', () => step(-1, 0));
+    bindPad('btnRight', () => step(1, 0));
+    bindPad('btnUndo', undoMove);
+
+    let touchStartX = 0, touchStartY = 0;
+    canvas.addEventListener('touchstart', e => {
+      initAudio();
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    canvas.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      if (Math.hypot(dx, dy) < 24) return;
+      if (Math.abs(dx) > Math.abs(dy)) step(dx > 0 ? 1 : -1, 0);
+      else step(0, dy > 0 ? 1 : -1);
+    }, { passive: true });
+
+    Arcade.wireFullscreen(fullscreenBtn, resizeCanvas);
+
+    if (!('ontouchstart' in window)) {
+      hintLine.textContent = '← → ↑ ↓ or WASD to move • Z undo • R restart';
+    }
+
+    try {
+      setDifficulty('easy');
+      loadLevel('easy', 0);
+      gameRunning = false;
+      render();
+    } catch (err) {
+      console.error('Neon Sokoban init failed:', err);
+    }
+  </script>
+</body>
+</html>
