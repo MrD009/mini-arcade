@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🎱 Neon 8-Ball Pool | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    :root { --play-max: 430px; }
+
+    #gameCanvas {
+      background: radial-gradient(ellipse at center, #10161f 0%, #050510 75%);
+    }
+
+    .mode-bar {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      margin: 4px 0 2px;
+    }
+
+    .mode-bar button {
+      padding: 10px 20px;
+      font-size: 0.85rem;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .mode-bar button.active {
+      background: rgba(255, 0, 170, 0.18);
+      border-color: var(--accent2);
+      box-shadow: 0 0 10px rgba(255, 0, 170, 0.3);
+    }
+
+    .diff-wrap.dimmed { opacity: 0.35; pointer-events: none; }
+
+    .rules-key {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 5px 12px;
+      font-size: 0.72rem;
+      color: #aaa;
+      margin: 10px 0 4px;
+      text-align: left;
+      max-width: 330px;
+      align-items: center;
+    }
+
+    .rules-key b { color: var(--text); font-weight: 600; }
+
+    .overlay .stats { max-width: 300px; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span id="p1Label">You</span>
+        <strong id="p1Group">–</strong>
+      </div>
+      <div class="hud-panel">
+        <span id="p2Label">CPU</span>
+        <strong id="p2Group">–</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Run</span>
+        <strong id="runEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button id="startBtn" onclick="showStartOverlay()">Restart</button>
+      <button id="pauseBtn" onclick="togglePause()">Pause</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="hint-line" id="hintLine">Drag back from the cue ball, release to shoot</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">NICE POT!</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🎱 Neon 8-Ball Pool</h1>
+    <p id="modeBlurb">Take a group — solids or stripes — clear it, then sink the black to win.</p>
+
+    <div class="mode-bar" id="modeBar">
+      <button data-mode="cpu" onclick="setMode('cpu')">👤 vs CPU</button>
+      <button data-mode="duo" onclick="setMode('duo')">👥 2 Players</button>
+    </div>
+
+    <div class="diff-wrap" id="diffWrap">
+      <div class="difficulty-bar" id="difficultyBar">
+        <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+        <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+        <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+      </div>
+      <div class="diff-note" id="diffNote"></div>
+    </div>
+
+    <div class="rules-key">
+      <span>🟠 Solids</span><span>balls <b>1–7</b></span>
+      <span>🔵 Stripes</span><span>balls <b>9–15</b></span>
+      <span>⚫ Black</span><span>the <b>8</b> — only once your group is gone</span>
+      <span>⚪ Foul</span><span>opponent gets the <b>cue ball in hand</b></span>
+    </div>
+
+    <button class="primary" onclick="startGame()">▶ Break</button>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <h1 id="winTitle">🏆 You Win!</h1>
+    <p class="new-best" id="newBestTag">🏆 Best Run!</p>
+    <p id="winReason"></p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalRun">0</div>
+        <div class="lbl">Best Run</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalPotted">0</div>
+        <div class="lbl">Balls Potted</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalShots">0</div>
+        <div class="lbl">Shots Taken</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBest">0</div>
+        <div class="lbl">Best Ever</div>
+      </div>
+    </div>
+    <button class="primary" onclick="startGame()">Rack 'Em Up</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Mode</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const p1GroupEl = document.getElementById('p1Group');
+    const p2GroupEl = document.getElementById('p2Group');
+    const p1LabelEl = document.getElementById('p1Label');
+    const p2LabelEl = document.getElementById('p2Label');
+    const runEl = document.getElementById('runEl');
+    const bestEl = document.getElementById('bestEl');
+    const startOverlay = document.getElementById('startOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const diffNote = document.getElementById('diffNote');
+    const diffWrap = document.getElementById('diffWrap');
+    const modeBlurb = document.getElementById('modeBlurb');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.querySelector('.bottom-bar');
+
+    /*
+     * Same table geometry and physics as the snooker table — 1 by 2 in table
+     * units, mapped by a single scale factor — because that core is already
+     * proven. What changes here is the rack and the rules.
+     */
+    const TABLE_W = 1;
+    const TABLE_H = 2;
+    const BALL_R = 0.026;
+    const POCKET_R = 0.052;
+    const CUSHION_BOUNCE = 0.92;
+    const ROLL_FRICTION = 1.35;
+    const STOP_SPEED = 0.012;
+    const MAX_POWER = 3.0;
+    const FOOT_SPOT = { x: 0.5, y: 0.5 };   // apex of the rack
+    const HEAD_STRING = 1.5;                // break from behind this line
+
+    const POCKETS = [
+      { x: 0, y: 0 }, { x: TABLE_W, y: 0 },
+      { x: 0, y: TABLE_H / 2 }, { x: TABLE_W, y: TABLE_H / 2 },
+      { x: 0, y: TABLE_H }, { x: TABLE_W, y: TABLE_H }
+    ];
+
+    // Standard pool ball colours, 1-15.
+    const BALL_COLORS = [
+      null, '#ffd700', '#2979ff', '#ff2a2a', '#8e44ad', '#ff8800',
+      '#00c853', '#8d3b2f', '#1a1a1a', '#ffd700', '#2979ff',
+      '#ff2a2a', '#8e44ad', '#ff8800', '#00c853', '#8d3b2f'
+    ];
+
+    const AI = {
+      easy:   { error: 0.070, power: 0.24, note: 'Misses a lot, and hits softly.' },
+      medium: { error: 0.028, power: 0.13, note: 'Pots what it is given.' },
+      hard:   { error: 0.009, power: 0.07, note: 'Rarely leaves you a chance.' }
+    };
+
+    let mode = 'cpu';
+    let currentDifficulty = 'easy';
+    let gameRunning = false;
+    let gamePaused = false;
+    let animationId = null;
+    let lastTime = 0;
+
+    let scale = 200, tableX = 0, tableY = 0, viewW = 0, viewH = 0;
+
+    let balls = [];
+    let turn = 0;                  // 0 = player one, 1 = player two / CPU
+    let groups = [null, null];     // 'solid' | 'stripe' per player
+    let openTable = true;
+    let phase = 'aim';             // aim | placing | rolling | over
+    let aim = -Math.PI / 2;
+    let power = 0;
+    let dragging = false;
+    let dragId = null;
+
+    let firstContact = null;       // number of the first ball the cue struck
+    let pottedThisShot = [];
+    let cueBallPotted = false;
+    let isBreak = true;
+    let run = 0;                   // balls potted in the current visit
+    let bestRun = 0;
+    let totalPotted = 0;
+    let shots = 0;
+    let aiTimer = 0;
+    let legalAtShot = [];           // legal first contacts, as of the shot
+    let onEightAtShot = false;
+
+    // Audio, toast, best scores and fullscreen live in shared/arcade.js.
+    const initAudio = Arcade.initAudio;
+    function playTone(freq, type, duration, delay = 0, vol = 0.12) {
+      Arcade.playTone(freq, type, duration, delay, vol);
+    }
+    function playClack(p)   { playTone(300 + p * 500, 'square', 0.035, 0, 0.05); }
+    function playCushion()  { playTone(150, 'triangle', 0.03, 0, 0.035); }
+    function playPotSound() { playTone(520, 'sine', 0.09); playTone(700, 'sine', 0.11, 0.05); }
+    function playFoulSound(){ playTone(180, 'sawtooth', 0.16, 0, 0.1); playTone(120, 'sawtooth', 0.2, 0.1, 0.09); }
+    function playWinSound() { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => playTone(f, 'sine', 0.25, i * 0.11)); }
+    function playLoseSound(){ playTone(392, 'sawtooth', 0.2); playTone(294, 'sawtooth', 0.25, 0.15); playTone(196, 'sawtooth', 0.35, 0.3); }
+
+    function showToast(text, color, ms) {
+      Arcade.showToast(toast, text, color || '#ffd700', ms || 1300);
+    }
+
+    // ------------------------------------------------------------ layout ---
+
+    function layout() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      viewW = rect.width;
+      viewH = rect.height;
+      const topLimit = controlsBar.getBoundingClientRect().bottom - rect.top + 6;
+      const bottomLimit = bottomBar.getBoundingClientRect().top - rect.top - 6;
+      // A strip above the table for the status line.
+      const STATUS_H = 22;
+      const availH = Math.max(160, bottomLimit - topLimit - STATUS_H);
+      scale = Math.min((rect.width - 10) / TABLE_W, availH / TABLE_H);
+      tableX = (rect.width - TABLE_W * scale) / 2;
+      tableY = topLimit + STATUS_H + Math.max(0, (availH - TABLE_H * scale) / 2);
+    }
+    window.addEventListener('resize', layout);
+
+    const px = x => tableX + x * scale;
+    const py = y => tableY + y * scale;
+    const toTableX = cx => (cx - tableX) / scale;
+    const toTableY = cy => (cy - tableY) / scale;
+
+    // -------------------------------------------------------------- rack ---
+
+    function cueBall() { return balls[0]; }
+    function liveBalls() { return balls.filter(b => !b.potted && b.n > 0); }
+
+    function groupOf(n) {
+      if (n === 8) return 'eight';
+      return n < 8 ? 'solid' : 'stripe';
+    }
+
+    function rack() {
+      balls = [{ n: 0, x: 0.5, y: HEAD_STRING + 0.12, vx: 0, vy: 0, potted: false }];
+
+      /*
+       * A legal rack: the 8 in the middle of the third row, and the two back
+       * corners from opposite groups. The rest are shuffled, which is what the
+       * real rule allows and keeps every break different.
+       */
+      const solids = [1, 2, 3, 4, 5, 6, 7];
+      const stripes = [9, 10, 11, 12, 13, 14, 15];
+      const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+      shuffle(solids); shuffle(stripes);
+
+      const slots = new Array(15).fill(null);
+      slots[4] = 8;                                  // centre of row 3 (index 4)
+      const backLeft = 10, backRight = 14;           // ends of the back row
+      if (Math.random() < 0.5) { slots[backLeft] = solids.pop(); slots[backRight] = stripes.pop(); }
+      else { slots[backLeft] = stripes.pop(); slots[backRight] = solids.pop(); }
+      const rest = shuffle(solids.concat(stripes));
+      for (let i = 0; i < 15; i++) if (slots[i] === null) slots[i] = rest.pop();
+
+      // Rows spread away from the breaker, apex on the foot spot.
+      const rowStep = BALL_R * Math.sqrt(3);
+      let idx = 0;
+      for (let row = 0; row < 5; row++) {
+        for (let i = 0; i <= row; i++) {
+          const n = slots[idx++];
+          balls.push({
+            n,
+            x: FOOT_SPOT.x + (i - row / 2) * BALL_R * 2,
+            y: FOOT_SPOT.y - row * rowStep,
+            vx: 0, vy: 0, potted: false
+          });
+        }
+      }
+    }
+
+    // ----------------------------------------------------------- physics ---
+
+    function stepPhysics(dt) {
+      const active = balls.filter(b => !b.potted);
+      let maxV = 0;
+      for (const b of active) maxV = Math.max(maxV, Math.hypot(b.vx, b.vy));
+      const steps = Math.max(1, Math.min(14, Math.ceil(maxV * dt / (BALL_R * 0.5))));
+      const h = dt / steps;
+
+      for (let s = 0; s < steps; s++) {
+        for (const b of active) {
+          if (b.potted) continue;
+          b.x += b.vx * h;
+          b.y += b.vy * h;
+
+          const decay = Math.max(0, 1 - ROLL_FRICTION * h);
+          b.vx *= decay;
+          b.vy *= decay;
+          if (Math.hypot(b.vx, b.vy) < STOP_SPEED) { b.vx = 0; b.vy = 0; }
+
+          // Pockets first: a ball at the mouth drops rather than bouncing.
+          let sunk = false;
+          for (const p of POCKETS) {
+            if (Math.hypot(b.x - p.x, b.y - p.y) < POCKET_R) { pot(b); sunk = true; break; }
+          }
+          if (sunk) continue;
+
+          if (b.x - BALL_R < 0) { b.x = BALL_R; b.vx = Math.abs(b.vx) * CUSHION_BOUNCE; playCushion(); }
+          else if (b.x + BALL_R > TABLE_W) { b.x = TABLE_W - BALL_R; b.vx = -Math.abs(b.vx) * CUSHION_BOUNCE; playCushion(); }
+          if (b.y - BALL_R < 0) { b.y = BALL_R; b.vy = Math.abs(b.vy) * CUSHION_BOUNCE; playCushion(); }
+          else if (b.y + BALL_R > TABLE_H) { b.y = TABLE_H - BALL_R; b.vy = -Math.abs(b.vy) * CUSHION_BOUNCE; playCushion(); }
+        }
+
+        for (let i = 0; i < active.length; i++) {
+          const a = active[i];
+          if (a.potted) continue;
+          for (let j = i + 1; j < active.length; j++) {
+            const b = active[j];
+            if (b.potted) continue;
+            const dx = b.x - a.x, dy = b.y - a.y;
+            const d = Math.hypot(dx, dy);
+            if (d === 0 || d >= BALL_R * 2) continue;
+
+            const nx = dx / d, ny = dy / d;
+            const overlap = BALL_R * 2 - d;
+            a.x -= nx * overlap / 2; a.y -= ny * overlap / 2;
+            b.x += nx * overlap / 2; b.y += ny * overlap / 2;
+
+            const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
+            const vn = rvx * nx + rvy * ny;
+            if (vn > 0) continue;
+            const imp = -vn;
+            a.vx -= imp * nx; a.vy -= imp * ny;
+            b.vx += imp * nx; b.vy += imp * ny;
+            playClack(Math.min(1, imp / MAX_POWER));
+
+            if (firstContact === null && (a.n === 0 || b.n === 0)) {
+              firstContact = a.n === 0 ? b.n : a.n;
+            }
+          }
+        }
+      }
+    }
+
+    function pot(ball) {
+      ball.potted = true;
+      ball.vx = 0; ball.vy = 0;
+      playPotSound();
+      if (ball.n === 0) { cueBallPotted = true; return; }
+      pottedThisShot.push(ball.n);
+      totalPotted++;
+    }
+
+    function allStopped() {
+      return balls.every(b => b.potted || (b.vx === 0 && b.vy === 0));
+    }
+
+    // ------------------------------------------------------------- rules ---
+
+    function groupRemaining(g) {
+      return liveBalls().filter(b => groupOf(b.n) === g).length;
+    }
+
+    function myGroup() { return groups[turn]; }
+
+    /** What the shooter is allowed to hit first. */
+    function legalTargets() {
+      const g = myGroup();
+      if (openTable || !g) return liveBalls().filter(b => b.n !== 8).map(b => b.n);
+      if (groupRemaining(g) === 0) return [8];
+      return liveBalls().filter(b => groupOf(b.n) === g).map(b => b.n);
+    }
+
+    function shootingAtEight() {
+      const g = myGroup();
+      return !!g && !openTable && groupRemaining(g) === 0;
+    }
+
+    function resolveShot() {
+      const g = myGroup();
+      const potted8 = pottedThisShot.includes(8);
+      let foul = false;
+      let reason = '';
+
+      if (firstContact === null) { foul = true; reason = 'NO CONTACT'; }
+      else if (!legalAtShot.includes(firstContact)) { foul = true; reason = 'WRONG BALL FIRST'; }
+      if (cueBallPotted) { foul = true; reason = reason || 'SCRATCH'; }
+
+      // The 8: potting it early loses, and so does fouling on the winning shot.
+      if (potted8) {
+        if (onEightAtShot && !foul) { endGame(turn, `${playerName(turn)} sank the 8-ball.`); return; }
+        endGame(1 - turn, foul && cueBallPotted
+          ? `${playerName(turn)} scratched on the 8-ball.`
+          : `${playerName(turn)} sank the 8-ball too early.`);
+        return;
+      }
+
+      // The break never assigns groups; the first legal pot afterwards does.
+      const mine = pottedThisShot.filter(n => n !== 8);
+      if (!foul && openTable && !isBreak && mine.length) {
+        const assigned = groupOf(mine[0]);
+        groups[turn] = assigned;
+        groups[1 - turn] = assigned === 'solid' ? 'stripe' : 'solid';
+        openTable = false;
+        showToast(`${playerName(turn)} TAKES ${assigned.toUpperCase()}S`, '#00f2ff', 1500);
+      }
+
+      isBreak = false;
+
+      if (foul) { endTurn(true, reason); return; }
+
+      // Potting one of your own keeps you at the table.
+      const keptTable = mine.some(n => openTable || groupOf(n) === groups[turn]);
+      if (keptTable) {
+        run += mine.length;
+        bestRun = Math.max(bestRun, run);
+        phase = 'aim';
+        pottedThisShot = [];
+        firstContact = null;
+        showToast(mine.length > 1 ? `${mine.length} DOWN!` : 'NICE POT!', '#00ff88', 900);
+        updateHUD();
+        if (isCPUTurn()) aiTimer = 700;
+        return;
+      }
+
+      endTurn(false, mine.length ? 'POTTED THEIRS' : '');
+    }
+
+    function endTurn(foul, reason) {
+      if (foul) {
+        playFoulSound();
+        showToast(`FOUL — ${reason}`, '#ff2a2a', 1600);
+      } else if (reason) {
+        showToast(reason, '#00f2ff', 1000);
+      }
+      run = 0;
+      turn = 1 - turn;
+      pottedThisShot = [];
+      firstContact = null;
+
+      if (foul) {
+        // Ball in hand: the incoming player places the cue ball anywhere.
+        const cue = cueBall();
+        cue.potted = false;
+        cue.vx = 0; cue.vy = 0;
+        if (cueBallPotted) { cue.x = 0.5; cue.y = HEAD_STRING + 0.12; }
+        phase = 'placing';
+      } else {
+        phase = 'aim';
+      }
+      cueBallPotted = false;
+      updateHUD();
+      if (isCPUTurn()) aiTimer = phase === 'placing' ? 500 : 800;
+    }
+
+    function endGame(winner, why) {
+      phase = 'over';
+      gameRunning = false;
+      cancelAnimationFrame(animationId);
+      animationId = null;
+
+      const youWon = winner === 0;
+      let isBest = false;
+      if (bestRun > getBestScore()) { Arcade.setBestScore(`poolBest_${currentDifficulty}`, bestRun); isBest = true; }
+
+      document.getElementById('winTitle').textContent = mode === 'cpu'
+        ? (youWon ? '🏆 You Win!' : '🎱 CPU Wins')
+        : `🏆 ${playerName(winner)} Wins!`;
+      document.getElementById('winReason').textContent = why;
+      document.getElementById('finalRun').textContent = bestRun;
+      document.getElementById('finalPotted').textContent = totalPotted;
+      document.getElementById('finalShots').textContent = shots;
+      document.getElementById('finalBest').textContent = getBestScore();
+      document.getElementById('newBestTag').style.display = isBest ? 'block' : 'none';
+      bestEl.textContent = getBestScore();
+
+      if (youWon || mode === 'duo') playWinSound(); else playLoseSound();
+      if (isBest) setTimeout(() => Arcade.playBestJingle(), 500);
+      gameOverOverlay.classList.remove('hidden');
+    }
+
+    function playerName(i) {
+      if (mode === 'cpu') return i === 0 ? 'You' : 'CPU';
+      return i === 0 ? 'P1' : 'P2';
+    }
+
+    function isCPUTurn() { return mode === 'cpu' && turn === 1 && gameRunning; }
+
+    // -------------------------------------------------------------- shot ---
+
+    function shoot() {
+      shots++;
+      firstContact = null;
+      pottedThisShot = [];
+      cueBallPotted = false;
+      /*
+       * Legality is judged against the table as it was when the shot was
+       * played. Reading it afterwards means a ball you legally struck and
+       * potted is no longer among the live balls, and the shot scores as
+       * "wrong ball first" — the pot itself making the shot look like a foul.
+       */
+      legalAtShot = legalTargets();
+      onEightAtShot = shootingAtEight();
+      const cue = cueBall();
+      cue.vx = Math.cos(aim) * power * MAX_POWER;
+      cue.vy = Math.sin(aim) * power * MAX_POWER;
+      phase = 'rolling';
+      playClack(power);
+    }
+
+    /** Somewhere legal to drop the cue ball: on the table and not overlapping. */
+    function canPlaceCue(x, y) {
+      if (x < BALL_R || x > TABLE_W - BALL_R || y < BALL_R || y > TABLE_H - BALL_R) return false;
+      for (const p of POCKETS) if (Math.hypot(x - p.x, y - p.y) < POCKET_R + BALL_R) return false;
+      return liveBalls().every(b => Math.hypot(b.x - x, b.y - y) >= BALL_R * 2.05);
+    }
+
+    // ---------------------------------------------------------------- ai ---
+
+    function pathClear(fromX, fromY, toX, toY, ignore) {
+      const dx = toX - fromX, dy = toY - fromY;
+      const len = Math.hypot(dx, dy);
+      if (len < 1e-6) return true;
+      const nx = dx / len, ny = dy / len;
+      for (const b of balls) {
+        if (b.potted || b === ignore || b.n === 0) continue;
+        const rel = (b.x - fromX) * nx + (b.y - fromY) * ny;
+        if (rel <= 0 || rel >= len) continue;
+        const perp = Math.abs(-(b.x - fromX) * ny + (b.y - fromY) * nx);
+        if (perp < BALL_R * 2) return false;
+      }
+      return true;
+    }
+
+    /** Looks for the easiest legal pot with a clear path both ways. */
+    function bestShot() {
+      const cue = cueBall();
+      const targets = legalTargets();
+      let best = null;
+
+      for (const b of liveBalls()) {
+        if (!targets.includes(b.n)) continue;
+        for (const p of POCKETS) {
+          const dxp = p.x - b.x, dyp = p.y - b.y;
+          const dp = Math.hypot(dxp, dyp);
+          if (dp < 1e-6) continue;
+          // Contact point: one ball radius behind the object ball, in line.
+          const ghostX = b.x - (dxp / dp) * BALL_R * 2;
+          const ghostY = b.y - (dyp / dp) * BALL_R * 2;
+          const dcx = ghostX - cue.x, dcy = ghostY - cue.y;
+          const dc = Math.hypot(dcx, dcy);
+          if (dc < 1e-6) continue;
+
+          // The cut angle: straighter is easier.
+          const cosCut = (dcx / dc) * (dxp / dp) + (dcy / dc) * (dyp / dp);
+          if (cosCut < 0.25) continue;
+          if (!pathClear(cue.x, cue.y, ghostX, ghostY, b)) continue;
+          if (!pathClear(b.x, b.y, p.x, p.y, b)) continue;
+
+          const score = cosCut / (dc + dp);
+          if (!best || score > best.score) {
+            best = { score, aim: Math.atan2(dcy, dcx), power: powerForDistance(dc + dp * 0.8, 0.2) };
+          }
+        }
+      }
+      return best;
+    }
+
+    /**
+     * Power has to carry the cue ball the whole way to its target and beyond,
+     * or the shot is a no-contact foul. At this friction the cue travels about
+     * (power * MAX_POWER / ROLL_FRICTION) table units, so power is set from the
+     * distance it actually has to cover rather than from a fixed guess.
+     */
+    function powerForDistance(d, extra) {
+      const needed = (d + (extra || 0.25)) * ROLL_FRICTION / MAX_POWER;
+      return Math.max(0.3, Math.min(1, needed * 1.35));
+    }
+
+    function aiShoot() {
+      const cfg = AI[currentDifficulty];
+      const cue = cueBall();
+
+      // The break: hit the apex of the rack hard, slightly off centre.
+      if (isBreak) {
+        const apex = liveBalls().slice().sort((a, b) => b.y - a.y)[0];
+        if (apex) {
+          aim = Math.atan2(apex.y - cue.y, apex.x - cue.x) + (Math.random() - 0.5) * 0.025;
+          power = 0.95;
+          shoot();
+          return;
+        }
+      }
+
+      const shot = bestShot();
+      if (shot) {
+        aim = shot.aim + (Math.random() - 0.5) * cfg.error * 2;
+        power = Math.max(0.25, Math.min(1, shot.power + (Math.random() - 0.5) * cfg.power));
+        shoot();
+        return;
+      }
+
+      // Nothing on: roll at the nearest legal ball, hard enough to reach it.
+      const targets = legalTargets();
+      const options = liveBalls().filter(b => targets.includes(b.n));
+      if (options.length) {
+        const pick = options.reduce((best, b) => {
+          const d = Math.hypot(b.x - cue.x, b.y - cue.y);
+          return !best || d < best.d ? { b, d } : best;
+        }, null);
+        aim = Math.atan2(pick.b.y - cue.y, pick.b.x - cue.x) + (Math.random() - 0.5) * cfg.error;
+        power = powerForDistance(pick.d, 0.15);
+      } else {
+        aim = Math.random() * Math.PI * 2;
+        power = 0.5;
+      }
+      shoot();
+    }
+
+    function aiPlaceCue() {
+      // Drop it behind the head string, near the middle, somewhere legal.
+      const cue = cueBall();
+      for (let i = 0; i < 200; i++) {
+        const x = 0.15 + Math.random() * 0.7;
+        const y = HEAD_STRING + Math.random() * (TABLE_H - HEAD_STRING - BALL_R * 2);
+        if (canPlaceCue(x, y)) { cue.x = x; cue.y = y; phase = 'aim'; return; }
+      }
+      for (let i = 0; i < 400; i++) {
+        const x = BALL_R * 2 + Math.random() * (TABLE_W - BALL_R * 4);
+        const y = BALL_R * 2 + Math.random() * (TABLE_H - BALL_R * 4);
+        if (canPlaceCue(x, y)) { cue.x = x; cue.y = y; phase = 'aim'; return; }
+      }
+      phase = 'aim';
+    }
+
+    // ------------------------------------------------------------- input ---
+
+    canvas.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      initAudio();
+      if (!gameRunning || gamePaused || isCPUTurn()) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = toTableX(e.clientX - rect.left);
+      const y = toTableY(e.clientY - rect.top);
+
+      if (phase === 'placing') {
+        if (canPlaceCue(x, y)) {
+          const cue = cueBall();
+          cue.x = x; cue.y = y;
+          phase = 'aim';
+          power = 0;
+        }
+        return;
+      }
+      if (phase !== 'aim') return;
+      dragging = true;
+      dragId = e.pointerId;
+      updateAimFrom(x, y);
+    });
+
+    canvas.addEventListener('pointermove', e => {
+      if (!dragging || e.pointerId !== dragId) return;
+      const rect = canvas.getBoundingClientRect();
+      updateAimFrom(toTableX(e.clientX - rect.left), toTableY(e.clientY - rect.top));
+    });
+
+    function updateAimFrom(x, y) {
+      const cue = cueBall();
+      const dx = cue.x - x, dy = cue.y - y;
+      const d = Math.hypot(dx, dy);
+      if (d < 0.01) return;
+      aim = Math.atan2(dy, dx);
+      power = Math.max(0, Math.min(1, (d - BALL_R) / 0.5));
+    }
+
+    function releaseDrag(e) {
+      if (!dragging || (e && e.pointerId !== dragId)) return;
+      dragging = false;
+      dragId = null;
+      if (phase === 'aim' && power > 0.06) shoot();
+      else power = 0;
+    }
+    canvas.addEventListener('pointerup', releaseDrag);
+    canvas.addEventListener('pointercancel', releaseDrag);
+
+    document.addEventListener('keydown', e => {
+      initAudio();
+      if (e.key === 'Escape') { e.preventDefault(); if (gameRunning) togglePause(); }
+    });
+
+    // ----------------------------------------------------------- drawing ---
+
+    function drawTable() {
+      const w = TABLE_W * scale, h = TABLE_H * scale;
+      ctx.save();
+      ctx.fillStyle = '#0d2f4a';
+      ctx.beginPath();
+      ctx.roundRect(px(0), py(0), w, h, 10);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0, 242, 255, 0.4)';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.restore();
+
+      // Head string, where the cue ball is placed for the break.
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(px(0), py(HEAD_STRING));
+      ctx.lineTo(px(TABLE_W), py(HEAD_STRING));
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.beginPath();
+      ctx.arc(px(FOOT_SPOT.x), py(FOOT_SPOT.y), 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      POCKETS.forEach(p => {
+        ctx.save();
+        ctx.fillStyle = '#04070c';
+        ctx.beginPath();
+        ctx.arc(px(p.x), py(p.y), POCKET_R * scale, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
+      });
+    }
+
+    function drawBall(b) {
+      const r = BALL_R * scale;
+      const x = px(b.x), y = py(b.y);
+      ctx.save();
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = 'rgba(0,0,0,0.7)';
+
+      if (b.n === 0) {
+        ctx.fillStyle = '#f7f7f7';
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (b.n > 8) {
+        // Stripe: white ball with a coloured band, which is what reads at size.
+        ctx.fillStyle = '#f2f2f2';
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.fillStyle = BALL_COLORS[b.n];
+        ctx.fillRect(x - r, y - r * 0.52, r * 2, r * 1.04);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = BALL_COLORS[b.n];
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.shadowBlur = 0;
+      // Highlight, so the balls read as spheres rather than discs.
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      ctx.arc(x - r * 0.3, y - r * 0.32, r * 0.26, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Number, only when there is room for it to be legible.
+      if (b.n > 0 && r > 8) {
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(x, y, r * 0.46, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#111';
+        ctx.font = `bold ${Math.round(r * 0.62)}px 'Segoe UI', sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(b.n), x, y + r * 0.03);
+      }
+      ctx.restore();
+    }
+
+    function drawAim() {
+      if (phase !== 'aim' || isCPUTurn()) return;
+      const cue = cueBall();
+      const dx = Math.cos(aim), dy = Math.sin(aim);
+
+      // Trace the cue ball to its first contact, then show where that ball goes.
+      let hitT = Infinity, hitBall = null;
+      for (const b of liveBalls()) {
+        const ox = b.x - cue.x, oy = b.y - cue.y;
+        const proj = ox * dx + oy * dy;
+        if (proj <= 0) continue;
+        const perp2 = (ox * ox + oy * oy) - proj * proj;
+        const rr = (BALL_R * 2) * (BALL_R * 2);
+        if (perp2 > rr) continue;
+        const t = proj - Math.sqrt(rr - perp2);
+        if (t > 0 && t < hitT) { hitT = t; hitBall = b; }
+      }
+      const reach = hitBall ? hitT : 2.4;
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 6]);
+      ctx.beginPath();
+      ctx.moveTo(px(cue.x), py(cue.y));
+      ctx.lineTo(px(cue.x + dx * reach), py(cue.y + dy * reach));
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      if (hitBall) {
+        const gx = cue.x + dx * hitT, gy = cue.y + dy * hitT;
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.beginPath();
+        ctx.arc(px(gx), py(gy), BALL_R * scale, 0, Math.PI * 2);
+        ctx.stroke();
+        const ox = hitBall.x - gx, oy = hitBall.y - gy;
+        const od = Math.hypot(ox, oy) || 1;
+        ctx.strokeStyle = 'rgba(255,215,0,0.6)';
+        ctx.beginPath();
+        ctx.moveTo(px(hitBall.x), py(hitBall.y));
+        ctx.lineTo(px(hitBall.x + (ox / od) * 0.22), py(hitBall.y + (oy / od) * 0.22));
+        ctx.stroke();
+      }
+
+      if (power > 0.02) {
+        ctx.strokeStyle = power > 0.85 ? '#ff2a2a' : '#ffd700';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(px(cue.x - dx * (BALL_R + 0.02)), py(cue.y - dy * (BALL_R + 0.02)));
+        ctx.lineTo(px(cue.x - dx * (BALL_R + 0.02 + power * 0.3)), py(cue.y - dy * (BALL_R + 0.02 + power * 0.3)));
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawPlacing() {
+      if (phase !== 'placing') return;
+      ctx.save();
+      ctx.fillStyle = 'rgba(0, 242, 255, 0.75)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `bold ${Math.max(11, Math.round(scale * 0.05))}px 'Segoe UI', sans-serif`;
+      ctx.fillText('TAP TO PLACE THE CUE BALL', px(TABLE_W / 2), py(TABLE_H * 0.55));
+      ctx.restore();
+    }
+
+    function drawStatus() {
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.font = `bold ${Math.max(10, Math.round(scale * 0.05))}px 'Segoe UI', sans-serif`;
+      ctx.fillStyle = turn === 0 ? '#00f2ff' : '#ff00aa';
+      const g = groups[turn];
+      const on = shootingAtEight() ? 'THE 8' : openTable || !g ? 'TABLE OPEN' : g.toUpperCase() + 'S';
+      ctx.fillText(`${playerName(turn).toUpperCase()} — ${on}`, px(TABLE_W / 2), py(0) - 7);
+      ctx.restore();
+    }
+
+    function drawPaused() {
+      ctx.save();
+      ctx.fillStyle = 'rgba(5, 5, 16, 0.6)';
+      ctx.fillRect(0, 0, viewW, viewH);
+      ctx.fillStyle = '#00f2ff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `bold ${Math.round(Math.min(viewW * 0.1, 44))}px 'Segoe UI', sans-serif`;
+      ctx.fillText('PAUSED', viewW / 2, viewH / 2);
+      ctx.restore();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, viewW, viewH);
+      drawTable();
+      drawAim();
+      balls.forEach(b => { if (!b.potted) drawBall(b); });
+      drawPlacing();
+      drawStatus();
+      if (gamePaused) drawPaused();
+    }
+
+    function updateHUD() {
+      const label = g => g === null ? '–' : g === 'solid' ? '🟠 Solid' : '🔵 Stripe';
+      p1GroupEl.textContent = label(groups[0]);
+      p2GroupEl.textContent = label(groups[1]);
+      p1LabelEl.textContent = playerName(0);
+      p2LabelEl.textContent = playerName(1);
+      runEl.textContent = run;
+    }
+
+    // -------------------------------------------------------- run control --
+
+    function update(dt) {
+      if (phase === 'rolling') {
+        stepPhysics(dt);
+        if (allStopped()) resolveShot();
+        return;
+      }
+      if (aiTimer > 0 && isCPUTurn()) {
+        aiTimer -= dt * 1000;
+        if (aiTimer <= 0) {
+          if (phase === 'placing') { aiPlaceCue(); aiTimer = 500; }
+          else if (phase === 'aim') aiShoot();
+        }
+      }
+    }
+
+    function setMode(next) {
+      mode = next;
+      document.querySelectorAll('#modeBar button').forEach(b =>
+        b.classList.toggle('active', b.dataset.mode === next));
+      diffWrap.classList.toggle('dimmed', next === 'duo');
+      modeBlurb.textContent = next === 'cpu'
+        ? 'Take a group — solids or stripes — clear it, then sink the black to win.'
+        : 'Two players at one phone, taking turns. Clear your group, then sink the black.';
+      updateHUD();
+    }
+
+    function setDifficulty(diff) {
+      currentDifficulty = diff;
+      document.querySelectorAll('#difficultyBar button').forEach(btn =>
+        btn.classList.toggle('active', btn.dataset.diff === diff));
+      diffNote.textContent = AI[diff].note;
+      bestEl.textContent = getBestScore();
+    }
+
+    function getBestScore() { return Arcade.bestScore(`poolBest_${currentDifficulty}`); }
+
+    function showStartOverlay() {
+      gameRunning = false;
+      gamePaused = false;
+      cancelAnimationFrame(animationId);
+      animationId = null;
+      gameOverOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+      pauseBtn.textContent = 'Pause';
+    }
+
+    function startGame() {
+      initAudio();
+      rack();
+      turn = 0;
+      groups = [null, null];
+      openTable = true;
+      isBreak = true;
+      phase = 'aim';
+      aim = -Math.PI / 2;
+      power = 0;
+      firstContact = null;
+      pottedThisShot = [];
+      cueBallPotted = false;
+      run = 0;
+      bestRun = 0;
+      totalPotted = 0;
+      shots = 0;
+      aiTimer = 0;
+
+      startOverlay.classList.add('hidden');
+      gameOverOverlay.classList.add('hidden');
+      document.getElementById('startBtn').textContent = 'Restart';
+
+      gameRunning = true;
+      gamePaused = false;
+      pauseBtn.textContent = 'Pause';
+      lastTime = 0;
+
+      layout();
+      bestEl.textContent = getBestScore();
+      updateHUD();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function togglePause() {
+      if (!gameRunning) return;
+      gamePaused = !gamePaused;
+      pauseBtn.textContent = gamePaused ? 'Resume' : 'Pause';
+      if (!gamePaused) lastTime = 0;
+    }
+
+    function toggleFullscreen() { Arcade.toggleFullscreen(); }
+
+    Arcade.wireFullscreen(fullscreenBtn, layout);
+    Arcade.wireAutoPause(() => gameRunning && !gamePaused, togglePause);
+
+    function gameLoop(timestamp) {
+      if (!gameRunning) return;
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min((timestamp - lastTime) / 1000, 0.033);
+      lastTime = timestamp;
+
+      if (!gamePaused && dt > 0) update(dt);
+      if (!gameRunning) return;
+
+      draw();
+      updateHUD();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    if (!('ontouchstart' in window)) {
+      hintLine.textContent = 'Drag back from the cue ball with the mouse, release to shoot • Esc to pause';
+    }
+
+    try {
+      setMode('cpu');
+      setDifficulty('easy');
+      rack();
+      layout();
+    } catch (err) {
+      console.error('Neon 8-Ball Pool init failed:', err);
+    }
+  </script>
+</body>
+</html>
