@@ -333,8 +333,10 @@
       },
       {
         name: 'Two Up',
-        blurb: 'Two huts. One rock each if you are accurate.',
-        shots: ['rock', 'rock', 'rock'],
+        blurb: 'Two huts, wide apart. Two hits needed, so take your time.',
+        // Four rocks, not three: two separated targets this early asks for more
+        // accuracy than the taller single towers that follow it.
+        shots: ['rock', 'rock', 'rock', 'rock'],
         build: () => [...hut(0.60, GY, 0.15, 0.20, 'wood'),
                       ...hut(0.88, GY, 0.15, 0.20, 'wood')],
         bugs: [[0.60, GY - BUG_R], [0.88, GY - BUG_R]]
