@@ -322,25 +322,40 @@
      * screen by one scale factor, so a resize or a rotate can never change how
      * a tower falls. Everything fits on one screen — nothing scrolls.
      */
-    const WORLD_W = 1.0;
+    /*
+     * Proportions follow the game this one is modelled on: a small sling on
+     * the left and the target a long way downrange, rather than a tall sling
+     * with the towers huddled next to it. FIELD_X is how far downrange the
+     * structures sit — levels are still authored around x 0.5-1.0 and shifted
+     * by it on load, so the level data stays readable.
+     */
+    const FIELD_X = 1.15;
+    const WORLD_W = 2.25;
     const WORLD_H = 1.25;
     const GROUND_Y = 1.16;
     const GRAVITY = 2.4;              // world units per second squared
-    const MAX_LAUNCH = 1.62;          // world units per second at full stretch
+    const MAX_LAUNCH = 2.25;          // world units per second at full stretch
     // The pull has to fit between the sling and the left edge, or a full-power
     // stretch drags the shot off the side of the field.
-    const DRAG_MAX = 0.13;            // pull this far back for full power
-    const SLING = { x: 0.15, y: 0.78 };
-    const MAX_SPEED = 2.5;            // clamp, so nothing tunnels a thin plank
+    const DRAG_MAX = 0.16;            // pull this far back for full power
+    // A short sling: it should read as smaller than what it is shooting at.
+    const SLING = { x: 0.22, y: 1.02 };
+    const MAX_SPEED = 3.2;            // clamp, so nothing tunnels a thin plank
     const BUG_R = 0.026;
-    const PHYS_DT = 1 / 120;          // fixed step: the solver wants consistency
+    // Fixed step: the solver wants consistency. 1/180 rather than 1/120
+    // because the longer field needs faster shots, and at 3.2 units/second a
+    // 1/120 step would move a shot further than a plank is thick.
+    const PHYS_DT = 1 / 180;
     const SOLVER_ITERS = 12;
     const SETTLE_SPEED = 0.035;       // below this everywhere counts as quiet
     const SETTLE_SPIN = 0.25;
     const SETTLE_TIME = 0.35;         // ...for this long, and the shot is over
     const SHOT_TIMEOUT = 7;           // hard stop, in case something never rests
     // Everything above this is sky no shot ever reaches, so it is not drawn.
-    const VIEW_TOP = 0.34;
+    // Sits just above the apex of a full-power 45-degree shot. A steeper lob
+    // does leave the top of the screen for a moment, which is what the game
+    // this one follows does too.
+    const VIEW_TOP = 0.42;
     /*
      * The view fills the available height and then the camera handles width.
      * On a tall phone that means zooming right in and letting the target sit
@@ -1177,10 +1192,12 @@
       // Ground: one wide static slab whose top face is the playing surface.
       addStatic(WORLD_W / 2, GROUND_Y + 0.5, 3.0, 1.0);
 
+      // Levels are authored around x 0.5-1.0 and moved downrange here, so the
+      // coordinates in LEVELS stay small and readable.
       const lv = level();
-      for (const spec of lv.build()) addBox(spec);
+      for (const spec of lv.build()) addBox({ ...spec, x: spec.x + FIELD_X });
       for (const p of lv.bugs) {
-        const bug = addCircle(p[0], p[1], BUG_R, 'bug', 'bug', undefined, 0.05, 0.5);
+        const bug = addCircle(p[0] + FIELD_X, p[1], BUG_R, 'bug', 'bug', undefined, 0.05, 0.5);
         bug.kind = 'bug';
       }
 
@@ -1275,7 +1292,9 @@
       } else if (p.ammo === 'dive') {
         abilityUsed = true;
         p.vx *= 0.55;
-        p.vy = Math.max(p.vy, 0) + 1.9;
+        // Scaled off the launch speed, so the slam stays decisive now that
+        // shots travel a longer field faster.
+        p.vy = Math.max(p.vy, 0) + MAX_LAUNCH * 1.15;
         playTone(300, 'sawtooth', 0.12, 0, 0.08);
       }
     }
@@ -1525,22 +1544,30 @@
       }
       ctx.restore();
 
-      // Hills, so the arc has something to read height against.
-      const g = py(GROUND_Y), hill = 0.30 * scale, hill2 = 0.22 * scale;
-      const step = 0.5 * scale;
-      const off = wrap(-camX * scale * 0.45, step * 2);
-      ctx.save();
-      ctx.fillStyle = 'rgba(120, 90, 200, 0.10)';
-      ctx.beginPath();
-      ctx.moveTo(-step * 2 + off, g);
-      for (let i = 0; i * step + off < viewW + step * 2; i++) {
-        const x0 = i * step + off - step * 2;
-        ctx.quadraticCurveTo(x0 + step / 2, g - (i % 2 ? hill2 : hill), x0 + step, g);
-      }
-      ctx.lineTo(viewW + step * 2, g);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
+      /*
+       * Two ranges of hills at different depths. The far one moves slowest and
+       * gives the empty half of the sky something to be, rather than leaving a
+       * flat slab of dark blue above the field.
+       */
+      const g = py(GROUND_Y);
+      const range = (h1, h2, span, depth, colour) => {
+        const step = span * scale;
+        const off = wrap(-camX * scale * depth, step * 2);
+        ctx.save();
+        ctx.fillStyle = colour;
+        ctx.beginPath();
+        ctx.moveTo(-step * 2 + off, g);
+        for (let i = 0; i * step + off < viewW + step * 2; i++) {
+          const x0 = i * step + off - step * 2;
+          ctx.quadraticCurveTo(x0 + step / 2, g - (i % 2 ? h2 : h1) * scale, x0 + step, g);
+        }
+        ctx.lineTo(viewW + step * 2, g);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      };
+      range(0.46, 0.34, 0.78, 0.22, 'rgba(96, 74, 168, 0.13)');
+      range(0.28, 0.20, 0.46, 0.45, 'rgba(120, 90, 200, 0.16)');
     }
 
     /*
