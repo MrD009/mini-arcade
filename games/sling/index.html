@@ -62,6 +62,66 @@
     .rotate-tip { display: none; }
 
     /*
+     * A tall phone held upright leaves ~70% of the screen as empty sky — the
+     * field is limited by width, so it cannot grow to fill it. Rather than
+     * ship a game that reads as two blank pages stacked on one small one, ask
+     * for the phone sideways, where it is more than twice the size.
+     */
+    /* Opaque, unlike the other overlays: this one sits on top of the start
+       screen, and two translucent layers stacked make both unreadable. */
+    #rotateOverlay { z-index: 40; background: #050510; }
+
+    .rotate-icon {
+      font-size: 3.6rem;
+      line-height: 1;
+      margin-bottom: 14px;
+      animation: tip-over 2.4s ease-in-out infinite;
+    }
+
+    @keyframes tip-over {
+      0%, 30%   { transform: rotate(0deg); }
+      55%, 85%  { transform: rotate(-90deg); }
+      100%      { transform: rotate(0deg); }
+    }
+
+    .rotate-compare {
+      display: flex;
+      gap: 18px;
+      align-items: flex-end;
+      justify-content: center;
+      margin: 16px 0 6px;
+    }
+
+    .rotate-compare figure { text-align: center; }
+
+    .rotate-compare .box {
+      border: 1px solid rgba(0, 242, 255, 0.35);
+      border-radius: 4px;
+      background: linear-gradient(180deg, #101a3a 60%, #1d5c3a 60%);
+      position: relative;
+    }
+
+    .rotate-compare .up   { width: 42px; height: 84px; }
+    .rotate-compare .side { width: 84px; height: 42px; }
+
+    /* The little tower inside each box, drawn to the same relative scale the
+       real game uses, so the comparison is honest rather than decorative. */
+    .rotate-compare .box::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      bottom: 40%;
+      transform: translateX(-50%);
+      background: #c89b6a;
+      border-radius: 1px;
+    }
+    .rotate-compare .up::after   { width: 7px;  height: 8px; }
+    .rotate-compare .side::after { width: 15px; height: 17px; }
+
+    .rotate-compare figcaption { font-size: 0.62rem; color: #888; margin-top: 5px; }
+    .rotate-compare .good figcaption { color: var(--green); }
+
+    /*
      * The field is a wide scene, so a sideways phone suits it far better than
      * an upright one. Say so in portrait...
      */
@@ -225,6 +285,17 @@
         <button type="button">🏠 Arcade Home</button>
       </a>
     </div>
+  </div>
+
+  <div class="overlay hidden" id="rotateOverlay">
+    <div class="rotate-icon">📱</div>
+    <h1>Turn your phone</h1>
+    <p>Neon Sling is a wide game. Held sideways the towers are more than twice the size — upright, most of the screen is empty sky.</p>
+    <div class="rotate-compare">
+      <figure><div class="box up"></div><figcaption>upright</figcaption></figure>
+      <figure class="good"><div class="box side"></div><figcaption>sideways ✓</figcaption></figure>
+    </div>
+    <button class="primary" onclick="dismissRotate()">Play upright anyway</button>
   </div>
 
   <script src="../../shared/arcade.js"></script>
@@ -590,6 +661,33 @@
     // Rotating the phone swaps which dimension is scarce and re-runs the
     // landscape media query, so the field has to be re-measured either way.
     window.addEventListener('orientationchange', () => setTimeout(layout, 60));
+
+    /*
+     * The rotate prompt. Only for screens tall enough that turning them is a
+     * real improvement — a tablet held upright is fine, and a desktop window
+     * must never see it. Dismissing is remembered, so it asks once and then
+     * gets out of the way.
+     */
+    const rotateOverlay = document.getElementById('rotateOverlay');
+    const PORTRAIT_OK_KEY = 'slingPortraitOK';
+
+    function portraitIsCramped() {
+      // 1.6 keeps this to phones. A tablet held upright is around 1.33-1.45
+      // and fills roughly three quarters of its height, which plays fine.
+      return window.innerHeight > window.innerWidth * 1.6;
+    }
+
+    function updateRotatePrompt() {
+      const show = portraitIsCramped() &&
+                   localStorage.getItem(PORTRAIT_OK_KEY) !== '1';
+      rotateOverlay.classList.toggle('hidden', !show);
+    }
+
+    function dismissRotate() {
+      localStorage.setItem(PORTRAIT_OK_KEY, '1');
+      updateRotatePrompt();
+    }
+    window.addEventListener('resize', updateRotatePrompt);
 
     const px = x => worldX + x * scale;
     const py = y => worldY + y * scale;
@@ -1843,6 +1941,7 @@
       setDifficulty('easy');
       loadLevel();
       layout();
+      updateRotatePrompt();
     } catch (err) {
       console.error('Neon Sling init failed:', err);
     }
