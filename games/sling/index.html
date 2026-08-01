@@ -341,6 +341,16 @@
     const SHOT_TIMEOUT = 7;           // hard stop, in case something never rests
     // Everything above this is sky no shot ever reaches, so it is not drawn.
     const VIEW_TOP = 0.34;
+    /*
+     * The view fills the available height and then the camera handles width.
+     * On a tall phone that means zooming right in and letting the target sit
+     * off the side of the screen, with the camera flying out to it after the
+     * shot — the towers end up nearly twice the size. On a wide screen the
+     * whole field already fits, so the camera simply never moves.
+     * MIN_VIS_W stops the zoom going so far that a fortress cannot fit across
+     * the screen; the widest structure in the game spans 0.48.
+     */
+    const MIN_VIS_W = 0.58;
 
     /*
      * Damage is dealt on impact only: a contact that is already resting never
@@ -572,7 +582,9 @@
     let lastTime = 0;
     let physAccum = 0;
 
-    let scale = 300, worldX = 0, worldY = 0, viewW = 0, viewH = 0, bandTop = 0;
+    let scale = 300, worldY = 0, viewW = 0, viewH = 0, bandTop = 0;
+    let camX = 0.5;                   // world x at the centre of the view
+    let panning = false, panId = null, panFrom = 0, panCamFrom = 0;
 
     // Fixed star field, seeded once so the sky does not shimmer between frames.
     const STARS = Array.from({ length: 40 }, (_, i) => {
@@ -651,12 +663,27 @@
        * scarce and the whole 1.25 would barely fit.
        */
       const visibleH = WORLD_H - VIEW_TOP;
-      scale = Math.min((rect.width - 8) / WORLD_W, availH / visibleH);
-      worldX = (rect.width - WORLD_W * scale) / 2;
+      // Fill the height, then stop before the zoom gets too tight to show a
+      // whole structure. Width is the camera's problem, not the zoom's.
+      scale = Math.min(availH / visibleH, rect.width / MIN_VIS_W);
       // Spare height goes above the field, never below it: leftover sky reads
       // as sky, whereas leftover ground is a slab of green across the screen.
       worldY = topLimit - VIEW_TOP * scale + Math.max(0, availH - visibleH * scale);
+      camX = clampCam(camX);
     }
+
+    /** World units visible across the screen at the current zoom. */
+    function viewWorldW() { return viewW / scale; }
+
+    /** Keeps the field on screen; when it all fits, the camera stops moving. */
+    function clampCam(x) {
+      const half = viewWorldW() / 2;
+      if (viewWorldW() >= WORLD_W) return WORLD_W / 2;
+      return Math.max(half, Math.min(WORLD_W - half, x));
+    }
+
+    /** Where the camera rests while aiming: the sling sitting left of centre. */
+    function aimCamX() { return clampCam(SLING.x + viewWorldW() * 0.26); }
     window.addEventListener('resize', layout);
     // Rotating the phone swaps which dimension is scarce and re-runs the
     // landscape media query, so the field has to be re-measured either way.
@@ -689,9 +716,9 @@
     }
     window.addEventListener('resize', updateRotatePrompt);
 
-    const px = x => worldX + x * scale;
+    const px = x => (x - camX) * scale + viewW / 2;
     const py = y => worldY + y * scale;
-    const toWorldX = cx => (cx - worldX) / scale;
+    const toWorldX = cx => (cx - viewW / 2) / scale + camX;
     const toWorldY = cy => (cy - worldY) / scale;
 
     // ============================================================ physics ===
@@ -1178,6 +1205,9 @@
       dragPoint = { x: SLING.x, y: SLING.y };
       settleTimer = 0;
       shotClock = 0;
+      // Open on the target and drift back to the sling, so a level whose towers
+      // start off the side of the screen still introduces itself.
+      camX = clampCam(WORLD_W);
       updateHUD();
     }
 
@@ -1403,10 +1433,35 @@
       bestEl.textContent = Arcade.bestScore(key);
     }
 
+    // ============================================================== camera ===
+
+    /*
+     * While a shot is in the air the camera chases it; the rest of the time it
+     * eases back to the sling. Dragging anywhere away from the ball pans the
+     * view by hand, so the target can always be checked before committing.
+     */
+    function updateCamera(dt) {
+      if (panning) return;                     // the hand wins
+      let want = aimCamX();
+      if (phase === 'flying') {
+        const live = projectiles.filter(p => !p.dead);
+        if (live.length) {
+          // Lead the shot slightly, so it does not sit on the screen edge.
+          let lead = -Infinity;
+          for (const p of live) lead = Math.max(lead, p.x);
+          want = clampCam(lead + viewWorldW() * 0.10);
+        }
+      }
+      // Chase quickly, drift back gently.
+      const k = phase === 'flying' ? 7 : 2.6;
+      camX += (want - camX) * Math.min(1, dt * k);
+    }
+
     // ============================================================== update ===
 
     function update(dt) {
       if (cameraShake > 0) cameraShake = Math.max(0, cameraShake - dt * 3.2);
+      updateCamera(dt);
 
       for (const p of particles) {
         p.age += dt;
@@ -1458,28 +1513,69 @@
     function drawSky() {
       // Stars are laid out across the canvas, so a wide screen gets a wide sky.
       const skyTop = py(VIEW_TOP), skyH = py(GROUND_Y) - skyTop;
+      // Parallax: distant things slide slower than the field, which is what
+      // makes a panning camera read as movement rather than a jump cut.
+      const wrap = (v, m) => ((v % m) + m) % m;
       ctx.save();
       for (const s of STARS) {
         ctx.fillStyle = `rgba(255, 255, 255, ${s.m})`;
         ctx.beginPath();
-        ctx.arc(s.x * viewW, skyTop + s.y * skyH, s.m * 6, 0, Math.PI * 2);
+        ctx.arc(wrap(s.x * viewW - camX * scale * 0.15, viewW), skyTop + s.y * skyH, s.m * 6, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
 
       // Hills, so the arc has something to read height against.
       const g = py(GROUND_Y), hill = 0.30 * scale, hill2 = 0.22 * scale;
+      const step = 0.5 * scale;
+      const off = wrap(-camX * scale * 0.45, step * 2);
       ctx.save();
       ctx.fillStyle = 'rgba(120, 90, 200, 0.10)';
       ctx.beginPath();
-      ctx.moveTo(-4, g);
-      for (let i = 0; i * 0.5 * scale < viewW + scale; i++) {
-        const x0 = i * 0.5 * scale, mid = x0 + 0.25 * scale, x1 = x0 + 0.5 * scale;
-        ctx.quadraticCurveTo(mid, g - (i % 2 ? hill2 : hill), x1, g);
+      ctx.moveTo(-step * 2 + off, g);
+      for (let i = 0; i * step + off < viewW + step * 2; i++) {
+        const x0 = i * step + off - step * 2;
+        ctx.quadraticCurveTo(x0 + step / 2, g - (i % 2 ? hill2 : hill), x0 + step, g);
       }
-      ctx.lineTo(viewW + 4, g);
+      ctx.lineTo(viewW + step * 2, g);
       ctx.closePath();
       ctx.fill();
+      ctx.restore();
+    }
+
+    /*
+     * When the camera is zoomed in, the bugs you are aiming at may be off the
+     * side of the screen. Mark them on the edge so the shot is never blind.
+     */
+    function drawOffscreenBugs() {
+      if (viewWorldW() >= WORLD_W) return;
+      const edge = 16;
+      ctx.save();
+      ctx.lineJoin = 'round';
+      for (const b of bodies) {
+        if (b.dead || b.kind !== 'bug') continue;
+        const x = px(b.x);
+        if (x > edge && x < viewW - edge) continue;
+        const right = x >= viewW - edge;
+        const ex = right ? viewW - edge : edge;
+        const ey = Math.max(bandTop + 16, Math.min(py(b.y), py(GROUND_Y) - 12));
+        const d = right ? 1 : -1;
+        // A chevron pointing off the screen, in bug green: unmistakably "one
+        // of them is that way" without pretending to be a bug itself.
+        ctx.beginPath();
+        ctx.moveTo(ex - d * 5, ey - 9);
+        ctx.lineTo(ex + d * 7, ey);
+        ctx.lineTo(ex - d * 5, ey + 9);
+        ctx.closePath();
+        ctx.fillStyle = MATERIALS.bug.fill;
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = 'rgba(61, 220, 107, 0.8)';
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = MATERIALS.bug.edge;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
       ctx.restore();
     }
 
@@ -1718,8 +1814,10 @@
 
     function drawAmmoRow() {
       if (!ammo.length) return;
-      const y = py(GROUND_Y) + 0.032 * scale;
-      let x = px(0.03);
+      // Screen-anchored: the ammo you have left is UI, and must not slide away
+      // with the camera.
+      const y = Math.min(py(GROUND_Y) + 0.032 * scale, viewH - 16);
+      let x = 12;
       ctx.save();
       for (let i = 0; i < ammo.length; i++) {
         const spec = AMMO[ammo[i]];
@@ -1732,7 +1830,7 @@
         ctx.strokeStyle = spec.edge;
         ctx.lineWidth = 1.2;
         ctx.stroke();
-        x += r * 2 + 0.012 * scale;
+        x += r * 2 + Math.min(0.012 * scale, 8);
       }
       ctx.restore();
     }
@@ -1798,6 +1896,7 @@
         else drawBlock(b);
       }
       drawParticles();
+      drawOffscreenBugs();
       drawAmmoRow();
       drawStatus();
       ctx.restore();
@@ -1827,25 +1926,45 @@
       dragPoint = { x: SLING.x - Math.cos(aim) * pull, y: SLING.y - Math.sin(aim) * pull };
     }
 
+    // How near the ball a touch has to land to count as taking hold of it
+    // rather than dragging the view. Generous, because small fingers.
+    const GRAB_R = 0.13;
+
     canvas.addEventListener('pointerdown', e => {
       e.preventDefault();
       initAudio();
       if (!gameRunning || gamePaused) return;
       if (phase === 'flying') { useAbility(); return; }
-      if (phase !== 'aim' || !nextAmmo()) return;
       const rect = canvas.getBoundingClientRect();
-      dragging = true;
-      dragId = e.pointerId;
-      updateAimFrom(toWorldX(e.clientX - rect.left), toWorldY(e.clientY - rect.top));
+      const wx = toWorldX(e.clientX - rect.left), wy = toWorldY(e.clientY - rect.top);
+
+      const onBall = phase === 'aim' && nextAmmo() &&
+                     Math.hypot(wx - dragPoint.x, wy - dragPoint.y) < GRAB_R;
+      if (onBall) {
+        dragging = true;
+        dragId = e.pointerId;
+        updateAimFrom(wx, wy);
+      } else if (viewWorldW() < WORLD_W) {
+        // Only worth panning when there is something off screen to pan to.
+        panning = true;
+        panId = e.pointerId;
+        panFrom = e.clientX;
+        panCamFrom = camX;
+      }
     });
 
     canvas.addEventListener('pointermove', e => {
-      if (!dragging || e.pointerId !== dragId) return;
       const rect = canvas.getBoundingClientRect();
+      if (panning && e.pointerId === panId) {
+        camX = clampCam(panCamFrom - (e.clientX - panFrom) / scale);
+        return;
+      }
+      if (!dragging || e.pointerId !== dragId) return;
       updateAimFrom(toWorldX(e.clientX - rect.left), toWorldY(e.clientY - rect.top));
     });
 
     function releaseDrag(e) {
+      if (panning && (!e || e.pointerId === panId)) { panning = false; panId = null; }
       if (!dragging || (e && e.pointerId !== dragId)) return;
       dragging = false;
       dragId = null;
