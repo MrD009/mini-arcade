@@ -58,6 +58,50 @@
 
     .level-cell .lv { display: block; color: #666; font-size: 0.55rem; }
     .level-cell .st { color: var(--gold); font-size: 0.62rem; letter-spacing: 0; }
+
+    .rotate-tip { display: none; }
+
+    /*
+     * The field is a wide scene, so a sideways phone suits it far better than
+     * an upright one. Say so in portrait...
+     */
+    @media (orientation: portrait) {
+      .rotate-tip {
+        display: block;
+        color: var(--accent);
+        font-size: 0.72rem;
+        margin: 8px 0 2px;
+      }
+    }
+
+    /*
+     * ...and in landscape, hand the screen over to the game: the play column
+     * is capped at 480px by default, which wastes most of a sideways phone,
+     * and the chrome eats height that is suddenly the scarce dimension.
+     */
+    @media (orientation: landscape) and (max-height: 560px) {
+      :root { --play-max: 100vw; }
+      .hud { padding: 4px 10px 2px; gap: 5px; }
+      .hud-panel { padding: 3px 7px; font-size: 0.66rem; min-width: 44px; border-radius: 7px; }
+      .hud-panel span { font-size: 0.5rem; margin-bottom: 0; }
+      .hud-panel strong { font-size: 0.78rem; }
+      .controls-bar { padding: 0 10px 3px; gap: 4px; }
+      .controls-bar button { padding: 3px 8px; font-size: 0.6rem; }
+      .bottom-bar { padding: 2px 10px calc(3px + env(safe-area-inset-bottom)); gap: 3px; }
+      .hint-line { font-size: 0.58rem; }
+      .overlay { padding: 12px 16px; }
+      .overlay h1 { font-size: clamp(1.1rem, 4vw, 1.6rem); margin-bottom: 4px; }
+      .overlay p { font-size: 0.72rem; margin-bottom: 3px; }
+      .ammo-key { font-size: 0.62rem; gap: 2px 10px; margin: 5px 0 2px; max-width: 460px; }
+      .legend { margin: 5px 0 2px; font-size: 0.62rem; }
+      .difficulty-bar { margin: 7px 0 3px; }
+      .difficulty-bar button { padding: 5px 13px; font-size: 0.7rem; }
+      .overlay button.primary { padding: 7px 20px; font-size: 0.85rem; }
+      .overlay .stats { margin: 8px 0; max-width: 420px; grid-template-columns: repeat(4, 1fr); }
+      .overlay .stat { padding: 6px; }
+      .star-row { font-size: 1.3rem; margin: 2px 0; }
+      .level-grid { margin: 5px 0; max-width: 420px; }
+    }
   </style>
 </head>
 <body>
@@ -123,6 +167,8 @@
       <span style="color:#7fe9ff">▬ Glass, weakest</span>
       <span style="color:#b9c2cc">▬ Stone, toughest</span>
     </div>
+
+    <div class="rotate-tip">📱 Turn your phone sideways for a much bigger view.</div>
 
     <button class="primary" onclick="startGame()">▶ Start</button>
   </div>
@@ -222,6 +268,8 @@
     const SETTLE_SPIN = 0.25;
     const SETTLE_TIME = 0.35;         // ...for this long, and the shot is over
     const SHOT_TIMEOUT = 7;           // hard stop, in case something never rests
+    // Everything above this is sky no shot ever reaches, so it is not drawn.
+    const VIEW_TOP = 0.34;
 
     /*
      * Damage is dealt on impact only: a contact that is already resting never
@@ -521,15 +569,27 @@
       viewH = rect.height;
       const topLimit = controlsBar.getBoundingClientRect().bottom - rect.top + 6;
       const bottomLimit = bottomBar.getBoundingClientRect().top - rect.top - 6;
-      const availH = Math.max(170, bottomLimit - topLimit);
+      const availH = Math.max(150, bottomLimit - topLimit);
       bandTop = topLimit;
-      scale = Math.min((rect.width - 8) / WORLD_W, availH / WORLD_H);
+      /*
+       * Only the part of the world anything can reach is worth showing. The
+       * highest a full-power shot ever climbs is about y = 0.37, so everything
+       * above VIEW_TOP was dead sky eating a third of the screen. Scaling
+       * against the visible slice instead makes the towers as big as the
+       * screen allows — which is what rescues landscape, where height is
+       * scarce and the whole 1.25 would barely fit.
+       */
+      const visibleH = WORLD_H - VIEW_TOP;
+      scale = Math.min((rect.width - 8) / WORLD_W, availH / visibleH);
       worldX = (rect.width - WORLD_W * scale) / 2;
-      // Sit the field on the bottom of the available band: the sky above it is
-      // where the arc lives, and dead space below the ground helps nobody.
-      worldY = topLimit + Math.max(0, availH - WORLD_H * scale);
+      // Spare height goes above the field, never below it: leftover sky reads
+      // as sky, whereas leftover ground is a slab of green across the screen.
+      worldY = topLimit - VIEW_TOP * scale + Math.max(0, availH - visibleH * scale);
     }
     window.addEventListener('resize', layout);
+    // Rotating the phone swaps which dimension is scarce and re-runs the
+    // landscape media query, so the field has to be re-measured either way.
+    window.addEventListener('orientationchange', () => setTimeout(layout, 60));
 
     const px = x => worldX + x * scale;
     const py = y => worldY + y * scale;
@@ -1292,23 +1352,34 @@
 
     // ============================================================= drawing ===
 
+    /*
+     * Scenery spans the whole canvas rather than just the 1.0-wide playfield.
+     * On a wide screen the field is narrower than the canvas, and without this
+     * the game reads as a narrow strip floating in the middle of the display.
+     */
     function drawSky() {
+      // Stars are laid out across the canvas, so a wide screen gets a wide sky.
+      const skyTop = py(VIEW_TOP), skyH = py(GROUND_Y) - skyTop;
       ctx.save();
       for (const s of STARS) {
         ctx.fillStyle = `rgba(255, 255, 255, ${s.m})`;
         ctx.beginPath();
-        ctx.arc(px(s.x), py(s.y), s.m * 6, 0, Math.PI * 2);
+        ctx.arc(s.x * viewW, skyTop + s.y * skyH, s.m * 6, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
 
       // Hills, so the arc has something to read height against.
+      const g = py(GROUND_Y), hill = 0.30 * scale, hill2 = 0.22 * scale;
       ctx.save();
       ctx.fillStyle = 'rgba(120, 90, 200, 0.10)';
       ctx.beginPath();
-      ctx.moveTo(px(0), py(GROUND_Y));
-      ctx.quadraticCurveTo(px(0.25), py(GROUND_Y - 0.30), px(0.5), py(GROUND_Y));
-      ctx.quadraticCurveTo(px(0.75), py(GROUND_Y - 0.22), px(1), py(GROUND_Y));
+      ctx.moveTo(-4, g);
+      for (let i = 0; i * 0.5 * scale < viewW + scale; i++) {
+        const x0 = i * 0.5 * scale, mid = x0 + 0.25 * scale, x1 = x0 + 0.5 * scale;
+        ctx.quadraticCurveTo(mid, g - (i % 2 ? hill2 : hill), x1, g);
+      }
+      ctx.lineTo(viewW + 4, g);
       ctx.closePath();
       ctx.fill();
       ctx.restore();
@@ -1320,13 +1391,12 @@
       g.addColorStop(0, '#1d5c3a');
       g.addColorStop(1, '#0b2a1b');
       ctx.fillStyle = g;
-      ctx.fillRect(px(-0.2), py(GROUND_Y), WORLD_W * scale + 0.4 * scale,
-                   Math.max((WORLD_H - GROUND_Y) * scale, viewH - py(GROUND_Y)) + 4);
+      ctx.fillRect(0, py(GROUND_Y), viewW, Math.max(0, viewH - py(GROUND_Y)) + 4);
       ctx.strokeStyle = 'rgba(0, 255, 136, 0.45)';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(px(-0.2), py(GROUND_Y));
-      ctx.lineTo(px(1.2), py(GROUND_Y));
+      ctx.moveTo(0, py(GROUND_Y));
+      ctx.lineTo(viewW, py(GROUND_Y));
       ctx.stroke();
       ctx.restore();
     }
