@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🏗️ Neon Tower | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    :root { --play-max: 460px; }
+
+    #gameCanvas {
+      background: linear-gradient(180deg, #050a1e 0%, #0a1030 40%, #14163a 100%);
+    }
+
+    .rules {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 5px 12px;
+      font-size: 0.74rem;
+      color: #aaa;
+      margin: 10px 0 4px;
+      text-align: left;
+      max-width: 330px;
+      align-items: center;
+    }
+
+    .rules b { color: var(--text); font-weight: 600; }
+
+    .lives-dot { color: var(--red); letter-spacing: 2px; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span>Floors</span>
+        <strong id="floorEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Score</span>
+        <strong id="scoreEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Cranes</span>
+        <strong id="livesEl" class="lives-dot">●●●</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button id="startBtn" onclick="showStartOverlay()">Restart</button>
+      <button id="pauseBtn" onclick="togglePause()">Pause</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="hint-line" id="hintLine">Tap anywhere to drop the floor</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">PERFECT!</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🏗️ Neon Tower</h1>
+    <p id="modeBlurb">Every floor comes in on a swinging crane. Tap to drop it. Stack them straight and the tower climbs — stack them badly and the whole thing comes down.</p>
+
+    <div class="difficulty-bar" id="difficultyBar">
+      <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+      <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+      <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+    </div>
+    <div class="diff-note" id="diffNote"></div>
+
+    <div class="rules">
+      <span>🎯 Line it up</span><span>a floor dropped dead centre scores <b>PERFECT</b> and builds a streak</span>
+      <span>🏗️ Cranes</span><span>miss the tower and you lose one — run out and the site closes</span>
+      <span>🌬️ Wind</span><span>picks up the higher you build, and it pushes the tower</span>
+      <span>💥 Collapse</span><span>lose a floor off the top and the run ends there</span>
+    </div>
+
+    <button class="primary" onclick="startGame()">▶ Start Building</button>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <h1 id="overTitle">🏚️ Collapse!</h1>
+    <p class="new-best" id="newBestTag">🏆 Tallest Yet!</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalFloors">0</div>
+        <div class="lbl">Floors Built</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalScore">0</div>
+        <div class="lbl">Score</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalPerfect">0</div>
+        <div class="lbl">Perfect Drops</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBest">0</div>
+        <div class="lbl">Best Floors</div>
+      </div>
+    </div>
+    <p id="overBlurb" style="margin-top:-6px;"></p>
+    <button class="primary" onclick="startGame()">Build Again</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Difficulty</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const floorEl = document.getElementById('floorEl');
+    const scoreEl = document.getElementById('scoreEl');
+    const livesEl = document.getElementById('livesEl');
+    const bestEl = document.getElementById('bestEl');
+    const startOverlay = document.getElementById('startOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const diffNote = document.getElementById('diffNote');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.querySelector('.bottom-bar');
+
+    /*
+     * The site is measured in world units: 1 unit wide, with the ground at
+     * y = 0 and the tower climbing into negative y. One scale factor maps it
+     * to pixels, so a resize can never change how a tower leans.
+     */
+    const WORLD_W = 1.0;
+    const GRAVITY = 2.6;
+    const BASE_W = 0.42;
+    const BASE_TOP = 0;               // ground level; up is negative y
+    const FLOOR_H = 0.075;
+    const ROPE = 0.30;                // how far the floor hangs below the crane
+    const CRANE_GAP = 0.52;           // how far the crane rides above the tower
+    const PHYS_DT = 1 / 180;
+    const SOLVER_ITERS = 12;
+    const MAX_SPEED = 3.0;
+    const SETTLE_SPEED = 0.03;
+    const SETTLE_SPIN = 0.22;
+    const SETTLE_TIME = 0.28;
+    const DROP_TIMEOUT = 4.5;
+    const PERFECT = 0.018;            // centre within this and it is a perfect drop
+    // How much of the hook's swing the floor keeps when released. Cutting it
+    // back makes the drop point, rather than the exact instant of release, the
+    // thing that decides where a floor lands — which is what a child can aim.
+    const RELEASE_KEEP = 0.55;
+
+    const DIFFICULTIES = {
+      easy:   { swing: 0.34, rate: 1.5, width: 0.30, windFrom: 99, wind: 0,    lives: 3,
+                note: 'A slow, gentle swing and wide floors. No wind.' },
+      medium: { swing: 0.50, rate: 1.9, width: 0.26, windFrom: 8,  wind: 0.16, lives: 3,
+                note: 'Faster swing, narrower floors, wind above floor 8.' },
+      hard:   { swing: 0.66, rate: 2.3, width: 0.22, windFrom: 4,  wind: 0.26, lives: 2,
+                note: 'A wild swing, narrow floors, and wind from floor 4.' }
+    };
+
+    // Each storey takes the next colour, so height is readable at a glance.
+    const FLOOR_COLOURS = [
+      { fill: '#1e5f8f', edge: '#4fc3f7' },
+      { fill: '#6a2a7a', edge: '#ce93d8' },
+      { fill: '#1f6f5c', edge: '#4fd8a8' },
+      { fill: '#7a4a1e', edge: '#ffb74d' },
+      { fill: '#7a2b3f', edge: '#ff8aa0' },
+      { fill: '#3b3b8f', edge: '#9fa8ff' }
+    ];
+
+    let currentDifficulty = 'easy';
+    let gameRunning = false;
+    let gamePaused = false;
+    let animationId = null;
+    let lastTime = 0;
+    let physAccum = 0;
+
+    let scale = 300, viewW = 0, viewH = 0, bandTop = 0;
+    let camY = 0;                     // world y at the centre of the view
+
+    let bodies = [];
+    let particles = [];
+    let nextBodyId = 1;
+    const contactCache = new Map();
+    let prevPairs = new Set();
+
+    let floors = [];                  // placed floor bodies, bottom-up
+    let carried = null;               // the block on the hook, if any
+    let dropped = null;               // the block in the air, if any
+    let swingT = 0;
+    let phase = 'ready';              // ready | falling | over
+    let settleTimer = 0, dropClock = 0;
+    let score = 0, perfectCount = 0, combo = 0, lives = 3;
+    let placedCount = 0;              // floors that have been successfully placed
+    let dropTop = 0;                  // tower top at the moment of release
+    let windX = 0, windT = 0;
+    let shakeT = 0;
+
+    // Audio, toast, best scores and fullscreen live in shared/arcade.js.
+    const initAudio = Arcade.initAudio;
+    function playTone(freq, type, duration, delay = 0, vol = 0.12) {
+      Arcade.playTone(freq, type, duration, delay, vol);
+    }
+    function playDrop()    { playTone(300, 'square', 0.05, 0, 0.06); }
+    function playLand(p)   { playTone(150 + p * 120, 'triangle', 0.07, 0, 0.08); }
+    function playPerfect(n){ [660, 880, 1100].forEach((f, i) => playTone(f * (1 + n * 0.04), 'sine', 0.11, i * 0.06, 0.1)); }
+    function playMiss()    { playTone(180, 'sawtooth', 0.22, 0, 0.1); }
+    function playCollapse(){ [220, 165, 110, 80].forEach((f, i) => playTone(f, 'sawtooth', 0.3, i * 0.09, 0.11)); }
+
+    function showToast(text, colour, ms) {
+      Arcade.showToast(toast, text, colour || '#ffd700', ms || 900);
+    }
+
+    function diff() { return DIFFICULTIES[currentDifficulty]; }
+
+    // ------------------------------------------------------------ layout ---
+
+    function layout() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      viewW = rect.width;
+      viewH = rect.height;
+      bandTop = controlsBar.getBoundingClientRect().bottom - rect.top + 6;
+      // The tower is narrow and tall, so the width sets the zoom and the height
+      // simply shows more of the climb.
+      scale = rect.width / WORLD_W;
+    }
+    window.addEventListener('resize', layout);
+    window.addEventListener('orientationchange', () => setTimeout(layout, 60));
+
+    const px = x => x * scale;
+    const py = y => (y - camY) * scale + viewH * 0.5;
+
+    /** World units visible from the top of the view to the bottom. */
+    function viewWorldH() { return viewH / scale; }
+
+    // ============================================================ physics ===
+    /*
+     * Boxes only: oriented-box SAT with face clipping, solved by sequential
+     * impulses with warm starting. The same core as Neon Sling, trimmed to
+     * what a stack of floors needs.
+     */
+
+    function addBox(x, y, w, h, density, opts) {
+      const m = w * h * density;
+      const b = {
+        id: nextBodyId++, x, y, a: 0, vx: 0, vy: 0, av: 0,
+        hw: w / 2, hh: h / 2,
+        mass: m, im: 1 / m,
+        ii: 1 / (m * (w * w + h * h) / 12),
+        e: 0.02, fric: 0.82, kind: 'floor', dead: false
+      };
+      Object.assign(b, opts || {});
+      bodies.push(b);
+      return b;
+    }
+
+    function addStatic(x, y, w, h) {
+      const b = {
+        id: nextBodyId++, x, y, a: 0, vx: 0, vy: 0, av: 0,
+        hw: w / 2, hh: h / 2,
+        mass: Infinity, im: 0, ii: 0,
+        e: 0.01, fric: 0.95, kind: 'ground', dead: false
+      };
+      bodies.push(b);
+      return b;
+    }
+
+    function boxVerts(b) {
+      const c = Math.cos(b.a), s = Math.sin(b.a);
+      const ux = c * b.hw, uy = s * b.hw;
+      const vx = -s * b.hh, vy = c * b.hh;
+      return [
+        [b.x - ux - vx, b.y - uy - vy],
+        [b.x + ux - vx, b.y + uy - vy],
+        [b.x + ux + vx, b.y + uy + vy],
+        [b.x - ux + vx, b.y - uy + vy]
+      ];
+    }
+
+    function faceNormals(b) {
+      const c = Math.cos(b.a), s = Math.sin(b.a);
+      return [[s, -c], [c, s], [-s, c], [-c, -s]];
+    }
+
+    function projectVerts(v, nx, ny) {
+      let min = Infinity, max = -Infinity;
+      for (let i = 0; i < 4; i++) {
+        const d = v[i][0] * nx + v[i][1] * ny;
+        if (d < min) min = d;
+        if (d > max) max = d;
+      }
+      return [min, max];
+    }
+
+    function clipSegment(pts, nx, ny, offset, clipId) {
+      const out = [];
+      const d0 = nx * pts[0].p[0] + ny * pts[0].p[1] - offset;
+      const d1 = nx * pts[1].p[0] + ny * pts[1].p[1] - offset;
+      if (d0 <= 0) out.push(pts[0]);
+      if (d1 <= 0) out.push(pts[1]);
+      if (d0 * d1 < 0) {
+        const t = d0 / (d0 - d1);
+        out.push({
+          p: [pts[0].p[0] + t * (pts[1].p[0] - pts[0].p[0]),
+              pts[0].p[1] + t * (pts[1].p[1] - pts[0].p[1])],
+          id: 4 + clipId
+        });
+      }
+      return out.slice(0, 2);
+    }
+
+    function collide(A, B) {
+      const va = boxVerts(A), vb = boxVerts(B);
+      const ca = Math.cos(A.a), sa = Math.sin(A.a);
+      const cb = Math.cos(B.a), sb = Math.sin(B.a);
+      const axes = [[ca, sa, true], [-sa, ca, true], [cb, sb, false], [-sb, cb, false]];
+
+      let depth = Infinity, nx = 0, ny = 0, refIsA = true;
+      for (let i = 0; i < axes.length; i++) {
+        const ax = axes[i][0], ay = axes[i][1];
+        const pa = projectVerts(va, ax, ay), pb = projectVerts(vb, ax, ay);
+        const overlap = Math.min(pa[1], pb[1]) - Math.max(pa[0], pb[0]);
+        if (overlap <= 0) return null;
+        if (overlap < depth) { depth = overlap; nx = ax; ny = ay; refIsA = axes[i][2]; }
+      }
+
+      const R = refIsA ? A : B, I = refIsA ? B : A;
+      if ((I.x - R.x) * nx + (I.y - R.y) * ny < 0) { nx = -nx; ny = -ny; }
+
+      const rNorms = faceNormals(R), iNorms = faceNormals(I);
+      const rVerts = refIsA ? va : vb, iVerts = refIsA ? vb : va;
+
+      let refI = 0, best = -Infinity;
+      for (let i = 0; i < 4; i++) {
+        const d = rNorms[i][0] * nx + rNorms[i][1] * ny;
+        if (d > best) { best = d; refI = i; }
+      }
+      let incI = 0, worst = Infinity;
+      for (let i = 0; i < 4; i++) {
+        const d = iNorms[i][0] * nx + iNorms[i][1] * ny;
+        if (d < worst) { worst = d; incI = i; }
+      }
+
+      const r0 = rVerts[refI], r1 = rVerts[(refI + 1) % 4];
+      let sx = r1[0] - r0[0], sy = r1[1] - r0[1];
+      const sl = Math.hypot(sx, sy) || 1;
+      sx /= sl; sy /= sl;
+
+      let pts = [{ p: iVerts[incI], id: incI },
+                 { p: iVerts[(incI + 1) % 4], id: (incI + 1) % 4 }];
+      pts = clipSegment(pts, -sx, -sy, -(sx * r0[0] + sy * r0[1]), 0);
+      if (pts.length < 2) return null;
+      pts = clipSegment(pts, sx, sy, sx * r1[0] + sy * r1[1], 1);
+      if (pts.length < 2) return null;
+
+      const front = nx * r0[0] + ny * r0[1];
+      const out = [];
+      for (let k = 0; k < pts.length; k++) {
+        const sep = nx * pts[k].p[0] + ny * pts[k].p[1] - front;
+        if (sep > 0) continue;
+        out.push({
+          px: pts[k].p[0], py: pts[k].p[1], nx, ny, sep,
+          fid: (refIsA ? 512 : 0) + refI * 64 + incI * 8 + pts[k].id
+        });
+      }
+      if (!out.length) return null;
+      if (!refIsA) for (const c of out) { c.nx = -c.nx; c.ny = -c.ny; }
+      return out;
+    }
+
+    function cross(rx, ry, vx, vy) { return rx * vy - ry * vx; }
+    function pairKey(a, b) { return a.id < b.id ? a.id * 8192 + b.id : b.id * 8192 + a.id; }
+    function reach(b) { return Math.hypot(b.hw, b.hh); }
+
+    function applyImpulse(c, ix, iy) {
+      const A = c.A, B = c.B;
+      A.vx -= ix * A.im; A.vy -= iy * A.im;
+      A.av -= A.ii * cross(c.rax, c.ray, ix, iy);
+      B.vx += ix * B.im; B.vy += iy * B.im;
+      B.av += B.ii * cross(c.rbx, c.rby, ix, iy);
+    }
+
+    function stepPhysics(dt) {
+      for (const b of bodies) {
+        if (b.im === 0 || b.dead) continue;
+        b.vy += GRAVITY * dt;
+        b.vx += windX * dt;
+        b.vx *= 0.9993; b.vy *= 0.9993; b.av *= 0.995;
+        const sp = Math.hypot(b.vx, b.vy);
+        if (sp > MAX_SPEED) { b.vx = b.vx / sp * MAX_SPEED; b.vy = b.vy / sp * MAX_SPEED; }
+        if (b.av > 10) b.av = 10; else if (b.av < -10) b.av = -10;
+        b.x += b.vx * dt; b.y += b.vy * dt; b.a += b.av * dt;
+      }
+
+      const contacts = [];
+      const pairs = new Set();
+      const live = bodies.filter(b => !b.dead);
+      for (let i = 0; i < live.length; i++) {
+        const A = live[i];
+        for (let j = i + 1; j < live.length; j++) {
+          const B = live[j];
+          if (A.im === 0 && B.im === 0) continue;
+          const dx = B.x - A.x, dy = B.y - A.y, r = reach(A) + reach(B);
+          if (dx * dx + dy * dy > r * r) continue;
+          const cs = collide(A, B);
+          if (!cs) continue;
+          const key = pairKey(A, B);
+          pairs.add(key);
+          if (!prevPairs.has(key)) {
+            const c = cs[0];
+            const dvx = B.vx - A.vx, dvy = B.vy - A.vy;
+            const approach = -(dvx * c.nx + dvy * c.ny);
+            if (approach > 0.35) { playLand(Math.min(1, approach / 1.5)); shakeT = Math.min(1, approach / 2); }
+          }
+          const cached = contactCache.get(key);
+          for (const c of cs) {
+            c.A = A; c.B = B; c.key = key; c.pn = 0; c.pt = 0;
+            if (cached) for (const old of cached) if (old.fid === c.fid) { c.pn = old.pn; c.pt = old.pt; break; }
+            contacts.push(c);
+          }
+        }
+      }
+      prevPairs = pairs;
+
+      const BIAS = 0.22, SLOP = 0.0005;
+      for (const c of contacts) {
+        const A = c.A, B = c.B;
+        c.rax = c.px - A.x; c.ray = c.py - A.y;
+        c.rbx = c.px - B.x; c.rby = c.py - B.y;
+        const rnA = cross(c.rax, c.ray, c.nx, c.ny), rnB = cross(c.rbx, c.rby, c.nx, c.ny);
+        c.massN = 1 / (A.im + B.im + A.ii * rnA * rnA + B.ii * rnB * rnB);
+        const tx = -c.ny, ty = c.nx;
+        c.tx = tx; c.ty = ty;
+        const rtA = cross(c.rax, c.ray, tx, ty), rtB = cross(c.rbx, c.rby, tx, ty);
+        c.massT = 1 / (A.im + B.im + A.ii * rtA * rtA + B.ii * rtB * rtB);
+        c.bias = -BIAS / PHYS_DT * Math.min(0, c.sep + SLOP);
+        c.fric = Math.sqrt(A.fric * B.fric);
+        const dvx = (B.vx - B.av * c.rby) - (A.vx - A.av * c.ray);
+        const dvy = (B.vy + B.av * c.rbx) - (A.vy + A.av * c.rax);
+        const vn = dvx * c.nx + dvy * c.ny;
+        c.rest = vn < -0.5 ? -Math.min(A.e, B.e) * vn : 0;
+        applyImpulse(c, c.pn * c.nx + c.pt * tx, c.pn * c.ny + c.pt * ty);
+      }
+
+      for (let it = 0; it < SOLVER_ITERS; it++) {
+        for (const c of contacts) {
+          const A = c.A, B = c.B;
+          let dvx = (B.vx - B.av * c.rby) - (A.vx - A.av * c.ray);
+          let dvy = (B.vy + B.av * c.rbx) - (A.vy + A.av * c.rax);
+          const vn = dvx * c.nx + dvy * c.ny;
+          let dPn = c.massN * (-vn + c.bias + c.rest);
+          const newPn = Math.max(c.pn + dPn, 0);
+          dPn = newPn - c.pn; c.pn = newPn;
+          applyImpulse(c, dPn * c.nx, dPn * c.ny);
+
+          dvx = (B.vx - B.av * c.rby) - (A.vx - A.av * c.ray);
+          dvy = (B.vy + B.av * c.rbx) - (A.vy + A.av * c.rax);
+          const vt = dvx * c.tx + dvy * c.ty;
+          let dPt = c.massT * -vt;
+          const maxPt = c.fric * c.pn;
+          const newPt = Math.max(-maxPt, Math.min(c.pt + dPt, maxPt));
+          dPt = newPt - c.pt; c.pt = newPt;
+          applyImpulse(c, dPt * c.tx, dPt * c.ty);
+        }
+      }
+
+      contactCache.clear();
+      for (const c of contacts) {
+        let list = contactCache.get(c.key);
+        if (!list) { list = []; contactCache.set(c.key, list); }
+        list.push({ fid: c.fid, pn: c.pn, pt: c.pt });
+      }
+
+      // Anything that leaves the site is gone for good.
+      for (const b of bodies) {
+        if (b.dead || b.im === 0) continue;
+        if (b.x < -0.6 || b.x > WORLD_W + 0.6 || b.y > BASE_TOP + 0.6) b.dead = true;
+      }
+    }
+
+    function quiet() {
+      for (const b of bodies) {
+        if (b.dead || b.im === 0) continue;
+        if (Math.hypot(b.vx, b.vy) > SETTLE_SPEED) return false;
+        if (Math.abs(b.av) > SETTLE_SPIN) return false;
+      }
+      return true;
+    }
+
+    // ============================================================== tower ===
+
+    function liveFloors() { return floors.filter(f => !f.dead); }
+
+    /** The height of the tower, in world units above the ground. */
+    function towerTop() {
+      let top = BASE_TOP;
+      for (const f of liveFloors()) top = Math.min(top, f.y - f.hh);
+      return top;
+    }
+
+    function craneY() { return towerTop() - CRANE_GAP; }
+
+    /** Where the hook is right now, swinging on its rope. */
+    function hookPos() {
+      const d = diff();
+      const angle = d.swing * Math.sin(swingT * d.rate);
+      const pivotY = craneY();
+      return {
+        x: 0.5 + Math.sin(angle) * ROPE,
+        y: pivotY + Math.cos(angle) * ROPE,
+        angle,
+        vx: Math.cos(angle) * ROPE * d.swing * d.rate * Math.cos(swingT * d.rate),
+        vy: -Math.sin(angle) * ROPE * d.swing * d.rate * Math.cos(swingT * d.rate)
+      };
+    }
+
+    /*
+     * Where the floor would actually touch down if released right now.
+     *
+     * A pendulum is moving fastest at the bottom of its swing, so the hook
+     * being over the middle of the tower is precisely when the load is least
+     * likely to land there. Aiming by the hook is a trap; aiming by this is
+     * honest, and it is what the guide line draws.
+     */
+    function predictLanding() {
+      const h = hookPos();
+      const top = towerTop();
+      const drop = (top - FLOOR_H / 2) - h.y;      // downwards is positive
+      const vy = h.vy * RELEASE_KEEP;
+      const disc = vy * vy + 2 * GRAVITY * drop;
+      if (disc <= 0) return h.x;
+      const t = (-vy + Math.sqrt(disc)) / GRAVITY;
+      return h.x + h.vx * RELEASE_KEEP * t;
+    }
+
+    function newCarried() {
+      carried = { w: diff().width, h: FLOOR_H, colour: FLOOR_COLOURS[floors.length % FLOOR_COLOURS.length] };
+      phase = 'ready';
+    }
+
+    function drop() {
+      if (phase !== 'ready' || !carried) return;
+      const h = hookPos();
+      const b = addBox(h.x, h.y, carried.w, carried.h, 1.0, { colour: carried.colour });
+      b.vx = h.vx * RELEASE_KEEP; b.vy = h.vy * RELEASE_KEEP;
+      dropped = b;
+      dropTop = towerTop();
+      carried = null;
+      phase = 'falling';
+      settleTimer = 0; dropClock = 0;
+      playDrop();
+    }
+
+    /*
+     * A drop is judged once the site stops moving: did the floor land on the
+     * tower, and did anything fall off in the process.
+     */
+    function resolveDrop() {
+      const standing = liveFloors().length;
+
+      /*
+       * Losing floors is checked before anything else. A drop that knocks the
+       * tower apart AND fails to land is a collapse, not a mere miss — scoring
+       * it as a miss lets the tower quietly shrink while play carries on.
+       */
+      if (standing < placedCount) {
+        if (dropped) dropped.dead = true;
+        dropped = null;
+        playCollapse();
+        endGame('🏚️ Collapse!', `The tower came apart at floor ${placedCount}.`);
+        return;
+      }
+
+      /*
+       * A floor counts only if it came to rest ON the tower. Checking it is
+       * merely above the ground is not enough: a floor that slid off and
+       * settled on the slab beside the tower would otherwise be counted as a
+       * storey, and the building would grow sideways.
+       */
+      const landed = dropped && !dropped.dead &&
+                     (dropped.y + dropped.hh) < dropTop + FLOOR_H * 0.6 &&
+                     Math.abs(dropped.a) < 0.9;
+
+      if (!landed) {
+        if (dropped) dropped.dead = true;
+        dropped = null;
+        lives--;
+        combo = 0;
+        playMiss();
+        showToast('MISSED!', '#ff6b6b', 900);
+        if (lives <= 0) { endGame('🏗️ Out of Cranes', 'No crane left to lift the next floor.'); return; }
+        newCarried();
+        updateHUD();
+        return;
+      }
+
+      // Compare against the floor it was aimed at, not the whole tower.
+      const under = floors.length ? floors[floors.length - 1] : null;
+      const target = under ? under.x : 0.5;
+      const off = Math.abs(dropped.x - target);
+
+      floors.push(dropped);
+      placedCount = floors.length;
+      dropped = null;
+
+      if (off < PERFECT) {
+        combo++;
+        perfectCount++;
+        score += 100 + combo * 50;
+        playPerfect(Math.min(combo, 6));
+        showToast(combo > 1 ? `PERFECT ×${combo}` : 'PERFECT!', '#ffd700', 800);
+      } else {
+        combo = 0;
+        score += 50;
+      }
+
+      newCarried();
+      updateHUD();
+    }
+
+    function endGame(title, blurb) {
+      phase = 'over';
+      gameRunning = false;
+      cancelAnimationFrame(animationId);
+      animationId = null;
+
+      const key = `towerBest_${currentDifficulty}`;
+      const built = floors.length;
+      const prev = Arcade.bestScore(key);
+      const isBest = built > prev;
+      if (isBest) { Arcade.setBestScore(key, built); Arcade.playBestJingle(); }
+
+      document.getElementById('overTitle').textContent = title;
+      document.getElementById('overBlurb').textContent = blurb;
+      document.getElementById('newBestTag').style.display = isBest ? 'block' : 'none';
+      document.getElementById('finalFloors').textContent = built;
+      document.getElementById('finalScore').textContent = score;
+      document.getElementById('finalPerfect').textContent = perfectCount;
+      document.getElementById('finalBest').textContent = Arcade.bestScore(key);
+      gameOverOverlay.classList.remove('hidden');
+      bestEl.textContent = Arcade.bestScore(key);
+    }
+
+    // ============================================================= update ===
+
+    function update(dt) {
+      if (shakeT > 0) shakeT = Math.max(0, shakeT - dt * 3);
+      for (const p of particles) { p.age += dt; p.vy += GRAVITY * 0.4 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
+      particles = particles.filter(p => p.age < p.life);
+
+      // Wind builds with height and swings slowly back and forth.
+      const d = diff();
+      if (floors.length >= d.windFrom) {
+        windT += dt * 0.6;
+        const ramp = Math.min(1, (floors.length - d.windFrom) / 12 + 0.35);
+        windX = Math.sin(windT) * d.wind * ramp;
+      } else {
+        windX = 0;
+      }
+
+      if (phase === 'ready') swingT += dt;
+
+      if (phase === 'falling' || phase === 'ready') {
+        physAccum += dt;
+        let steps = 0;
+        while (physAccum >= PHYS_DT && steps < 8) {
+          stepPhysics(PHYS_DT);
+          physAccum -= PHYS_DT;
+          steps++;
+        }
+        if (steps === 8) physAccum = 0;
+      }
+
+      if (phase === 'falling') {
+        dropClock += dt;
+        if (quiet()) {
+          settleTimer += dt;
+          if (settleTimer >= SETTLE_TIME) resolveDrop();
+        } else settleTimer = 0;
+        if (phase === 'falling' && dropClock > DROP_TIMEOUT) resolveDrop();
+      }
+
+      /*
+       * The view follows the crane, but never so far down that the screen
+       * fills with empty ground below the site. Early on the second term wins
+       * and the tower sits low in frame; once it is tall enough for the crane
+       * to reach the top of the screen, the first term takes over and the view
+       * climbs with the building.
+       */
+      const vh = viewWorldH();
+      const want = Math.min(craneY() + vh * 0.34, BASE_TOP - vh * 0.30);
+      camY += (want - camY) * Math.min(1, dt * 3.2);
+    }
+
+    // ============================================================ drawing ===
+
+    function drawSky() {
+      // A city skyline far below, parallaxed, so height is legible.
+      const horizon = py(BASE_TOP);
+      ctx.save();
+      ctx.fillStyle = 'rgba(70, 60, 140, 0.30)';
+      const off = -camY * scale * 0.12;
+      for (let i = -2; i < 14; i++) {
+        const w = 0.075 * scale, h = (0.10 + ((i * 37) % 11) * 0.016) * scale;
+        const x = (i * 0.085 * scale + (off % (0.085 * scale)));
+        ctx.fillRect(x, horizon - h, w, h);
+      }
+      ctx.restore();
+    }
+
+    function drawGround() {
+      const g = py(BASE_TOP);
+      if (g > -40 && g < viewH + 40) {
+        ctx.save();
+        const grad = ctx.createLinearGradient(0, g, 0, g + 0.35 * scale);
+        grad.addColorStop(0, '#243046');
+        grad.addColorStop(1, '#0a0f1c');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, g, viewW, viewH - g + 40);
+        ctx.strokeStyle = 'rgba(0, 242, 255, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, g);
+        ctx.lineTo(viewW, g);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    function drawBox(b, colour, lit) {
+      ctx.save();
+      ctx.translate(px(b.x), py(b.y));
+      ctx.rotate(b.a);
+      const w = b.hw * 2 * scale, h = b.hh * 2 * scale;
+      ctx.beginPath();
+      ctx.roundRect(-w / 2, -h / 2, w, h, Math.min(4, h * 0.3));
+      ctx.fillStyle = colour.fill;
+      ctx.fill();
+      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = colour.edge;
+      ctx.stroke();
+      // Lit windows, so a floor reads as a storey of a building.
+      if (lit && w > 26) {
+        const cols = Math.max(2, Math.round(w / 22));
+        const ww = w / (cols * 2), wh = h * 0.34;
+        ctx.fillStyle = 'rgba(255, 240, 180, 0.55)';
+        for (let i = 0; i < cols; i++) {
+          const cx = -w / 2 + ww * (1 + i * 2) + ww * 0.5;
+          ctx.fillRect(cx - ww * 0.35, -wh / 2, ww * 0.7, wh);
+        }
+      }
+      ctx.restore();
+    }
+
+    function drawCrane() {
+      if (phase === 'over') return;
+      const pivotY = craneY();
+      const yPix = py(pivotY);
+      ctx.save();
+      // Gantry across the top.
+      ctx.strokeStyle = '#8a94a6';
+      ctx.lineWidth = Math.max(3, 0.014 * scale);
+      ctx.beginPath();
+      ctx.moveTo(0, yPix);
+      ctx.lineTo(viewW, yPix);
+      ctx.stroke();
+      ctx.fillStyle = '#ffb74d';
+      ctx.fillRect(px(0.5) - 0.03 * scale, yPix - 0.014 * scale, 0.06 * scale, 0.028 * scale);
+      ctx.restore();
+
+      if (!carried) return;
+      const h = hookPos();
+      ctx.save();
+      ctx.strokeStyle = 'rgba(220, 230, 245, 0.8)';
+      ctx.lineWidth = Math.max(1.5, 0.005 * scale);
+      ctx.beginPath();
+      ctx.moveTo(px(0.5), yPix);
+      ctx.lineTo(px(h.x), py(h.y));
+      ctx.stroke();
+      ctx.restore();
+
+      drawBox({ x: h.x, y: h.y, a: h.angle, hw: carried.w / 2, hh: carried.h / 2 },
+              carried.colour, true);
+
+      // The guide marks where the floor will touch down, not where the hook
+      // is: with the load swinging, those are rarely the same place.
+      const land = predictLanding();
+      const top = towerTop();
+      const under = floors.length ? floors[floors.length - 1] : null;
+      const aim = under ? under.x : 0.5;
+      const good = Math.abs(land - aim) < PERFECT;
+      ctx.save();
+      ctx.strokeStyle = good ? 'rgba(0, 255, 136, 0.85)' : 'rgba(0, 242, 255, 0.35)';
+      ctx.setLineDash([4, 7]);
+      ctx.lineWidth = good ? 2.5 : 1.5;
+      ctx.beginPath();
+      ctx.moveTo(px(h.x), py(h.y + carried.h / 2));
+      ctx.lineTo(px(land), py(top));
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // A landing bracket on the tower top.
+      const halfW = carried.w / 2;
+      ctx.strokeStyle = good ? 'rgba(0, 255, 136, 0.95)' : 'rgba(0, 242, 255, 0.55)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(px(land - halfW), py(top) - 6);
+      ctx.lineTo(px(land - halfW), py(top));
+      ctx.lineTo(px(land + halfW), py(top));
+      ctx.lineTo(px(land + halfW), py(top) - 6);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawWind() {
+      if (!windX) return;
+      const dir = Math.sign(windX), strength = Math.abs(windX) / 0.3;
+      ctx.save();
+      ctx.strokeStyle = `rgba(180, 220, 255, ${0.15 + strength * 0.3})`;
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 7; i++) {
+        const y = viewH * (0.12 + i * 0.11);
+        const len = 18 + strength * 34 + (i % 3) * 12;
+        const x = viewW * (0.1 + ((i * 0.17 + windT * 0.35) % 0.8));
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + len * dir, y);
+        ctx.stroke();
+      }
+      ctx.fillStyle = `rgba(180, 220, 255, ${0.4 + strength * 0.4})`;
+      ctx.font = `bold ${Math.max(10, scale * 0.032)}px 'Segoe UI', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(dir > 0 ? 'WIND →' : '← WIND', viewW / 2, bandTop + 16);
+      ctx.restore();
+    }
+
+    function drawRuler() {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+      ctx.fillStyle = 'rgba(255,255,255,0.30)';
+      ctx.font = `${Math.max(9, scale * 0.026)}px 'Segoe UI', sans-serif`;
+      ctx.textAlign = 'left';
+      ctx.lineWidth = 1;
+      const step = FLOOR_H * 4;
+      const topY = camY - viewWorldH() * 0.5;
+      let mark = Math.ceil((BASE_TOP - topY) / step) * step;
+      for (let i = 0; i < 30; i++, mark -= step) {
+        const wy = BASE_TOP - mark;
+        const y = py(wy);
+        if (y > viewH) break;
+        if (y < bandTop) continue;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(14, y);
+        ctx.stroke();
+        if (mark > 0) ctx.fillText(`${Math.round(mark / FLOOR_H)}`, 17, y + 3);
+      }
+      ctx.restore();
+    }
+
+    function drawParticles() {
+      ctx.save();
+      for (const p of particles) {
+        ctx.globalAlpha = Math.max(0, 1 - p.age / p.life);
+        ctx.fillStyle = p.colour;
+        ctx.beginPath();
+        ctx.arc(px(p.x), py(p.y), Math.max(1, p.size * scale), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawPaused() {
+      ctx.save();
+      ctx.fillStyle = 'rgba(5, 5, 16, 0.6)';
+      ctx.fillRect(0, 0, viewW, viewH);
+      ctx.fillStyle = '#00f2ff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `bold ${Math.round(Math.min(viewW * 0.1, 44))}px 'Segoe UI', sans-serif`;
+      ctx.fillText('PAUSED', viewW / 2, viewH / 2);
+      ctx.restore();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, viewW, viewH);
+      ctx.save();
+      if (shakeT > 0) ctx.translate((Math.random() - 0.5) * shakeT * 7, (Math.random() - 0.5) * shakeT * 7);
+      drawSky();
+      drawGround();
+
+      for (const b of bodies) {
+        if (b.dead) continue;
+        if (b.im === 0) drawBox(b, { fill: '#37455f', edge: '#7f8ca6' }, false);
+        else drawBox(b, b.colour || FLOOR_COLOURS[0], true);
+      }
+      drawCrane();
+      drawParticles();
+      ctx.restore();
+
+      drawWind();
+      drawRuler();
+      if (gamePaused) drawPaused();
+    }
+
+    function updateHUD() {
+      floorEl.textContent = floors.length;
+      scoreEl.textContent = score;
+      livesEl.textContent = '●'.repeat(Math.max(0, lives)) || '–';
+    }
+
+    // ============================================================== input ===
+
+    function tap() {
+      initAudio();
+      if (!gameRunning || gamePaused) return;
+      drop();
+    }
+
+    canvas.addEventListener('pointerdown', e => { e.preventDefault(); tap(); });
+    document.addEventListener('keydown', e => {
+      initAudio();
+      if (e.key === ' ') { e.preventDefault(); tap(); }
+      if (e.key === 'Escape') { e.preventDefault(); if (gameRunning) togglePause(); }
+    });
+
+    // ========================================================= run control ===
+
+    function setDifficulty(d) {
+      currentDifficulty = d;
+      document.querySelectorAll('#difficultyBar button').forEach(b =>
+        b.classList.toggle('active', b.dataset.diff === d));
+      diffNote.textContent = DIFFICULTIES[d].note;
+      bestEl.textContent = Arcade.bestScore(`towerBest_${d}`);
+    }
+
+    function showStartOverlay() {
+      gameRunning = false;
+      gamePaused = false;
+      cancelAnimationFrame(animationId);
+      animationId = null;
+      gameOverOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+      pauseBtn.textContent = 'Pause';
+    }
+
+    function resetSite() {
+      bodies = [];
+      particles = [];
+      floors = [];
+      carried = null;
+      dropped = null;
+      nextBodyId = 1;
+      contactCache.clear();
+      prevPairs = new Set();
+      // The plot: a solid slab for the first floor to land on.
+      addStatic(0.5, BASE_TOP + 0.09, BASE_W, 0.18);
+      swingT = 0;
+      windX = 0; windT = 0;
+      score = 0; perfectCount = 0; combo = 0; placedCount = 0; dropTop = BASE_TOP;
+      lives = diff().lives;
+      camY = BASE_TOP - 0.3;
+      physAccum = 0;
+      newCarried();
+    }
+
+    function startGame() {
+      initAudio();
+      startOverlay.classList.add('hidden');
+      gameOverOverlay.classList.add('hidden');
+      layout();
+      resetSite();
+      gameRunning = true;
+      gamePaused = false;
+      pauseBtn.textContent = 'Pause';
+      lastTime = 0;
+      bestEl.textContent = Arcade.bestScore(`towerBest_${currentDifficulty}`);
+      updateHUD();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function togglePause() {
+      if (!gameRunning) return;
+      gamePaused = !gamePaused;
+      pauseBtn.textContent = gamePaused ? 'Resume' : 'Pause';
+      if (!gamePaused) lastTime = 0;
+    }
+
+    function toggleFullscreen() { Arcade.toggleFullscreen(); }
+
+    Arcade.wireFullscreen(fullscreenBtn, layout);
+    Arcade.wireAutoPause(() => gameRunning && !gamePaused, togglePause);
+
+    function gameLoop(timestamp) {
+      if (!gameRunning) return;
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min((timestamp - lastTime) / 1000, 0.033);
+      lastTime = timestamp;
+      if (!gamePaused && dt > 0) update(dt);
+      if (!gameRunning) return;
+      draw();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    if (!('ontouchstart' in window)) {
+      hintLine.textContent = 'Click or press Space to drop the floor · Esc to pause';
+    }
+
+    try {
+      setDifficulty('easy');
+      resetSite();
+      layout();
+    } catch (err) {
+      console.error('Neon Tower init failed:', err);
+    }
+  </script>
+</body>
+</html>
