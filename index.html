@@ -866,6 +866,20 @@
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
+
+    <a href="games/sokoban/index.html" class="game-card" data-game="sokoban" data-cat="puzzle">
+      <span class="favorite-tag">🔥 Favorite</span>
+      <div class="card-content">
+        <span class="game-icon">📦</span>
+        <h2 class="game-title">Neon Sokoban</h2>
+        <p class="game-desc">Thirty warehouse rooms across three packs. Push every crate onto a glowing pad — you can only push, never pull, so one bad shove and it's undo time.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
   </main>
 
   <button class="to-top" id="toTop" type="button" onclick="scrollToTop()" aria-label="Back to top">↑</button>
@@ -1025,7 +1039,16 @@
         parseInt(localStorage.getItem(`slingBest_${d}`) || '0', 10))),
       // Tower's "best" is the tallest building completed.
       tower: () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
-        parseInt(localStorage.getItem(`towerBest_${d}`) || '0', 10)))
+        parseInt(localStorage.getItem(`towerBest_${d}`) || '0', 10))),
+      // Sokoban's "best" is how many of its thirty rooms have been solved; each
+      // pack keeps a { level: fewestMoves } map, so the keys are the solves.
+      sokoban: () => ['easy', 'medium', 'hard'].reduce((total, d) => {
+        try {
+          return total + Object.keys(JSON.parse(localStorage.getItem(`sokobanBest_${d}`) || '{}')).length;
+        } catch (err) {
+          return total;
+        }
+      }, 0)
     };
 
     // ---- Play counts ----
