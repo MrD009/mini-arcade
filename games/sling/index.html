@@ -524,8 +524,11 @@
       },
       {
         name: 'Under the Lid',
-        blurb: 'A stone lid. Go over the top and drop straight down.',
-        shots: ['dive', 'dive', 'rock'],
+        blurb: 'A stone lid. Go over the top and tap to drop straight down.',
+        // Three divers, not two: this is where the timing of the tap has to be
+        // learned, and it measured as a difficulty spike against the levels
+        // either side of it.
+        shots: ['dive', 'dive', 'dive', 'rock'],
         build: () => [post(0.58, GY, 0.34, 'stone', 0.036),
                       post(0.94, GY, 0.34, 'stone', 0.036),
                       beam(0.76, GY - 0.34, 0.40, 'stone', 0.036),
