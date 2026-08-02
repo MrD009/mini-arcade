@@ -922,6 +922,20 @@
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
+
+    <a href="games/rhythm/index.html" class="game-card" data-game="rhythm" data-cat="action">
+      <span class="favorite-tag">🔥 Favorite</span>
+      <div class="card-content">
+        <span class="game-icon">🎵</span>
+        <h2 class="game-title">Neon Rhythm</h2>
+        <p class="game-desc">Four tracks written by the game itself, and a note to hit every time the music does. Chase the combo multiplier for an S.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
   </main>
 
   <button class="to-top" id="toTop" type="button" onclick="scrollToTop()" aria-label="Back to top">↑</button>
@@ -1099,7 +1113,10 @@
       sudoku: () => parseInt(localStorage.getItem('sudokuBest') || '0', 10),
       // Nonograms' "best" is how many grids have been finished, pictures and
       // random ones together; the game keeps that running total in one key.
-      nonograms: () => parseInt(localStorage.getItem('nonogramsBest') || '0', 10)
+      nonograms: () => parseInt(localStorage.getItem('nonogramsBest') || '0', 10),
+      // Rhythm's "best" is the highest score on any track at any difficulty,
+      // which the game mirrors into one key of its own.
+      rhythm: () => parseInt(localStorage.getItem('rhythmBest') || '0', 10)
     };
 
     // ---- Play counts ----

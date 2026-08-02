@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🎵 Neon Rhythm | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    /* Width of this game's play column; the rest of the chrome is
+       inherited from the shared arcade sheet. */
+    :root { --play-max: 480px; }
+
+    #gameCanvas {
+      background: radial-gradient(ellipse at bottom, #16103a 0%, #050510 70%);
+    }
+
+    /* Specific to this game. */
+    .hud-panel.combo strong { color: var(--gold); }
+
+    .song-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 7px;
+      margin: 10px 0 4px;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    .song-cell {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 9px 6px;
+      font-size: 0.78rem;
+      font-weight: bold;
+      color: var(--text);
+      text-align: left;
+    }
+
+    .song-cell.active {
+      border-color: var(--accent);
+      background: rgba(0, 242, 255, 0.12);
+      box-shadow: 0 0 10px rgba(0, 242, 255, 0.25);
+    }
+
+    .song-cell .meta {
+      display: block;
+      font-size: 0.6rem;
+      color: #888;
+      font-weight: normal;
+      margin-top: 2px;
+    }
+
+    .song-cell .meta b { color: var(--gold); font-weight: bold; }
+
+    /* The judgement word that flashes over the lanes. */
+    .verdict {
+      position: absolute;
+      top: 46%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.6);
+      font-size: clamp(1.3rem, 6vw, 2rem);
+      font-weight: bold;
+      letter-spacing: 2px;
+      z-index: 15;
+      pointer-events: none;
+      opacity: 0;
+      transition: transform 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.18s;
+    }
+
+    .verdict.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+    .count-in {
+      position: absolute;
+      top: 42%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: clamp(2.5rem, 14vw, 4.5rem);
+      font-weight: bold;
+      color: var(--accent);
+      text-shadow: 0 0 40px rgba(0, 242, 255, 0.6);
+      z-index: 16;
+      pointer-events: none;
+    }
+
+    .grade-line {
+      font-size: 3.4rem;
+      font-weight: bold;
+      line-height: 1.1;
+      background: linear-gradient(90deg, var(--gold), var(--accent2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin: 2px 0 4px;
+    }
+
+    .tally {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+      font-size: 0.72rem;
+      margin: 6px 0 2px;
+    }
+
+    .tally span b { display: block; font-size: 0.95rem; }
+
+    .overlay .stats { max-width: 300px; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span id="songLabel">Neon Run</span>
+        <strong id="scoreEl">0</strong>
+      </div>
+      <div class="hud-panel combo">
+        <span>Combo</span>
+        <strong id="comboEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Accuracy</span>
+        <strong id="accEl">100%</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button onclick="showStartOverlay()">Songs</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar" id="bottomBar">
+      <div class="hint-line" id="hintLine">Tap a lane as its note crosses the line</div>
+    </div>
+  </div>
+
+  <div class="verdict" id="verdict">PERFECT</div>
+  <div class="count-in hidden" id="countIn">3</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🎵 Neon Rhythm</h1>
+    <p>Four lanes, and a note to hit every time the music does. Every note you are asked for is a sound you can hear — the chart is built out of the track itself.</p>
+
+    <div class="song-grid" id="songGrid"></div>
+
+    <div class="difficulty-bar" id="difficultyBar">
+      <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+      <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+      <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+    </div>
+    <p class="diff-note" id="diffNote"></p>
+
+    <div class="legend">
+      <span>🎧 Sound on</span>
+      <span>⌨️ D F J K</span>
+      <span>✨ Combo multiplies</span>
+    </div>
+
+    <button class="primary" onclick="startGame()">▶ Play</button>
+  </div>
+
+  <div class="overlay hidden" id="resultOverlay">
+    <h1 id="resultTitle">Track Clear</h1>
+    <div class="grade-line" id="gradeEl">S</div>
+    <p class="new-best" id="newBestTag">🏆 New Best Score!</p>
+    <p id="resultBlurb">Neon Run · Hard</p>
+    <div class="tally" id="tallyEl"></div>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalScore">0</div>
+        <div class="lbl">Score</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalAcc">0%</div>
+        <div class="lbl">Accuracy</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalCombo">0</div>
+        <div class="lbl">Best Combo</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBest">0</div>
+        <div class="lbl">Your Best</div>
+      </div>
+    </div>
+    <button class="primary" onclick="startGame()">▶ Again</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Track</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    // ======================================================= engine start ===
+    /*
+     * The music and the chart, with no DOM and no WebAudio in sight, so a whole
+     * song can be composed and checked offline.
+     *
+     * The one thing a rhythm game has to get right is that the notes you are
+     * asked to hit are the notes you can hear. That is guaranteed here by
+     * construction rather than by ear: the song is composed first as a list of
+     * sound events, and the chart is a *filter over that same list*. A note
+     * cannot drift from its sound because it has no time of its own — it
+     * carries the time of the sound that made it.
+     */
+
+    /** Deterministic per song, so a track sounds the same every time. */
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function midiToFreq(m) {
+      return 440 * Math.pow(2, (m - 69) / 12);
+    }
+
+    // Natural minor, and the four chords the songs walk around.
+    const MINOR_SCALE = [0, 2, 3, 5, 7, 8, 10];
+    const PROGRESSION = [0, 5, 3, 4];            // i - VI - iv - v, in scale steps
+
+    function scaleNote(root, degree) {
+      const octave = Math.floor(degree / 7);
+      return root + octave * 12 + MINOR_SCALE[((degree % 7) + 7) % 7];
+    }
+
+    /*
+     * Four drum and instrument voices. `kind` decides how the browser makes the
+     * sound and which lane the note lands in; everything else is timing.
+     */
+    const SONGS = [
+      { id: 'pulse',  name: 'Pulse',   bpm: 96,  bars: 24, root: 45, seed: 0x51A1, busy: 0.45 },
+      { id: 'neon',   name: 'Neon Run', bpm: 120, bars: 28, root: 45, seed: 0xBEEF, busy: 0.6 },
+      { id: 'surge',  name: 'Surge',   bpm: 138, bars: 28, root: 43, seed: 0xC0DE, busy: 0.72 },
+      { id: 'meltdown', name: 'Meltdown', bpm: 156, bars: 32, root: 41, seed: 0xF17E, busy: 0.85 }
+    ];
+
+    /**
+     * Composes a whole track as a flat list of sound events, each with the
+     * second it happens at. Nothing is random at play time: the same song id
+     * always produces the same events in the same order.
+     */
+    function composeSong(spec) {
+      const rng = mulberry32(spec.seed);
+      const beat = 60 / spec.bpm;
+      const sixteenth = beat / 4;
+      const events = [];
+
+      const at = function (bar, step) { return (bar * 16 + step) * sixteenth; };
+
+      for (let bar = 0; bar < spec.bars; bar++) {
+        const chord = PROGRESSION[bar % PROGRESSION.length];
+        // The track builds: drums alone, then bass, then the lead on top.
+        const phase = bar < 2 ? 0 : bar < 6 ? 1 : 2;
+
+        // Kick: on the beat, with a pickup that comes and goes.
+        [0, 8].forEach(function (s) { events.push({ time: at(bar, s), kind: 'kick', freq: 0 }); });
+        if (phase > 0 && rng() < spec.busy) events.push({ time: at(bar, 11), kind: 'kick', freq: 0 });
+        if (phase > 1 && rng() < spec.busy * 0.5) events.push({ time: at(bar, 6), kind: 'kick', freq: 0 });
+
+        // Snare: the backbeat, always.
+        [4, 12].forEach(function (s) { events.push({ time: at(bar, s), kind: 'snare', freq: 0 }); });
+        if (phase > 1 && bar % 4 === 3 && rng() < 0.8) {
+          [14, 15].forEach(function (s) { events.push({ time: at(bar, s), kind: 'snare', freq: 0 }); });
+        }
+
+        // Hats keep the pulse but are never charted — they are the bed, not
+        // the thing you are asked to hit.
+        for (let s = 0; s < 16; s += 2) events.push({ time: at(bar, s), kind: 'hat', freq: 0 });
+
+        if (phase > 0) {
+          // Bass walks the chord root, an eighth-note pattern with rests.
+          for (let s = 0; s < 16; s += 2) {
+            if (s !== 0 && rng() > spec.busy) continue;
+            const degree = chord + (s % 8 === 0 ? 0 : (rng() < 0.3 ? 2 : 0));
+            events.push({ time: at(bar, s), kind: 'bass', freq: midiToFreq(scaleNote(spec.root, degree)) });
+          }
+        }
+
+        if (phase > 1) {
+          // Lead: a melody over the chord, on sixteenths, leaving gaps.
+          let degree = chord + 7;
+          for (let s = 0; s < 16; s++) {
+            if (rng() > spec.busy * 0.55) continue;
+            degree += Math.floor(rng() * 5) - 2;
+            if (degree < chord + 4) degree = chord + 4;
+            if (degree > chord + 12) degree = chord + 12;
+            events.push({ time: at(bar, s), kind: 'lead', freq: midiToFreq(scaleNote(spec.root, degree)) });
+          }
+        }
+      }
+
+      events.sort(function (a, b) { return a.time - b.time; });
+      return {
+        id: spec.id, name: spec.name, bpm: spec.bpm, bars: spec.bars,
+        beat: beat, events: events,
+        duration: spec.bars * 16 * sixteenth + 2
+      };
+    }
+
+    const LANES = 4;
+
+    /*
+     * Which voices are worth hitting at each tier. Hats never appear: charting
+     * the constant pulse would be busywork rather than rhythm.
+     */
+    const TIERS = {
+      easy:   { kinds: ['kick', 'snare'], minGap: 0.22, speed: 3.2,
+                note: '🌱 The beat only — kick and snare.' },
+      medium: { kinds: ['kick', 'snare', 'bass'], minGap: 0.14, speed: 4.2,
+                note: '⚡ Beat and bassline.' },
+      hard:   { kinds: ['kick', 'snare', 'bass', 'lead'], minGap: 0.10, speed: 5.4,
+                note: '🔥 Everything, melody included.' }
+    };
+
+    /**
+     * Where a note wants to sit. Drums alternate between a pair of lanes, which
+     * gives the left-right feel these games live on and — unlike one fixed lane
+     * per voice — keeps all four lanes in play even on Easy, where kick and
+     * snare are the only voices charted. The lead is spread by pitch, so the
+     * melody climbs across the board as it climbs in tone.
+     */
+    function baseLane(event, counters, lowest, highest) {
+      if (event.kind === 'kick') return counters.kick++ % 2;              // 0, 1
+      if (event.kind === 'snare') return 3 - (counters.snare++ % 2);      // 3, 2
+      if (event.kind === 'bass') return 1 + (counters.bass++ % 2);        // 1, 2
+      const span = Math.max(1, highest - lowest);
+      return Math.max(0, Math.min(LANES - 1, Math.floor(((event.freq - lowest) / span) * LANES)));
+    }
+
+    /**
+     * Turns a song into a chart. Notes are the song's own events, so a note's
+     * time IS the sound's time; the only work here is choosing lanes and
+     * thinning out anything a pair of thumbs could not physically play.
+     */
+    function chartFrom(song, tier) {
+      const cfg = TIERS[tier];
+      const wanted = song.events.filter(function (e) { return cfg.kinds.indexOf(e.kind) >= 0; });
+
+      const leads = wanted.filter(function (e) { return e.kind === 'lead'; });
+      const lowest = leads.length ? Math.min.apply(null, leads.map(function (e) { return e.freq; })) : 0;
+      const highest = leads.length ? Math.max.apply(null, leads.map(function (e) { return e.freq; })) : 1;
+
+      const lastInLane = new Array(LANES).fill(-Infinity);
+      const counters = { kick: 0, snare: 0, bass: 0 };
+      const notes = [];
+
+      for (let i = 0; i < wanted.length; i++) {
+        const e = wanted[i];
+        const home = baseLane(e, counters, lowest, highest);
+
+        // Take the home lane if it has had time to recover, otherwise the
+        // nearest lane that has; if none has, the note is dropped rather than
+        // stacked into something unplayable.
+        let lane = -1;
+        for (let step = 0; step < LANES; step++) {
+          const candidate = (home + step) % LANES;
+          if (e.time - lastInLane[candidate] >= cfg.minGap) { lane = candidate; break; }
+        }
+        if (lane < 0) continue;
+
+        // Never ask for more than two lanes at once.
+        const together = notes.filter(function (n) { return Math.abs(n.time - e.time) < 0.005; });
+        if (together.length >= 2) continue;
+        if (together.some(function (n) { return n.lane === lane; })) continue;
+
+        lastInLane[lane] = e.time;
+        notes.push({ time: e.time, lane: lane, kind: e.kind });
+      }
+
+      notes.sort(function (a, b) { return a.time - b.time || a.lane - b.lane; });
+      return { notes: notes, speed: cfg.speed, tier: tier };
+    }
+
+    // ------------------------------------------------------------ judging ---
+    /*
+     * How close counts as what. A note you never hit is judged when it has been
+     * gone longer than the widest window.
+     */
+    const WINDOWS = [
+      { name: 'PERFECT', within: 0.045, score: 300, colour: '#ffd700' },
+      { name: 'GREAT',   within: 0.090, score: 200, colour: '#00f2ff' },
+      { name: 'GOOD',    within: 0.145, score: 100, colour: '#00ff88' }
+    ];
+    const MISS_AFTER = 0.145;
+
+    function judge(delta) {
+      const d = Math.abs(delta);
+      for (let i = 0; i < WINDOWS.length; i++) if (d <= WINDOWS[i].within) return WINDOWS[i];
+      return null;
+    }
+
+    /** Accuracy as a share of the best you could have done. */
+    function accuracyOf(tally, total) {
+      if (!total) return 0;
+      const got = tally.PERFECT * 300 + tally.GREAT * 200 + tally.GOOD * 100;
+      return got / (total * 300);
+    }
+
+    /* S is deliberately absent here: it is the full-combo grade, awarded only
+       by the guard below. Leaving it in the table let a run with a dropped note
+       fall through to an S on accuracy alone. */
+    const GRADES = [
+      { at: 0.93, name: 'A' }, { at: 0.85, name: 'B' },
+      { at: 0.75, name: 'C' }, { at: 0.60, name: 'D' }
+    ];
+
+    function gradeFor(accuracy, misses) {
+      if (!misses && accuracy >= 0.97) return 'S';
+      for (let i = 0; i < GRADES.length; i++) if (accuracy >= GRADES[i].at) return GRADES[i].name;
+      return 'F';
+    }
+
+    /** Combo multiplies, so a long clean run is worth chasing. */
+    function comboMultiplier(combo) {
+      if (combo >= 100) return 4;
+      if (combo >= 50) return 3;
+      if (combo >= 20) return 2;
+      return 1;
+    }
+    // ========================================================= engine end ===
+
+    // ------------------------------------------------------------- page ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const songLabel = document.getElementById('songLabel');
+    const scoreEl = document.getElementById('scoreEl');
+    const comboEl = document.getElementById('comboEl');
+    const accEl = document.getElementById('accEl');
+    const bestEl = document.getElementById('bestEl');
+    const startOverlay = document.getElementById('startOverlay');
+    const resultOverlay = document.getElementById('resultOverlay');
+    const songGrid = document.getElementById('songGrid');
+    const diffNote = document.getElementById('diffNote');
+    const verdictEl = document.getElementById('verdict');
+    const countIn = document.getElementById('countIn');
+    const hintLine = document.getElementById('hintLine');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.getElementById('bottomBar');
+
+    const STORE = 'rhythm';
+    const LOOKAHEAD = 0.14;      // seconds of audio queued in advance
+    const TICK_MS = 25;          // how often the queue is topped up
+    const COUNT_IN = 2.6;        // seconds of nothing before the first bar
+
+    let songIndex = 1;
+    let currentDifficulty = 'medium';
+    let song = null;
+    let chart = null;
+    let notes = [];              // { time, lane, kind, judged }
+    let nextToSchedule = 0;
+    let nextToJudge = 0;
+    let leadSeconds = 1.4;
+
+    let running = false;
+    let songStart = 0;           // audio-clock time at which bar one begins
+    let score = 0, combo = 0, bestCombo = 0;
+    let tally = { PERFECT: 0, GREAT: 0, GOOD: 0, MISS: 0 };
+    let laneFlash = [0, 0, 0, 0];
+    let hitFlash = [];           // { lane, t }
+
+    let schedulerTimer = null;
+    let animationId = null;
+    let audio = null;
+    let noiseBuffer = null;
+
+    /*
+     * The song clock is the audio clock, never the frame clock. Frames arrive
+     * whenever the browser feels like it; the notes have to line up with what
+     * the speakers are doing, so that is what everything is measured against.
+     * `clockSource` exists so the whole run can be driven by a stand-in clock
+     * when the game is being tested.
+     */
+    let clockSource = null;
+    function clockNow() {
+      if (clockSource) return clockSource();
+      return audio ? audio.currentTime : performance.now() / 1000;
+    }
+    function songTime() { return clockNow() - songStart; }
+
+    function toggleFullscreen() { Arcade.toggleFullscreen(); }
+
+    // ------------------------------------------------------------- sound ---
+    function ensureAudio() {
+      Arcade.initAudio();
+      audio = Arcade.audioContext();
+      if (audio && !noiseBuffer) {
+        const len = Math.floor(audio.sampleRate * 0.4);
+        noiseBuffer = audio.createBuffer(1, len, audio.sampleRate);
+        const data = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      }
+    }
+
+    function envelope(at, peak, decay) {
+      const g = audio.createGain();
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(peak, at + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + decay);
+      return g;
+    }
+
+    function noiseAt(at, decay, peak, type, cutoff) {
+      const src = audio.createBufferSource();
+      src.buffer = noiseBuffer;
+      const filter = audio.createBiquadFilter();
+      filter.type = type;
+      filter.frequency.setValueAtTime(cutoff, at);
+      const g = envelope(at, peak, decay);
+      src.connect(filter); filter.connect(g); g.connect(audio.destination);
+      src.start(at);
+      src.stop(at + decay + 0.05);
+    }
+
+    /** Plays one composed event at an exact moment on the audio clock. */
+    function playEvent(e, at) {
+      if (!audio) return;
+      if (e.kind === 'kick') {
+        const osc = audio.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(160, at);
+        osc.frequency.exponentialRampToValueAtTime(45, at + 0.11);
+        const g = envelope(at, 0.55, 0.16);
+        osc.connect(g); g.connect(audio.destination);
+        osc.start(at); osc.stop(at + 0.22);
+      } else if (e.kind === 'snare') {
+        noiseAt(at, 0.13, 0.28, 'bandpass', 1900);
+        const osc = audio.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(220, at);
+        const g = envelope(at, 0.12, 0.08);
+        osc.connect(g); g.connect(audio.destination);
+        osc.start(at); osc.stop(at + 0.12);
+      } else if (e.kind === 'hat') {
+        noiseAt(at, 0.035, 0.07, 'highpass', 7500);
+      } else if (e.kind === 'bass') {
+        const osc = audio.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(e.freq, at);
+        const filter = audio.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(620, at);
+        const g = envelope(at, 0.2, 0.19);
+        osc.connect(filter); filter.connect(g); g.connect(audio.destination);
+        osc.start(at); osc.stop(at + 0.24);
+      } else if (e.kind === 'lead') {
+        const osc = audio.createOscillator();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(e.freq, at);
+        const g = envelope(at, 0.075, 0.16);
+        osc.connect(g); g.connect(audio.destination);
+        osc.start(at); osc.stop(at + 0.2);
+      }
+    }
+
+    /**
+     * Tops up the audio queue a fraction of a second ahead. Scheduling every
+     * sound the moment it is due would put it at the mercy of whenever a timer
+     * happens to fire; queued against the audio clock, it lands to the sample.
+     */
+    function scheduleAhead() {
+      if (!running || !song) return;
+      const horizon = songTime() + LOOKAHEAD;
+      while (nextToSchedule < song.events.length && song.events[nextToSchedule].time < horizon) {
+        const e = song.events[nextToSchedule];
+        playEvent(e, songStart + e.time);
+        nextToSchedule++;
+      }
+    }
+
+    // ------------------------------------------------------------ scoring ---
+    function showVerdict(text, colour) {
+      verdictEl.textContent = text;
+      verdictEl.style.color = colour;
+      verdictEl.style.textShadow = '0 0 22px ' + colour;
+      verdictEl.classList.remove('show');
+      void verdictEl.offsetWidth;
+      verdictEl.classList.add('show');
+      clearTimeout(showVerdict.timer);
+      showVerdict.timer = setTimeout(function () { verdictEl.classList.remove('show'); }, 320);
+    }
+
+    function registerHit(note, window) {
+      note.judged = true;
+      tally[window.name]++;
+      combo++;
+      if (combo > bestCombo) bestCombo = combo;
+      score += window.score * comboMultiplier(combo);
+      hitFlash.push({ lane: note.lane, t: songTime(), colour: window.colour });
+      showVerdict(window.name, window.colour);
+      updateHUD();
+    }
+
+    function registerMiss(note) {
+      note.judged = true;
+      tally.MISS++;
+      combo = 0;
+      showVerdict('MISS', '#ff2a2a');
+      updateHUD();
+    }
+
+    function hitLane(lane) {
+      if (!running) return;
+      const now = songTime();
+      laneFlash[lane] = now;
+
+      let best = null, bestDelta = Infinity;
+      for (let i = nextToJudge; i < notes.length; i++) {
+        const n = notes[i];
+        if (n.time - now > MISS_AFTER) break;
+        if (n.judged || n.lane !== lane) continue;
+        const delta = now - n.time;
+        if (Math.abs(delta) < Math.abs(bestDelta)) { best = n; bestDelta = delta; }
+      }
+      if (!best) return;                       // a tap into thin air costs nothing
+
+      const window = judge(bestDelta);
+      if (window) registerHit(best, window);
+    }
+
+    function updateHUD() {
+      scoreEl.textContent = score;
+      comboEl.textContent = combo;
+      const done = tally.PERFECT + tally.GREAT + tally.GOOD + tally.MISS;
+      accEl.textContent = done ? Math.round(accuracyOf(tally, done) * 100) + '%' : '100%';
+    }
+
+    // ------------------------------------------------------------- render ---
+    let laneW = 60, judgeY = 0, topY = 0;
+
+    function resizeCanvas() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      topY = Math.max(0, controlsBar.getBoundingClientRect().bottom - rect.top) + 6;
+      const bottom = Math.max(0, rect.bottom - bottomBar.getBoundingClientRect().top);
+      judgeY = rect.height - bottom - 46;
+      laneW = rect.width / LANES;
+      render();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function render() {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      const now = running || song ? songTime() : -COUNT_IN;
+      const pxPerSecond = (judgeY - topY) / leadSeconds;
+
+      // Lanes.
+      for (let l = 0; l < LANES; l++) {
+        const x = l * laneW;
+        ctx.fillStyle = l % 2 ? 'rgba(255,255,255,0.022)' : 'rgba(255,255,255,0.045)';
+        ctx.fillRect(x, topY, laneW, rect.height - topY);
+
+        const since = now - laneFlash[l];
+        if (since >= 0 && since < 0.16) {
+          ctx.fillStyle = `rgba(0, 242, 255, ${0.22 * (1 - since / 0.16)})`;
+          ctx.fillRect(x, topY, laneW, judgeY - topY + 40);
+        }
+        ctx.strokeStyle = 'rgba(0, 242, 255, 0.18)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, topY);
+        ctx.lineTo(x, rect.height);
+        ctx.stroke();
+      }
+
+      // The line everything is judged against.
+      ctx.save();
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = 'rgba(255, 0, 170, 0.8)';
+      ctx.strokeStyle = '#ff00aa';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, judgeY);
+      ctx.lineTo(rect.width, judgeY);
+      ctx.stroke();
+      ctx.restore();
+
+      // Notes, drawn only while they are on screen.
+      const noteH = Math.max(10, laneW * 0.28);
+      for (let i = 0; i < notes.length; i++) {
+        const n = notes[i];
+        if (n.time - now > leadSeconds + 0.3) break;
+        if (n.judged || n.time < now - MISS_AFTER) continue;
+        const y = judgeY - (n.time - now) * pxPerSecond;
+        if (y < topY - noteH) continue;
+        const x = n.lane * laneW;
+        const colour = n.kind === 'kick' ? '#00f2ff'
+          : n.kind === 'snare' ? '#ff00aa'
+          : n.kind === 'bass' ? '#7a6bff' : '#00ff88';
+        ctx.save();
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = colour;
+        ctx.fillStyle = colour;
+        ctx.beginPath();
+        ctx.roundRect(x + laneW * 0.1, y - noteH / 2, laneW * 0.8, noteH, noteH * 0.35);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Little burst where a note was struck.
+      for (let i = hitFlash.length - 1; i >= 0; i--) {
+        const f = hitFlash[i];
+        const age = now - f.t;
+        if (age > 0.3 || age < 0) { hitFlash.splice(i, 1); continue; }
+        const r = laneW * (0.2 + age * 1.6);
+        ctx.save();
+        ctx.globalAlpha = 1 - age / 0.3;
+        ctx.strokeStyle = f.colour;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(f.lane * laneW + laneW / 2, judgeY, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Lane keys along the bottom.
+      const labels = ['D', 'F', 'J', 'K'];
+      ctx.font = `bold ${Math.max(10, laneW * 0.22)}px 'Segoe UI', Tahoma, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (let l = 0; l < LANES; l++) {
+        ctx.fillStyle = 'rgba(255,255,255,0.28)';
+        ctx.fillText(labels[l], l * laneW + laneW / 2, judgeY + 26);
+      }
+    }
+
+    // --------------------------------------------------------------- loop ---
+    /**
+     * One step of the game: retire anything that has gone past its last
+     * window, update the count-in, draw. Split out from the animation loop so
+     * a whole song can be stepped through on a stand-in clock when testing.
+     * Returns false once the track is over.
+     */
+    function frameStep() {
+      const now = songTime();
+
+      // Anything that has slipped past the last window is gone.
+      while (nextToJudge < notes.length) {
+        const n = notes[nextToJudge];
+        if (!n.judged && n.time >= now - MISS_AFTER) break;
+        if (!n.judged) registerMiss(n);
+        nextToJudge++;
+      }
+
+      if (now < 0) {
+        const count = Math.ceil(-now);
+        countIn.classList.remove('hidden');
+        countIn.textContent = count > 0 ? String(count) : 'GO';
+      } else {
+        countIn.classList.add('hidden');
+      }
+
+      render();
+      return now <= song.duration;
+    }
+
+    function frame() {
+      if (!running) return;
+      if (!frameStep()) { finishSong(); return; }
+      animationId = requestAnimationFrame(frame);
+    }
+
+    // ---------------------------------------------------------- best score ---
+    function bestKey(id, diff) { return `${STORE}Best_${id}_${diff}`; }
+
+    function getBest(id, diff) { return Arcade.bestScore(bestKey(id, diff)); }
+
+    function syncBestKey() {
+      let top = 0;
+      SONGS.forEach(function (s) {
+        ['easy', 'medium', 'hard'].forEach(function (d) { top = Math.max(top, getBest(s.id, d)); });
+      });
+      Arcade.setBestScore(STORE + 'Best', top);
+      return top;
+    }
+
+    // --------------------------------------------------------------- flow ---
+    function stopEverything() {
+      running = false;
+      clearInterval(schedulerTimer);
+      cancelAnimationFrame(animationId);
+      countIn.classList.add('hidden');
+    }
+
+    function showStartOverlay() {
+      stopEverything();
+      resultOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+      refreshSongs();
+      updateHUD();
+    }
+
+    function startGame() {
+      ensureAudio();
+      stopEverything();
+      startOverlay.classList.add('hidden');
+      resultOverlay.classList.add('hidden');
+
+      song = composeSong(SONGS[songIndex]);
+      chart = chartFrom(song, currentDifficulty);
+      notes = chart.notes.map(function (n) {
+        return { time: n.time, lane: n.lane, kind: n.kind, judged: false };
+      });
+      leadSeconds = 6 / chart.speed;
+
+      nextToSchedule = 0;
+      nextToJudge = 0;
+      score = 0; combo = 0; bestCombo = 0;
+      tally = { PERFECT: 0, GREAT: 0, GOOD: 0, MISS: 0 };
+      laneFlash = [0, 0, 0, 0];
+      hitFlash = [];
+
+      songLabel.textContent = song.name;
+      bestEl.textContent = getBest(song.id, currentDifficulty);
+      updateHUD();
+      resizeCanvas();
+
+      songStart = clockNow() + COUNT_IN;
+      running = true;
+      schedulerTimer = setInterval(scheduleAhead, TICK_MS);
+      scheduleAhead();
+      animationId = requestAnimationFrame(frame);
+    }
+
+    function finishSong() {
+      stopEverything();
+      const total = notes.length;
+      const accuracy = accuracyOf(tally, total);
+      const grade = gradeFor(accuracy, tally.MISS);
+      const previous = getBest(song.id, currentDifficulty);
+      const isBest = score > previous;
+      if (isBest) Arcade.setBestScore(bestKey(song.id, currentDifficulty), score);
+      syncBestKey();
+
+      document.getElementById('resultTitle').textContent =
+        tally.MISS === 0 ? '✨ Full Combo!' : 'Track Clear';
+      document.getElementById('gradeEl').textContent = grade;
+      document.getElementById('resultBlurb').textContent =
+        `${song.name} · ${currentDifficulty[0].toUpperCase() + currentDifficulty.slice(1)} · ${song.bpm} BPM`;
+      document.getElementById('finalScore').textContent = score;
+      document.getElementById('finalAcc').textContent = (accuracy * 100).toFixed(1) + '%';
+      document.getElementById('finalCombo').textContent = bestCombo;
+      document.getElementById('finalBest').textContent = getBest(song.id, currentDifficulty);
+      document.getElementById('newBestTag').style.display = isBest ? 'block' : 'none';
+      document.getElementById('tallyEl').innerHTML =
+        [['PERFECT', '#ffd700'], ['GREAT', '#00f2ff'], ['GOOD', '#00ff88'], ['MISS', '#ff2a2a']]
+          .map(function (p) {
+            return `<span style="color:${p[1]}"><b>${tally[p[0]]}</b>${p[0]}</span>`;
+          }).join('');
+
+      if (isBest) setTimeout(function () { Arcade.playBestJingle(); }, 300);
+      bestEl.textContent = getBest(song.id, currentDifficulty);
+      render();
+      resultOverlay.classList.remove('hidden');
+    }
+
+    // ------------------------------------------------------------- input ---
+    function laneFromX(clientX) {
+      const rect = canvas.getBoundingClientRect();
+      const lane = Math.floor((clientX - rect.left) / laneW);
+      return lane >= 0 && lane < LANES ? lane : -1;
+    }
+
+    canvas.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      const lane = laneFromX(e.clientX);
+      if (lane >= 0) hitLane(lane);
+    });
+
+    const KEY_LANES = { d: 0, f: 1, j: 2, k: 3, D: 0, F: 1, J: 2, K: 3,
+                        ArrowLeft: 0, ArrowDown: 1, ArrowUp: 2, ArrowRight: 3 };
+    document.addEventListener('keydown', function (e) {
+      if (e.repeat) return;
+      const lane = KEY_LANES[e.key];
+      if (lane === undefined) return;
+      e.preventDefault();
+      hitLane(lane);
+    });
+
+    // ---------------------------------------------------------- controls ---
+    function refreshSongs() {
+      songGrid.innerHTML = '';
+      SONGS.forEach(function (s, i) {
+        const best = getBest(s.id, currentDifficulty);
+        const cell = document.createElement('button');
+        cell.type = 'button';
+        cell.className = 'song-cell' + (i === songIndex ? ' active' : '');
+        cell.innerHTML = `${s.name}<span class="meta">${s.bpm} BPM · ` +
+          (best ? `best <b>${best}</b>` : 'not played') + `</span>`;
+        cell.addEventListener('click', function () { songIndex = i; refreshSongs(); });
+        songGrid.appendChild(cell);
+      });
+      bestEl.textContent = getBest(SONGS[songIndex].id, currentDifficulty);
+      songLabel.textContent = SONGS[songIndex].name;
+    }
+
+    function setDifficulty(diff) {
+      currentDifficulty = diff;
+      document.querySelectorAll('#difficultyBar button').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.diff === diff);
+      });
+      diffNote.textContent = TIERS[diff].note;
+      refreshSongs();
+    }
+
+    Arcade.wireFullscreen(fullscreenBtn, resizeCanvas);
+
+    /*
+     * Backgrounding the tab suspends the audio clock, and since the song is
+     * measured against that clock the whole run freezes with it rather than
+     * racing on in silence.
+     */
+    Arcade.wireAutoPause(function () { return running; }, function () {
+      if (audio && audio.state === 'running') audio.suspend();
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && running && audio && audio.state === 'suspended') audio.resume();
+    });
+
+    if (!('ontouchstart' in window)) {
+      hintLine.textContent = 'D F J K — or the arrow keys — as each note crosses the line';
+    }
+
+    try {
+      setDifficulty('medium');
+      refreshSongs();
+      resizeCanvas();
+    } catch (err) {
+      console.error('Neon Rhythm init failed:', err);
+    }
+  </script>
+</body>
+</html>
