@@ -908,6 +908,20 @@
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
+
+    <a href="games/nonograms/index.html" class="game-card" data-game="nonograms" data-cat="brain">
+      <span class="favorite-tag">🔥 Favorite</span>
+      <div class="card-content">
+        <span class="game-icon">🖼️</span>
+        <h2 class="game-title">Neon Nonograms</h2>
+        <p class="game-desc">The numbers are runs of filled squares. Work out which ones and a picture appears — twenty hidden pictures plus endless random grids, none needing a guess.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
   </main>
 
   <button class="to-top" id="toTop" type="button" onclick="scrollToTop()" aria-label="Back to top">↑</button>
@@ -1082,7 +1096,10 @@
         parseInt(localStorage.getItem(`reversiBest_${d}`) || '0', 10))),
       // Sudoku's "best" is how many grids have been finished; the game keeps
       // the running total in one key of its own.
-      sudoku: () => parseInt(localStorage.getItem('sudokuBest') || '0', 10)
+      sudoku: () => parseInt(localStorage.getItem('sudokuBest') || '0', 10),
+      // Nonograms' "best" is how many grids have been finished, pictures and
+      // random ones together; the game keeps that running total in one key.
+      nonograms: () => parseInt(localStorage.getItem('nonogramsBest') || '0', 10)
     };
 
     // ---- Play counts ----
