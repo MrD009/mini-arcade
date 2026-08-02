@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🖼️ Neon Nonograms | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    /* Width of this game's play column; the rest of the chrome is
+       inherited from the shared arcade sheet. */
+    :root { --play-max: 540px; }
+
+    #gameCanvas {
+      background: radial-gradient(ellipse at top, #101a26 0%, #050510 100%);
+    }
+
+    /* Specific to this game. */
+    .hud-panel.hints strong { color: var(--gold); }
+
+    /* Fill or mark — a painting game wants a big target for this, not a
+       thin button up in the chrome. */
+    .tool-bar {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    .tool-btn {
+      flex: 1 1 0;
+      height: 46px;
+      border-radius: 12px;
+      background: rgba(15, 15, 36, 0.85);
+      border: 1px solid rgba(0, 242, 255, 0.3);
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: bold;
+      padding: 0;
+    }
+
+    .tool-btn.on {
+      background: rgba(0, 242, 255, 0.22);
+      border-color: var(--accent);
+      box-shadow: 0 0 12px rgba(0, 242, 255, 0.3);
+    }
+
+    .tool-btn.mark.on {
+      background: rgba(255, 0, 170, 0.2);
+      border-color: var(--accent2);
+      box-shadow: 0 0 12px rgba(255, 0, 170, 0.3);
+    }
+
+    .mode-bar {
+      display: flex;
+      gap: 6px;
+      margin: 12px 0 2px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .mode-bar button {
+      padding: 8px 16px;
+      font-size: 0.78rem;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .mode-bar button.active {
+      background: rgba(255, 0, 170, 0.15);
+      border-color: var(--accent2);
+      box-shadow: 0 0 10px rgba(255, 0, 170, 0.25);
+    }
+
+    .pic-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin: 10px 0 4px;
+      width: 100%;
+      max-width: 330px;
+    }
+
+    .pic-cell {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 7px 3px;
+      font-size: 0.66rem;
+      font-weight: bold;
+      color: var(--text);
+    }
+
+    .pic-cell.done {
+      border-color: rgba(0, 255, 136, 0.55);
+      background: rgba(0, 255, 136, 0.08);
+      color: var(--green);
+    }
+
+    /* A solved picture gives its name away, so an unsolved one keeps quiet. */
+    .pic-cell .tag { display: block; font-size: 0.55rem; color: #777; font-weight: normal; }
+
+    .pack-line {
+      font-size: 0.72rem;
+      color: var(--accent);
+      margin-bottom: 2px;
+    }
+
+    .overlay .stats { max-width: 300px; }
+
+    /* The shared toast sits at 30%, which here is right on top of the column
+       clues — and a hint you cannot read the clues through is no help. */
+    .toast { top: 14%; font-size: clamp(0.95rem, 4vw, 1.3rem); }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span id="modeLabel">Pictures</span>
+        <strong id="sizeEl">10×10</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Time</span>
+        <strong id="timeEl">0:00</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Filled</span>
+        <strong id="filledEl">0</strong>
+      </div>
+      <div class="hud-panel hints">
+        <span>Hints</span>
+        <strong id="hintsEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Solved</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button onclick="showStartOverlay()">New</button>
+      <button onclick="useHint()">💡 Hint</button>
+      <button onclick="clearBoard()">↺ Clear</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar" id="bottomBar">
+      <div class="hint-line" id="hintLine">Drag to paint — the numbers are runs of filled squares</div>
+      <div class="tool-bar">
+        <button type="button" class="tool-btn on" id="fillBtn" onclick="setTool('fill')">⬛ Fill</button>
+        <button type="button" class="tool-btn mark" id="markBtn" onclick="setTool('mark')">✖️ Mark</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Solved!</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🖼️ Neon Nonograms</h1>
+    <p id="modeBlurb">The numbers on each row and column are the runs of filled squares, in order. Work out which squares are filled and a picture comes out.</p>
+
+    <div class="mode-bar" id="modeBar">
+      <button data-mode="pictures" onclick="setMode('pictures')">🖼️ Pictures</button>
+      <button data-mode="random" onclick="setMode('random')">🎲 Random</button>
+    </div>
+
+    <div class="difficulty-bar" id="difficultyBar">
+      <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+      <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+      <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+    </div>
+    <p class="diff-note" id="diffNote"></p>
+
+    <div class="pic-grid" id="picGrid"></div>
+    <p class="pack-line" id="packLine"></p>
+
+    <div class="legend">
+      <span>⬛ Fill</span>
+      <span>✖️ Rule out</span>
+      <span>🚫 No guessing</span>
+    </div>
+
+    <button class="primary" id="playBtn" onclick="startGame()">▶ Start Puzzle</button>
+  </div>
+
+  <div class="overlay hidden" id="wonOverlay">
+    <h1 id="wonTitle">🏆 Solved!</h1>
+    <p class="new-best" id="newBestTag">🏆 Fastest Yet!</p>
+    <p id="wonBlurb">Picture complete.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalTime">0:00</div>
+        <div class="lbl">Time</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalHints">0</div>
+        <div class="lbl">Hints Used</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalPasses">0</div>
+        <div class="lbl">Line Sweeps</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBestTime">0:00</div>
+        <div class="lbl">Your Best</div>
+      </div>
+    </div>
+    <button class="primary" onclick="startGame()">▶ Another</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Pick a Picture</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    // ======================================================= engine start ===
+    /*
+     * Nonogram rules and a line solver, kept free of the DOM so every picture
+     * can be checked offline before it ships.
+     *
+     * The promise is that no puzzle here needs a guess. A nonogram is
+     * "line-solvable" when working one row or column at a time — asking only
+     * what every legal arrangement of that line agrees on — is enough to finish
+     * it. That is exactly how a person solves one, and it is what gets checked.
+     */
+    const UNKNOWN = 0, FILLED = 1, EMPTY = 2;
+
+    /** The clue for one line: run lengths, in order. */
+    function clueFor(cells) {
+      const out = [];
+      let run = 0;
+      for (let i = 0; i < cells.length; i++) {
+        if (cells[i]) run++;
+        else if (run) { out.push(run); run = 0; }
+      }
+      if (run) out.push(run);
+      return out.length ? out : [0];
+    }
+
+    function cluesFrom(picture, w, h) {
+      const rows = [], cols = [];
+      for (let y = 0; y < h; y++) {
+        const line = [];
+        for (let x = 0; x < w; x++) line.push(picture[y * w + x]);
+        rows.push(clueFor(line));
+      }
+      for (let x = 0; x < w; x++) {
+        const line = [];
+        for (let y = 0; y < h; y++) line.push(picture[y * w + x]);
+        cols.push(clueFor(line));
+      }
+      return { rows: rows, cols: cols };
+    }
+
+    /**
+     * What every legal arrangement of this line agrees on, given what is known
+     * so far. Returns a new line state, or null when the clue cannot be laid
+     * out at all — which is how a contradiction announces itself.
+     */
+    function solveLine(clue, state) {
+      const n = state.length;
+      const runs = clue[0] === 0 ? [] : clue;
+      const filledCount = new Int32Array(n);
+      const emptyCount = new Int32Array(n);
+      let arrangements = 0;
+
+      const layout = new Int8Array(n);
+
+      /** Places run `r` starting at or after `pos`. */
+      const place = function (r, pos) {
+        if (arrangements > 200000) return;              // pathological line, bail
+        if (r === runs.length) {
+          for (let i = pos; i < n; i++) {
+            if (state[i] === FILLED) return;
+            layout[i] = EMPTY;
+          }
+          arrangements++;
+          for (let i = 0; i < n; i++) {
+            if (layout[i] === FILLED) filledCount[i]++;
+            else emptyCount[i]++;
+          }
+          return;
+        }
+        const len = runs[r];
+        // The remaining runs, plus one gap each, must still fit.
+        let need = 0;
+        for (let k = r; k < runs.length; k++) need += runs[k] + 1;
+        for (let start = pos; start + need - 1 <= n; start++) {
+          // Everything skipped before the run has to be able to be empty.
+          let ok = true;
+          for (let i = pos; i < start; i++) {
+            if (state[i] === FILLED) { ok = false; break; }
+            layout[i] = EMPTY;
+          }
+          if (!ok) break;                                // a filled cell was passed
+          for (let i = start; i < start + len; i++) {
+            if (state[i] === EMPTY) { ok = false; break; }
+            layout[i] = FILLED;
+          }
+          if (!ok) continue;
+          const after = start + len;
+          if (after < n) {
+            if (state[after] === FILLED) continue;
+            layout[after] = EMPTY;
+          }
+          place(r + 1, after + 1);
+        }
+      };
+
+      place(0, 0);
+      if (!arrangements) return null;
+
+      const next = Int8Array.from(state);
+      for (let i = 0; i < n; i++) {
+        if (filledCount[i] === arrangements) next[i] = FILLED;
+        else if (emptyCount[i] === arrangements) next[i] = EMPTY;
+      }
+      return next;
+    }
+
+    function getRow(state, w, y) {
+      return state.slice(y * w, y * w + w);
+    }
+
+    function getCol(state, w, h, x) {
+      const out = new Int8Array(h);
+      for (let y = 0; y < h; y++) out[y] = state[y * w + x];
+      return out;
+    }
+
+    /**
+     * Solves as far as line-by-line reasoning goes. `passes` counts full
+     * sweeps of the board, which is a fair stand-in for how much work a person
+     * has to do: an easy picture falls out in a couple, a hard one grinds.
+     */
+    function lineSolve(clues, w, h, limitPasses) {
+      const state = new Int8Array(w * h);
+      const cap = limitPasses || 60;
+      let passes = 0;
+
+      for (; passes < cap; passes++) {
+        let changed = false;
+
+        for (let y = 0; y < h; y++) {
+          const before = getRow(state, w, y);
+          const after = solveLine(clues.rows[y], before);
+          if (!after) return { solved: false, contradiction: true, passes: passes, state: state };
+          for (let x = 0; x < w; x++) {
+            if (after[x] !== before[x]) { state[y * w + x] = after[x]; changed = true; }
+          }
+        }
+
+        for (let x = 0; x < w; x++) {
+          const before = getCol(state, w, h, x);
+          const after = solveLine(clues.cols[x], before);
+          if (!after) return { solved: false, contradiction: true, passes: passes, state: state };
+          for (let y = 0; y < h; y++) {
+            if (after[y] !== before[y]) { state[y * w + x] = after[y]; changed = true; }
+          }
+        }
+
+        if (!changed) break;
+      }
+
+      let unknown = 0;
+      for (let i = 0; i < w * h; i++) if (state[i] === UNKNOWN) unknown++;
+      return { solved: unknown === 0, unknown: unknown, passes: passes + 1, state: state };
+    }
+
+    /**
+     * The next cell line reasoning can pin down, for the hint button: which
+     * cell, whether it is filled or blank, and the line that gives it away.
+     */
+    function nextDeduction(clues, w, h, known) {
+      const state = Int8Array.from(known);
+      for (let y = 0; y < h; y++) {
+        const before = getRow(state, w, y);
+        const after = solveLine(clues.rows[y], before);
+        if (!after) continue;
+        for (let x = 0; x < w; x++) {
+          if (after[x] !== UNKNOWN && before[x] === UNKNOWN) {
+            return { idx: y * w + x, value: after[x], line: 'row ' + (y + 1) };
+          }
+        }
+      }
+      for (let x = 0; x < w; x++) {
+        const before = getCol(state, w, h, x);
+        const after = solveLine(clues.cols[x], before);
+        if (!after) continue;
+        for (let y = 0; y < h; y++) {
+          if (after[y] !== UNKNOWN && before[y] === UNKNOWN) {
+            return { idx: y * w + x, value: after[y], line: 'column ' + (x + 1) };
+          }
+        }
+      }
+      return null;
+    }
+
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    /**
+     * A random shape, built from overlapping blocks rather than loose noise.
+     * Solid runs are what a nonogram's clues can actually pin down; scattered
+     * single squares are exactly what leaves a puzzle needing a guess.
+     */
+    function randomPicture(rng, w, h) {
+      const pic = new Int8Array(w * h);
+      const blocks = Math.round(w * h / 12);
+      for (let b = 0; b < blocks; b++) {
+        const bw = 1 + Math.floor(rng() * 4);
+        const bh = 1 + Math.floor(rng() * 4);
+        const x0 = Math.floor(rng() * (w - bw + 1));
+        const y0 = Math.floor(rng() * (h - bh + 1));
+        for (let y = y0; y < y0 + bh; y++) {
+          for (let x = x0; x < x0 + bw; x++) pic[y * w + x] = 1;
+        }
+      }
+      // An empty row or column makes for a dull puzzle and a lopsided picture.
+      for (let y = 0; y < h; y++) {
+        let any = false;
+        for (let x = 0; x < w; x++) if (pic[y * w + x]) any = true;
+        if (!any) pic[y * w + Math.floor(rng() * w)] = 1;
+      }
+      return pic;
+    }
+
+    /**
+     * Random shapes until one of them is solvable without guessing. Most are;
+     * the ones that are not get thrown away rather than handed to a player.
+     */
+    function generateRandom(rng, w, h, budget) {
+      const limit = budget || 60;
+      for (let n = 0; n < limit; n++) {
+        const pic = randomPicture(rng, w, h);
+        const clues = cluesFrom(pic, w, h);
+        const res = lineSolve(clues, w, h);
+        if (res.solved) {
+          return { picture: pic, clues: clues, w: w, h: h, passes: res.passes,
+                   name: 'Mystery', attempts: n + 1 };
+        }
+      }
+      return null;
+    }
+
+    /** Clue lines that are already satisfied, so the display can grey them out. */
+    function lineDone(clue, cells) {
+      const got = clueFor(cells.map(function (v) { return v === FILLED ? 1 : 0; }));
+      const want = clue[0] === 0 ? [0] : clue;
+      if (got.length !== want.length) return false;
+      for (let i = 0; i < got.length; i++) if (got[i] !== want[i]) return false;
+      return true;
+    }
+    // ========================================================= engine end ===
+
+    // ---------------------------------------------------------- pictures ---
+    const SMALL = [
+      { name: "Heart", passes: 4, rows: [
+        "..........",
+        ".##....##.",
+        "##########",
+        "##########",
+        "##########",
+        ".########.",
+        "..######..",
+        "...####...",
+        "....##....",
+        ".........."
+      ] },
+      { name: "Diamond", passes: 4, rows: [
+        "....##....",
+        "...####...",
+        "..######..",
+        ".########.",
+        "##########",
+        "##########",
+        ".########.",
+        "..######..",
+        "...####...",
+        "....##...."
+      ] },
+      { name: "Plus", passes: 2, rows: [
+        "....##....",
+        "....##....",
+        "....##....",
+        "....##....",
+        "##########",
+        "##########",
+        "....##....",
+        "....##....",
+        "....##....",
+        "....##...."
+      ] },
+      { name: "Invader", passes: 3, rows: [
+        "..........",
+        "..#....#..",
+        "...#..#...",
+        "..######..",
+        ".##.##.##.",
+        "##########",
+        "#.######.#",
+        "#.#....#.#",
+        "...##.##..",
+        ".........."
+      ] },
+      { name: "Key", passes: 4, rows: [
+        "..........",
+        "..####....",
+        ".##..##...",
+        ".##..##...",
+        "..####....",
+        "...##.....",
+        "...##.....",
+        "...####...",
+        "...##.....",
+        "...####..."
+      ] },
+      { name: "Mushroom", passes: 3, rows: [
+        "..........",
+        "..######..",
+        ".########.",
+        "##########",
+        "##.##.###.",
+        "##########",
+        "...####...",
+        "...####...",
+        "..######..",
+        ".........."
+      ] },
+      { name: "Arrow", passes: 3, rows: [
+        "....##....",
+        "...####...",
+        "..######..",
+        ".########.",
+        "##########",
+        "....##....",
+        "....##....",
+        "....##....",
+        "....##....",
+        "....##...."
+      ] },
+      { name: "House", passes: 3, rows: [
+        "..........",
+        "....##....",
+        "...####...",
+        "..######..",
+        ".########.",
+        "##########",
+        "##########",
+        "##.##..###",
+        "##.##..###",
+        "##########"
+      ] },
+      { name: "Boat", passes: 3, rows: [
+        "....#.....",
+        "....##....",
+        "....###...",
+        "....####..",
+        "....#####.",
+        "....##....",
+        "..........",
+        ".########.",
+        "..######..",
+        ".........."
+      ] },
+      { name: "Cup", passes: 3, rows: [
+        "..........",
+        "..#.#.#...",
+        "..#.#.#...",
+        "..........",
+        ".#######..",
+        ".#.....#.#",
+        ".#.....#.#",
+        ".#.....#.#",
+        ".#######..",
+        ".........."
+      ] },
+      { name: "Bell", passes: 3, rows: [
+        "....##....",
+        "...####...",
+        "..######..",
+        "..######..",
+        ".########.",
+        ".########.",
+        "##########",
+        "##########",
+        "....##....",
+        ".........."
+      ] },
+      { name: "Cross", passes: 2, rows: [
+        "...####...",
+        "...####...",
+        "...####...",
+        "##########",
+        "##########",
+        "...####...",
+        "...####...",
+        "...####...",
+        "...####...",
+        "...####..."
+      ] }
+    ];
+
+    const BIG = [
+      { name: "Rocket", passes: 5, rows: [
+        ".......#.......",
+        "......###......",
+        "......###......",
+        ".....#####.....",
+        ".....#####.....",
+        ".....##.##.....",
+        ".....#####.....",
+        "....#######....",
+        "...#########...",
+        "..###.###.###..",
+        "..##...#...##..",
+        ".......#.......",
+        "......###......",
+        ".......#.......",
+        "..............."
+      ] },
+      { name: "Crown", passes: 3, rows: [
+        "...............",
+        "..#.........#..",
+        "..##...#...##..",
+        "..##..###..##..",
+        "..##.#####.##..",
+        "..###########..",
+        "..###########..",
+        "..###########..",
+        "..#.#.#.#.#.#..",
+        "..###########..",
+        "..###########..",
+        "...............",
+        "...............",
+        "...............",
+        "..............."
+      ] },
+      { name: "Cat", passes: 4, rows: [
+        "...............",
+        "..##.......##..",
+        "..###.....###..",
+        "..#####.#####..",
+        "..###########..",
+        ".#.###...###.#.",
+        ".#.###...###.#.",
+        ".#####.#.#####.",
+        ".#####...#####.",
+        "..###.###.###..",
+        "..###########..",
+        "...#########...",
+        "....#.....#....",
+        "...............",
+        "..............."
+      ] },
+      { name: "Robot", passes: 3, rows: [
+        "....#.....#....",
+        "....#.....#....",
+        "...#########...",
+        "...#.#...#.#...",
+        "...#########...",
+        "...#..###..#...",
+        "...#########...",
+        "..###########..",
+        "..#.#######.#..",
+        "..#.#######.#..",
+        "..#.#######.#..",
+        "....#######....",
+        "....###.###....",
+        "....###.###....",
+        "...####.####..."
+      ] },
+      { name: "Ghost", passes: 3, rows: [
+        "...............",
+        ".....#####.....",
+        "...#########...",
+        "..###########..",
+        "..##..###..##..",
+        "..##..###..##..",
+        "..##..###..##..",
+        "..###########..",
+        "..###########..",
+        "..###########..",
+        "..###########..",
+        "..###########..",
+        "..###########..",
+        "..##.##.##.##..",
+        "..............."
+      ] },
+      { name: "Fish", passes: 5, rows: [
+        "...............",
+        "...............",
+        ".....####...##.",
+        "...########.###",
+        "..###########..",
+        ".####.#######..",
+        "#############..",
+        "##############.",
+        "#############..",
+        ".###########...",
+        "..#########....",
+        "...#######..###",
+        ".....####...##.",
+        "...............",
+        "..............."
+      ] },
+      { name: "Castle", passes: 3, rows: [
+        "...............",
+        ".#.#.#...#.#.#.",
+        ".#############.",
+        ".####.....####.",
+        ".####.....####.",
+        ".#############.",
+        ".#############.",
+        "...#.#####.#...",
+        "...#.#####.#...",
+        "...#########...",
+        "...##.....##...",
+        "...##.....##...",
+        "...##.....##...",
+        "...#########...",
+        "..............."
+      ] },
+      { name: "Penguin", passes: 5, rows: [
+        "......###......",
+        ".....#####.....",
+        "....##.#.##....",
+        "....#######....",
+        ".....##.##.....",
+        "....#######....",
+        "...#########...",
+        "..###.....###..",
+        "..###.....###..",
+        "..###.....###..",
+        "..###.....###..",
+        "...#########...",
+        "....#######....",
+        "...##.....##...",
+        "..###.....###.."
+      ] }
+    ];
+
+    // ------------------------------------------------------------- page ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const sizeEl = document.getElementById('sizeEl');
+    const modeLabel = document.getElementById('modeLabel');
+    const timeEl = document.getElementById('timeEl');
+    const filledEl = document.getElementById('filledEl');
+    const hintsEl = document.getElementById('hintsEl');
+    const bestEl = document.getElementById('bestEl');
+    const startOverlay = document.getElementById('startOverlay');
+    const wonOverlay = document.getElementById('wonOverlay');
+    const picGrid = document.getElementById('picGrid');
+    const packLine = document.getElementById('packLine');
+    const diffNote = document.getElementById('diffNote');
+    const modeBlurb = document.getElementById('modeBlurb');
+    const fillBtn = document.getElementById('fillBtn');
+    const markBtn = document.getElementById('markBtn');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.getElementById('bottomBar');
+
+    const STORE = 'nono';
+    const MARK = 3;                    // the player's "definitely blank" cross
+
+    /*
+     * Easy is the small pictures. The two big tiers are the same size and are
+     * split by how much line work each one actually takes to finish — a
+     * measured property of the picture, not a guess about it.
+     */
+    const TIERS = {
+      easy:   { w: 10, h: 10, minPasses: 0, note: '🌱 10×10 — a picture in a couple of sweeps.' },
+      medium: { w: 15, h: 15, minPasses: 0, note: '🖼️ 15×15 — bigger, and the lines take more reading.' },
+      hard:   { w: 15, h: 15, minPasses: 5, note: '🔥 15×15 that need the most sweeps of the lines.' }
+    };
+
+    function picturesFor(tier) {
+      if (tier === 'easy') return SMALL;
+      return BIG.filter(function (p) {
+        return tier === 'hard' ? p.passes >= 4 : p.passes < 4;
+      });
+    }
+
+    let mode = 'pictures';             // 'pictures' | 'random'
+    let currentDifficulty = 'easy';
+    let pickedIndex = -1;              // which picture from the tier, -1 = first unsolved
+
+    let W = 10, H = 10;
+    let picture = new Int8Array(0);
+    let clues = { rows: [], cols: [] };
+    let board = new Int8Array(0);      // UNKNOWN | FILLED | MARK
+    let puzzleName = '';
+    let puzzlePasses = 0;
+    let hintsUsed = 0;
+    let gameRunning = false;
+
+    let startedAt = 0, elapsed = 0, tickTimer = null;
+    let tool = 'fill';
+    let drag = null;                   // { value, axis, row, col }
+
+    let cellSize = 20;
+    let boardX = 0, boardY = 0;        // top-left of the playable grid
+    let clueCols = 4, clueRows = 4;    // margin measured in cells
+
+    // Audio, toast, best scores and fullscreen come from shared/arcade.js.
+    const initAudio = Arcade.initAudio;
+    function playTone(freq, type, duration, delay = 0, vol = 0.12) {
+      Arcade.playTone(freq, type, duration, delay, vol);
+    }
+
+    function playFillSound()  { playTone(440, 'sine', 0.03, 0, 0.045); }
+    function playMarkSound()  { playTone(300, 'triangle', 0.03, 0, 0.035); }
+    function playClearSound() { playTone(220, 'triangle', 0.05, 0, 0.04); }
+    function playLineSound()  { playTone(760, 'sine', 0.07, 0, 0.05); }
+    function playHintSound()  { playTone(660, 'sine', 0.09, 0, 0.07); playTone(880, 'sine', 0.08, 0.06, 0.05); }
+    function playErrorSound() { playTone(120, 'square', 0.07, 0, 0.05); }
+    function playWinSound()   { [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => playTone(f, 'sine', 0.26, i * 0.1)); }
+
+    function showToast(text, color) {
+      Arcade.showToast(toast, text, color, 1400);
+    }
+
+    function toggleFullscreen() {
+      Arcade.toggleFullscreen();
+    }
+
+    function formatTime(secs) {
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    // ---------------------------------------------------------- progress ---
+    function statsKey(diff) { return `${STORE}Stats_${diff}`; }
+
+    function readStats(diff) {
+      try {
+        const raw = localStorage.getItem(statsKey(diff));
+        const s = raw ? JSON.parse(raw) : {};
+        return { solved: s.solved | 0, bestTime: s.bestTime || 0, pictures: s.pictures || {} };
+      } catch (err) {
+        return { solved: 0, bestTime: 0, pictures: {} };
+      }
+    }
+
+    function writeStats(diff, s) {
+      localStorage.setItem(statsKey(diff), JSON.stringify(s));
+    }
+
+    /** The one number the arcade home page shows: puzzles finished in total. */
+    function syncBestKey() {
+      let total = 0;
+      ['easy', 'medium', 'hard'].forEach(function (d) { total += readStats(d).solved; });
+      Arcade.setBestScore(STORE + 'gramsBest', total);
+      return total;
+    }
+
+    // -------------------------------------------------------------- deal ---
+    function loadPuzzle() {
+      const tier = TIERS[currentDifficulty];
+
+      if (mode === 'random') {
+        const rng = mulberry32((Math.random() * 0xFFFFFFFF) >>> 0);
+        let made = null;
+        // Hard asks for the pictures that take the most reading, so keep
+        // drawing until one of them turns up.
+        for (let n = 0; n < 40; n++) {
+          const p = generateRandom(rng, tier.w, tier.h, 40);
+          if (!p) continue;
+          if (!made || p.passes > made.passes) made = p;
+          if (p.passes >= tier.minPasses) { made = p; break; }
+        }
+        picture = made.picture;
+        clues = made.clues;
+        W = tier.w; H = tier.h;
+        puzzleName = 'Mystery';
+        puzzlePasses = made.passes;
+      } else {
+        const list = picturesFor(currentDifficulty);
+        const stats = readStats(currentDifficulty);
+        let index = pickedIndex;
+        if (index < 0 || index >= list.length) {
+          index = list.findIndex(function (p) { return !stats.pictures[p.name]; });
+          if (index < 0) index = Math.floor(Math.random() * list.length);
+        }
+        const entry = list[index];
+        W = entry.rows[0].length;
+        H = entry.rows.length;
+        picture = new Int8Array(W * H);
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) picture[y * W + x] = entry.rows[y][x] === '#' ? 1 : 0;
+        }
+        clues = cluesFrom(picture, W, H);
+        puzzleName = entry.name;
+        puzzlePasses = entry.passes;
+      }
+
+      board = new Int8Array(W * H);
+      clueCols = Math.max.apply(null, clues.rows.map(function (c) { return c[0] === 0 ? 1 : c.length; }));
+      clueRows = Math.max.apply(null, clues.cols.map(function (c) { return c[0] === 0 ? 1 : c.length; }));
+    }
+
+    // ------------------------------------------------------------ render ---
+    function resizeCanvas() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      const topOffset = Math.max(0, controlsBar.getBoundingClientRect().bottom - rect.top) + 8;
+      const bottomOffset = Math.max(0, rect.bottom - bottomBar.getBoundingClientRect().top) + 8;
+      const availW = rect.width * 0.96;
+      const availH = Math.max(120, rect.height - topOffset - bottomOffset);
+
+      cellSize = Math.min(availW / (W + clueCols), availH / (H + clueRows));
+      const totalW = cellSize * (W + clueCols);
+      const totalH = cellSize * (H + clueRows);
+      boardX = (rect.width - totalW) / 2 + cellSize * clueCols;
+      boardY = topOffset + Math.max(0, (availH - totalH) / 2) + cellSize * clueRows;
+      render();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function rowCells(y) {
+      const out = [];
+      for (let x = 0; x < W; x++) out.push(board[y * W + x]);
+      return out;
+    }
+
+    function colCells(x) {
+      const out = [];
+      for (let y = 0; y < H; y++) out.push(board[y * W + x]);
+      return out;
+    }
+
+    function render() {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      if (!W) return;
+
+      const font = Math.max(7, cellSize * 0.44);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      // Clue numbers, greyed once their line is accounted for.
+      ctx.font = `bold ${font}px 'Segoe UI', Tahoma, sans-serif`;
+      for (let y = 0; y < H; y++) {
+        const clue = clues.rows[y][0] === 0 ? [] : clues.rows[y];
+        const done = lineDone(clues.rows[y], rowCells(y));
+        ctx.fillStyle = done ? 'rgba(120, 130, 150, 0.5)' : '#9fe8ff';
+        for (let k = 0; k < clue.length; k++) {
+          const cx = boardX - (clue.length - k) * cellSize + cellSize / 2;
+          ctx.fillText(String(clue[k]), cx, boardY + y * cellSize + cellSize / 2);
+        }
+        if (!clue.length) {
+          ctx.fillStyle = 'rgba(120, 130, 150, 0.45)';
+          ctx.fillText('0', boardX - cellSize / 2, boardY + y * cellSize + cellSize / 2);
+        }
+      }
+      for (let x = 0; x < W; x++) {
+        const clue = clues.cols[x][0] === 0 ? [] : clues.cols[x];
+        const done = lineDone(clues.cols[x], colCells(x));
+        ctx.fillStyle = done ? 'rgba(120, 130, 150, 0.5)' : '#9fe8ff';
+        for (let k = 0; k < clue.length; k++) {
+          const cy = boardY - (clue.length - k) * cellSize + cellSize / 2;
+          ctx.fillText(String(clue[k]), boardX + x * cellSize + cellSize / 2, cy);
+        }
+        if (!clue.length) {
+          ctx.fillStyle = 'rgba(120, 130, 150, 0.45)';
+          ctx.fillText('0', boardX + x * cellSize + cellSize / 2, boardY - cellSize / 2);
+        }
+      }
+
+      // Cells.
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const v = board[y * W + x];
+          const px = boardX + x * cellSize;
+          const py = boardY + y * cellSize;
+
+          ctx.fillStyle = ((x / 5 | 0) + (y / 5 | 0)) % 2 ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)';
+          ctx.fillRect(px, py, cellSize, cellSize);
+
+          if (v === FILLED) {
+            ctx.save();
+            ctx.shadowBlur = cellSize * 0.3;
+            ctx.shadowColor = 'rgba(0, 242, 255, 0.55)';
+            ctx.fillStyle = '#00c8dd';
+            ctx.fillRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
+            ctx.restore();
+          } else if (v === MARK) {
+            ctx.strokeStyle = 'rgba(255, 0, 170, 0.75)';
+            ctx.lineWidth = Math.max(1, cellSize * 0.09);
+            const pad = cellSize * 0.3;
+            ctx.beginPath();
+            ctx.moveTo(px + pad, py + pad);
+            ctx.lineTo(px + cellSize - pad, py + cellSize - pad);
+            ctx.moveTo(px + cellSize - pad, py + pad);
+            ctx.lineTo(px + pad, py + cellSize - pad);
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Grid lines, heavy every five so the eye can count.
+      for (let k = 0; k <= W; k++) {
+        const heavy = k % 5 === 0;
+        ctx.strokeStyle = heavy ? 'rgba(0, 242, 255, 0.5)' : 'rgba(0, 242, 255, 0.14)';
+        ctx.lineWidth = heavy ? Math.max(1.2, cellSize * 0.06) : 1;
+        ctx.beginPath();
+        ctx.moveTo(boardX + k * cellSize, boardY);
+        ctx.lineTo(boardX + k * cellSize, boardY + H * cellSize);
+        ctx.stroke();
+      }
+      for (let k = 0; k <= H; k++) {
+        const heavy = k % 5 === 0;
+        ctx.strokeStyle = heavy ? 'rgba(0, 242, 255, 0.5)' : 'rgba(0, 242, 255, 0.14)';
+        ctx.lineWidth = heavy ? Math.max(1.2, cellSize * 0.06) : 1;
+        ctx.beginPath();
+        ctx.moveTo(boardX, boardY + k * cellSize);
+        ctx.lineTo(boardX + W * cellSize, boardY + k * cellSize);
+        ctx.stroke();
+      }
+    }
+
+    function updateHUD() {
+      sizeEl.textContent = `${W}×${H}`;
+      modeLabel.textContent = mode === 'random' ? 'Random' : 'Pictures';
+      timeEl.textContent = formatTime(elapsed);
+      let filled = 0, need = 0;
+      for (let i = 0; i < W * H; i++) {
+        if (board[i] === FILLED) filled++;
+        if (picture[i]) need++;
+      }
+      filledEl.textContent = `${filled}/${need}`;
+      hintsEl.textContent = hintsUsed;
+      bestEl.textContent = syncBestKey();
+    }
+
+    function tick() {
+      if (!gameRunning) return;
+      elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      timeEl.textContent = formatTime(elapsed);
+    }
+
+    // -------------------------------------------------------------- play ---
+    function cellAt(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor((clientX - rect.left - boardX) / cellSize);
+      const y = Math.floor((clientY - rect.top - boardY) / cellSize);
+      if (x < 0 || x >= W || y < 0 || y >= H) return -1;
+      return y * W + x;
+    }
+
+    function applyTo(idx, value) {
+      if (idx < 0 || board[idx] === value) return false;
+      const rowBefore = lineDone(clues.rows[(idx / W) | 0], rowCells((idx / W) | 0));
+      const colBefore = lineDone(clues.cols[idx % W], colCells(idx % W));
+      board[idx] = value;
+      const rowAfter = lineDone(clues.rows[(idx / W) | 0], rowCells((idx / W) | 0));
+      const colAfter = lineDone(clues.cols[idx % W], colCells(idx % W));
+      if ((!rowBefore && rowAfter) || (!colBefore && colAfter)) playLineSound();
+      else if (value === FILLED) playFillSound();
+      else if (value === MARK) playMarkSound();
+      else playClearSound();
+      return true;
+    }
+
+    canvas.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      if (!gameRunning) return;
+      initAudio();
+      const idx = cellAt(e.clientX, e.clientY);
+      if (idx < 0) return;
+
+      // Painting takes its value from the first square: tap a filled square
+      // and you rub out along the way, tap an empty one and you fill.
+      const want = tool === 'fill' ? FILLED : MARK;
+      const value = board[idx] === want ? UNKNOWN : want;
+      drag = { value: value, axis: null, row: (idx / W) | 0, col: idx % W, last: idx };
+      if (applyTo(idx, value)) { updateHUD(); render(); checkWin(); }
+      canvas.setPointerCapture(e.pointerId);
+    });
+
+    canvas.addEventListener('pointermove', function (e) {
+      if (!drag || !gameRunning) return;
+      const idx = cellAt(e.clientX, e.clientY);
+      if (idx < 0) return;
+      const row = (idx / W) | 0, col = idx % W;
+
+      // Lock to whichever way the drag first went, so a wobbling thumb does
+      // not paint a staircase.
+      if (!drag.axis) {
+        if (row !== drag.row) drag.axis = 'col';
+        else if (col !== drag.col) drag.axis = 'row';
+      }
+      if (drag.axis === 'row' && row !== drag.row) return;
+      if (drag.axis === 'col' && col !== drag.col) return;
+
+      // Fill in everything between the last square and this one. A quick swipe
+      // only reports a handful of positions, and skipping the gaps would leave
+      // holes in the middle of a stroke.
+      const step = drag.axis === 'col' ? W : 1;
+      let changed = false;
+      let cur = drag.last;
+      const dir = idx > cur ? step : -step;
+      while (cur !== idx) {
+        cur += dir;
+        if (applyTo(cur, drag.value)) changed = true;
+      }
+      drag.last = idx;
+      if (changed) { updateHUD(); render(); checkWin(); }
+    });
+
+    function endDrag() { drag = null; }
+    canvas.addEventListener('pointerup', endDrag);
+    canvas.addEventListener('pointercancel', endDrag);
+
+    function setTool(next) {
+      tool = next;
+      fillBtn.classList.toggle('on', next === 'fill');
+      markBtn.classList.toggle('on', next === 'mark');
+    }
+
+    function clearBoard() {
+      if (!gameRunning) return;
+      board = new Int8Array(W * H);
+      playClearSound();
+      updateHUD();
+      render();
+    }
+
+    /**
+     * Fills in one square the way line reasoning would, naming the line that
+     * gives it away. A wrongly filled square makes every later deduction
+     * nonsense, so that gets pointed out first.
+     */
+    function useHint() {
+      if (!gameRunning) return;
+      initAudio();
+
+      for (let i = 0; i < W * H; i++) {
+        if (board[i] === FILLED && !picture[i]) {
+          playErrorSound();
+          showToast('A filled square is wrong', '#ff2a2a');
+          return;
+        }
+      }
+
+      // Marks are the player's own bookkeeping; deduce from filled squares
+      // and from marks only where they happen to be right.
+      const known = new Int8Array(W * H);
+      for (let i = 0; i < W * H; i++) {
+        if (board[i] === FILLED) known[i] = FILLED;
+        else if (board[i] === MARK && !picture[i]) known[i] = EMPTY;
+      }
+
+      const step = nextDeduction(clues, W, H, known);
+      if (!step) { showToast('Nothing more to deduce', '#00f2ff'); return; }
+
+      board[step.idx] = step.value === FILLED ? FILLED : MARK;
+      hintsUsed++;
+      playHintSound();
+      showToast(`${step.value === FILLED ? 'Filled' : 'Ruled out'} from ${step.line}`, '#ffd700');
+      updateHUD();
+      render();
+      checkWin();
+    }
+
+    function checkWin() {
+      for (let i = 0; i < W * H; i++) {
+        const shouldFill = picture[i] === 1;
+        if (shouldFill !== (board[i] === FILLED)) return;
+      }
+      winGame();
+    }
+
+    function winGame() {
+      gameRunning = false;
+      clearInterval(tickTimer);
+      drag = null;
+
+      const stats = readStats(currentDifficulty);
+      stats.solved++;
+      const clean = hintsUsed === 0;
+      const previousBest = stats.bestTime;
+      const isBest = clean && (!previousBest || elapsed < previousBest);
+      if (isBest) stats.bestTime = elapsed;
+      if (mode === 'pictures') {
+        const prev = stats.pictures[puzzleName];
+        if (clean && (!prev || elapsed < prev)) stats.pictures[puzzleName] = elapsed || 1;
+        else if (!prev) stats.pictures[puzzleName] = elapsed || 1;
+      }
+      writeStats(currentDifficulty, stats);
+
+      playWinSound();
+      document.getElementById('wonTitle').textContent =
+        mode === 'random' ? '🏆 Solved!' : `🏆 ${puzzleName}!`;
+      document.getElementById('wonBlurb').textContent = mode === 'random'
+        ? `That one took ${puzzlePasses} sweeps of the lines to pin down.`
+        : `It was a ${puzzleName.toLowerCase()}.`;
+      document.getElementById('finalTime').textContent = formatTime(elapsed);
+      document.getElementById('finalHints').textContent = hintsUsed;
+      document.getElementById('finalPasses').textContent = puzzlePasses;
+      document.getElementById('finalBestTime').textContent =
+        stats.bestTime ? formatTime(stats.bestTime) : '–';
+      document.getElementById('newBestTag').style.display = isBest ? 'block' : 'none';
+      if (isBest) setTimeout(function () { Arcade.playBestJingle(); }, 320);
+
+      // The picture is the whole point, so clear the working marks away and let
+      // it stand on its own for a moment before the card covers it up.
+      for (let i = 0; i < W * H; i++) if (board[i] === MARK) board[i] = UNKNOWN;
+      updateHUD();
+      render();
+      showToast(mode === 'random' ? 'Solved!' : puzzleName, '#00ff88');
+      setTimeout(function () { wonOverlay.classList.remove('hidden'); }, 1100);
+    }
+
+    // ---------------------------------------------------------- controls ---
+    function setMode(next) {
+      mode = next;
+      document.querySelectorAll('#modeBar button').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.mode === next);
+      });
+      modeBlurb.textContent = next === 'random'
+        ? 'A fresh shape every time, thrown away and redrawn until one turns up that can be solved without a guess.'
+        : 'The numbers on each row and column are the runs of filled squares, in order. Work out which squares are filled and a picture comes out.';
+      pickedIndex = -1;
+      refreshPicker();
+    }
+
+    function refreshPicker() {
+      picGrid.innerHTML = '';
+      if (mode === 'random') {
+        picGrid.classList.add('hidden');
+        packLine.textContent = `${TIERS[currentDifficulty].w}×${TIERS[currentDifficulty].h}, drawn fresh each time`;
+        return;
+      }
+      picGrid.classList.remove('hidden');
+
+      const list = picturesFor(currentDifficulty);
+      const stats = readStats(currentDifficulty);
+      list.forEach(function (entry, i) {
+        const done = stats.pictures[entry.name] !== undefined;
+        const cell = document.createElement('button');
+        cell.type = 'button';
+        cell.className = 'pic-cell' + (done ? ' done' : '');
+        // Naming an unsolved picture would give the whole thing away.
+        cell.innerHTML = done
+          ? `${entry.name}<span class="tag">${formatTime(stats.pictures[entry.name])}</span>`
+          : `${i + 1}<span class="tag">? ? ?</span>`;
+        cell.addEventListener('click', function () { pickedIndex = i; startGame(); });
+        picGrid.appendChild(cell);
+      });
+      const solved = list.filter(function (e) { return stats.pictures[e.name] !== undefined; }).length;
+      packLine.textContent = `${solved} / ${list.length} pictures found`;
+    }
+
+    function setDifficulty(diff) {
+      currentDifficulty = diff;
+      document.querySelectorAll('#difficultyBar button').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.diff === diff);
+      });
+      const stats = readStats(diff);
+      diffNote.textContent = TIERS[diff].note +
+        (stats.bestTime ? `  ·  best ${formatTime(stats.bestTime)}` : '');
+      pickedIndex = -1;
+      refreshPicker();
+    }
+
+    function showStartOverlay() {
+      gameRunning = false;
+      clearInterval(tickTimer);
+      wonOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+      setDifficulty(currentDifficulty);
+      updateHUD();
+    }
+
+    function startGame() {
+      initAudio();
+      startOverlay.classList.add('hidden');
+      wonOverlay.classList.add('hidden');
+      clearInterval(tickTimer);
+
+      loadPuzzle();
+      hintsUsed = 0;
+      elapsed = 0;
+      setTool('fill');
+      gameRunning = true;
+      startedAt = Date.now();
+      tickTimer = setInterval(tick, 500);
+      hintLine.textContent = mode === 'random'
+        ? 'Nobody knows what this one is yet'
+        : 'Drag to paint — the numbers are runs of filled squares';
+
+      updateHUD();
+      resizeCanvas();
+    }
+
+    Arcade.wireFullscreen(fullscreenBtn, resizeCanvas);
+
+    if (!('ontouchstart' in window)) {
+      hintLine.textContent = 'Click and drag to paint • the numbers are runs of filled squares';
+    }
+
+    try {
+      setMode('pictures');
+      setDifficulty('easy');
+      loadPuzzle();
+      gameRunning = false;
+      updateHUD();
+      resizeCanvas();
+    } catch (err) {
+      console.error('Neon Nonograms init failed:', err);
+    }
+  </script>
+</body>
+</html>
