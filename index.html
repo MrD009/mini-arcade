@@ -936,6 +936,20 @@
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
+
+    <a href="games/chain-reaction/index.html" class="game-card" data-game="chain-reaction" data-cat="strategy">
+      <span class="favorite-tag">🔥 Favorite</span>
+      <div class="card-content">
+        <span class="game-icon">⚛️</span>
+        <h2 class="game-title">Chain Reaction</h2>
+        <p class="game-desc">Fill a cell past what it holds and it bursts into its neighbours, taking them over. One bad drop hands the whole board away.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
   </main>
 
   <button class="to-top" id="toTop" type="button" onclick="scrollToTop()" aria-label="Back to top">↑</button>
@@ -1116,7 +1130,9 @@
       nonograms: () => parseInt(localStorage.getItem('nonogramsBest') || '0', 10),
       // Rhythm's "best" is the highest score on any track at any difficulty,
       // which the game mirrors into one key of its own.
-      rhythm: () => parseInt(localStorage.getItem('rhythmBest') || '0', 10)
+      rhythm: () => parseInt(localStorage.getItem('rhythmBest') || '0', 10),
+      // Chain Reaction's "best" is the longest run of wins against the CPU.
+      'chain-reaction': () => parseInt(localStorage.getItem('chainBest') || '0', 10)
     };
 
     // ---- Play counts ----

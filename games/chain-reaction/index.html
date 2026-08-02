@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>⚛️ Neon Chain Reaction | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    /* Width of this game's play column; the rest of the chrome is
+       inherited from the shared arcade sheet. */
+    :root { --play-max: 460px; }
+
+    #gameCanvas {
+      background: radial-gradient(ellipse at center, #12122e 0%, #050510 75%);
+    }
+
+    /* Specific to this game. */
+    .hud-panel.you strong { color: var(--accent); }
+    .hud-panel.them strong { color: var(--accent2); }
+
+    /* Whoever is to play gets the lit border. */
+    .hud-panel.turn {
+      border-color: var(--gold);
+      box-shadow: 0 0 12px rgba(255, 215, 0, 0.35);
+    }
+
+    .mode-bar {
+      display: flex;
+      gap: 6px;
+      margin: 12px 0 2px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .mode-bar button {
+      padding: 8px 16px;
+      font-size: 0.78rem;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .mode-bar button.active {
+      background: rgba(255, 0, 170, 0.15);
+      border-color: var(--accent2);
+      box-shadow: 0 0 10px rgba(255, 0, 170, 0.25);
+    }
+
+    /* Difficulty belongs to the CPU, so two-player mode has nothing to set. */
+    .diff-wrap { transition: opacity 0.2s; }
+    .diff-wrap.dimmed { opacity: 0.35; pointer-events: none; }
+
+    .overlay .stats { max-width: 300px; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel you" id="p1Panel">
+        <span id="p1Label">You</span>
+        <strong id="p1Score">0</strong>
+      </div>
+      <div class="hud-panel them" id="p2Panel">
+        <span id="p2Label">CPU</span>
+        <strong id="p2Score">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Streak</span>
+        <strong id="streakEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button onclick="showStartOverlay()">Restart</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar" id="bottomBar">
+      <div class="hint-line" id="hintLine">Tap an empty cell or one of yours</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Chain!</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>⚛️ Chain Reaction</h1>
+    <p id="modeBlurb">Drop an orb into an empty cell or one of your own. Fill a cell past what it can hold and it bursts into its neighbours, taking them over — and often setting them off too.</p>
+
+    <div class="mode-bar" id="modeBar">
+      <button data-mode="solo" onclick="setMode('solo')">👤 1 Player</button>
+      <button data-mode="duo" onclick="setMode('duo')">👥 2 Players</button>
+    </div>
+
+    <div class="diff-wrap" id="diffWrap">
+      <div class="difficulty-bar" id="difficultyBar">
+        <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+        <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+        <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+      </div>
+      <div class="diff-note" id="diffNote"></div>
+    </div>
+
+    <div class="legend">
+      <span>⌜ Corners burst at 2</span>
+      <span>▣ Middle at 4</span>
+      <span>💥 Chains take over</span>
+    </div>
+
+    <button class="primary" onclick="startGame()">▶ Start Game</button>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <h1 id="winTitle">🏆 You Win!</h1>
+    <p class="new-best" id="newBestTag">🏆 Longest Win Streak!</p>
+    <p id="finalBlurb">Board taken.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalOrbs">0 – 0</div>
+        <div class="lbl">Final Orbs</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalMoves">0</div>
+        <div class="lbl">Moves</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalChain">0</div>
+        <div class="lbl">Biggest Chain</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBest">0</div>
+        <div class="lbl">Best Streak</div>
+      </div>
+    </div>
+    <button class="primary" onclick="startGame()">Play Again</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Mode</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    // ======================================================= engine start ===
+    /*
+     * Chain Reaction: the rules, the cascade and the CPU, with no DOM in sight
+     * so the whole thing can be played against itself offline.
+     *
+     * Every cell holds up to one orb fewer than it has neighbours. Drop one
+     * more in and it bursts, sending an orb into each neighbour and taking
+     * those cells over — which can set the neighbours off in turn. Corners
+     * burst at 2, edges at 3, the middle at 4, and that asymmetry is the whole
+     * game.
+     */
+    const W = 6, H = 9;
+    const CELLS = W * H;
+    const NOBODY = 0, P1 = 1, P2 = 2;
+
+    /** Orthogonal neighbours of every cell, and therefore its bursting point. */
+    const NEIGHBOURS = (function () {
+      const out = [];
+      for (let i = 0; i < CELLS; i++) {
+        const x = i % W, y = (i / W) | 0;
+        const list = [];
+        if (x > 0) list.push(i - 1);
+        if (x < W - 1) list.push(i + 1);
+        if (y > 0) list.push(i - W);
+        if (y < H - 1) list.push(i + W);
+        out.push(list);
+      }
+      return out;
+    })();
+
+    const CAPACITY = NEIGHBOURS.map(function (list) { return list.length; });
+
+    function emptyState() {
+      return { owner: new Int8Array(CELLS), count: new Int8Array(CELLS), moves: 0 };
+    }
+
+    function cloneState(s) {
+      return { owner: Int8Array.from(s.owner), count: Int8Array.from(s.count), moves: s.moves };
+    }
+
+    /** You may drop an orb into an empty cell or one of your own, never theirs. */
+    function canPlay(state, idx, player) {
+      return state.owner[idx] === NOBODY || state.owner[idx] === player;
+    }
+
+    function legalMoves(state, player) {
+      const out = [];
+      for (let i = 0; i < CELLS; i++) if (canPlay(state, i, player)) out.push(i);
+      return out;
+    }
+
+    function orbsOf(state, player) {
+      let n = 0;
+      for (let i = 0; i < CELLS; i++) if (state.owner[i] === player) n += state.count[i];
+      return n;
+    }
+
+    function cellsOf(state, player) {
+      let n = 0;
+      for (let i = 0; i < CELLS; i++) if (state.owner[i] === player) n++;
+      return n;
+    }
+
+    /*
+     * A cascade in a won position never ends: one colour owning everything
+     * keeps bursting into itself for ever. So the wave loop stops the moment
+     * only one colour is left on the board — which is exactly the moment the
+     * game is over anyway.
+     */
+    const MAX_WAVES = 400;
+
+    /**
+     * Drops an orb and lets the board settle. Returns the new state plus the
+     * board after each wave of bursts, which is what the animation plays back.
+     */
+    function applyMove(state, idx, player) {
+      const next = cloneState(state);
+      next.owner[idx] = player;
+      next.count[idx]++;
+      next.moves++;
+
+      const steps = [];
+      let waves = 0;
+      let pending = [];
+      if (next.count[idx] >= CAPACITY[idx]) pending.push(idx);
+
+      while (pending.length && waves < MAX_WAVES) {
+        // Once one colour is all that is left there is nothing to settle.
+        if (next.moves > 1 && (orbsOf(next, P1) === 0 || orbsOf(next, P2) === 0)) break;
+
+        const bursting = pending;
+        pending = [];
+        for (let k = 0; k < bursting.length; k++) {
+          const cell = bursting[k];
+          if (next.count[cell] < CAPACITY[cell]) continue;
+          next.count[cell] -= CAPACITY[cell];
+          if (next.count[cell] === 0) next.owner[cell] = NOBODY;
+          const around = NEIGHBOURS[cell];
+          for (let n = 0; n < around.length; n++) {
+            const to = around[n];
+            next.count[to]++;
+            next.owner[to] = player;
+          }
+        }
+        for (let i = 0; i < CELLS; i++) {
+          if (next.count[i] >= CAPACITY[i] && pending.indexOf(i) < 0) pending.push(i);
+        }
+
+        steps.push({ burst: bursting, owner: Int8Array.from(next.owner), count: Int8Array.from(next.count) });
+        waves++;
+      }
+
+      return { state: next, steps: steps, waves: waves, settled: !pending.length };
+    }
+
+    /**
+     * Who has won, or 0 while it is still going. Nobody is out before both
+     * sides have had a turn — on move one the second player owns nothing yet,
+     * and that is not a defeat.
+     */
+    function winnerOf(state) {
+      if (state.moves < 2) return NOBODY;
+      const a = orbsOf(state, P1);
+      const b = orbsOf(state, P2);
+      if (a === 0) return P2;
+      if (b === 0) return P1;
+      return NOBODY;
+    }
+
+    // ------------------------------------------------------------ the CPU ---
+    /*
+     * What a position is worth. Orbs matter, but so does where they sit: a
+     * corner needs only two orbs to go off and can never be taken by a burst
+     * from outside the two cells beside it, so corners and edges are safe
+     * ground. The dangerous thing is a nearly-full cell sitting next to an
+     * enemy cell that is also nearly full — they get to set theirs off first.
+     */
+    function evaluate(state, player) {
+      const foe = 3 - player;
+      let score = 0;
+
+      for (let i = 0; i < CELLS; i++) {
+        const owner = state.owner[i];
+        if (owner === NOBODY) continue;
+        const mine = owner === player;
+        const sign = mine ? 1 : -1;
+        const cap = CAPACITY[i];
+
+        score += sign * state.count[i] * 2;
+        score += sign * (cap === 2 ? 3.2 : cap === 3 ? 1.8 : 0.8);   // corners, edges, middle
+
+        if (state.count[i] === cap - 1) {
+          // Nearly full: strong unless something nearly full is glaring at it.
+          let threatened = false;
+          const around = NEIGHBOURS[i];
+          for (let n = 0; n < around.length; n++) {
+            const j = around[n];
+            if (state.owner[j] === (mine ? foe : player) && state.count[j] === CAPACITY[j] - 1) {
+              threatened = true;
+              break;
+            }
+          }
+          score += sign * (threatened ? -4.5 : 2.5);
+        }
+      }
+
+      const mineOrbs = orbsOf(state, player);
+      const foeOrbs = orbsOf(state, foe);
+      if (state.moves >= 2) {
+        if (foeOrbs === 0) return 10000;
+        if (mineOrbs === 0) return -10000;
+      }
+      return score + (mineOrbs - foeOrbs) * 1.5;
+    }
+
+    /** A cheap ordering so the search looks at the promising drops first. */
+    function candidateMoves(state, player, limit) {
+      const moves = legalMoves(state, player);
+      const scored = moves.map(function (idx) {
+        const res = applyMove(state, idx, player);
+        return { idx: idx, value: evaluate(res.state, player), state: res.state };
+      });
+      scored.sort(function (a, b) { return b.value - a.value; });
+      return limit ? scored.slice(0, limit) : scored;
+    }
+
+    function negamax(state, player, depth, alpha, beta, width) {
+      const win = winnerOf(state);
+      if (win) return win === player ? 10000 - depth : -10000 + depth;
+      if (depth <= 0) return evaluate(state, player);
+
+      const options = candidateMoves(state, player, width);
+      if (!options.length) return evaluate(state, player);
+
+      let best = -Infinity;
+      for (let i = 0; i < options.length; i++) {
+        const value = -negamax(options[i].state, 3 - player, depth - 1, -beta, -alpha, width);
+        if (value > best) best = value;
+        if (best > alpha) alpha = best;
+        if (alpha >= beta) break;
+      }
+      return best;
+    }
+
+    /*
+     * Easy plays greedily off a glance at the board and slips often; Medium
+     * looks one reply ahead; Hard searches three plies over the most promising
+     * dozen drops, which is what keeps it inside a phone's patience on a board
+     * this wide.
+     */
+    const CPU_LEVELS = {
+      easy:   { depth: 0, width: 0,  blunder: 0.35,
+                note: '🌱 Drops orbs where they look good right now.' },
+      medium: { depth: 1, width: 14, blunder: 0.08,
+                note: '⚡ Looks at your reply before committing.' },
+      hard:   { depth: 3, width: 12, blunder: 0,
+                note: '🔥 Three moves deep, and it hunts your near-full cells.' }
+    };
+
+    function chooseMove(state, player, level, rng) {
+      const cfg = CPU_LEVELS[level];
+      const random = rng || Math.random;
+      const moves = legalMoves(state, player);
+      if (!moves.length) return -1;
+
+      if (cfg.blunder && random() < cfg.blunder) {
+        return moves[Math.floor(random() * moves.length)];
+      }
+
+      const options = candidateMoves(state, player, cfg.width || 0);
+      if (!cfg.depth) return options[0].idx;
+
+      let bestIdx = options[0].idx;
+      let bestValue = -Infinity;
+      let alpha = -Infinity;
+      for (let i = 0; i < options.length; i++) {
+        const value = -negamax(options[i].state, 3 - player, cfg.depth - 1, -Infinity, -alpha, cfg.width);
+        if (value > bestValue) {
+          bestValue = value;
+          bestIdx = options[i].idx;
+          if (value > alpha) alpha = value;
+        }
+      }
+      return bestIdx;
+    }
+    // ========================================================= engine end ===
+
+    // ------------------------------------------------------------- page ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const p1Panel = document.getElementById('p1Panel');
+    const p2Panel = document.getElementById('p2Panel');
+    const p1Label = document.getElementById('p1Label');
+    const p2Label = document.getElementById('p2Label');
+    const p1Score = document.getElementById('p1Score');
+    const p2Score = document.getElementById('p2Score');
+    const streakEl = document.getElementById('streakEl');
+    const bestEl = document.getElementById('bestEl');
+    const startOverlay = document.getElementById('startOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const diffWrap = document.getElementById('diffWrap');
+    const diffNote = document.getElementById('diffNote');
+    const modeBlurb = document.getElementById('modeBlurb');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.getElementById('bottomBar');
+
+    const STORE = 'chain';
+    const WAVE_MS = 135;          // how long one wave of bursts is held on screen
+    const CPU_PAUSE = 380;
+
+    const COLOURS = {
+      1: { orb: '#00f2ff', glow: 'rgba(0, 242, 255, 0.6)', dim: 'rgba(0, 242, 255, 0.16)' },
+      2: { orb: '#ff00aa', glow: 'rgba(255, 0, 170, 0.6)', dim: 'rgba(255, 0, 170, 0.16)' }
+    };
+
+    let mode = 'solo';
+    let currentDifficulty = 'medium';
+    let state = emptyState();
+    let turn = P1;
+    let gameRunning = false;
+    let busy = false;             // a cascade is playing, or the CPU is thinking
+    let streak = 0;
+    let biggestChain = 0;
+
+    let anim = null;              // { steps, index, t }
+    let animationId = null;
+    let lastTime = 0;
+
+    let cellSize = 40;
+    let boardX = 0, boardY = 0;
+
+    // Audio, toast, best scores and fullscreen come from shared/arcade.js.
+    const initAudio = Arcade.initAudio;
+    function playTone(freq, type, duration, delay = 0, vol = 0.12) {
+      Arcade.playTone(freq, type, duration, delay, vol);
+    }
+
+    function playDropSound()    { playTone(420, 'sine', 0.05, 0, 0.05); }
+    function playBurstSound(depth) {
+      const f = 180 + Math.min(depth, 10) * 45;
+      playTone(f, 'triangle', 0.07, 0, 0.06);
+      playTone(f * 1.5, 'sine', 0.05, 0.03, 0.035);
+    }
+    function playIllegalSound() { playTone(110, 'square', 0.05, 0, 0.045); }
+    function playWinSound()     { [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => playTone(f, 'sine', 0.26, i * 0.1)); }
+    function playLoseSound()    {
+      playTone(440, 'sawtooth', 0.2);
+      playTone(330, 'sawtooth', 0.25, 0.15);
+      playTone(220, 'sawtooth', 0.35, 0.3);
+    }
+
+    function showToast(text, colour) { Arcade.showToast(toast, text, colour, 1100); }
+    function toggleFullscreen() { Arcade.toggleFullscreen(); }
+
+    function isHuman(player) { return mode === 'duo' || player === P1; }
+    function labelFor(player) {
+      if (mode === 'duo') return player === P1 ? 'P1' : 'P2';
+      return player === P1 ? 'You' : 'CPU';
+    }
+
+    // -------------------------------------------------------- best score ---
+    function getBestStreak() { return Arcade.bestScore(`${STORE}Best_${currentDifficulty}`); }
+    function setBestStreak(v) { Arcade.setBestScore(`${STORE}Best_${currentDifficulty}`, v); }
+
+    function syncBestKey() {
+      let top = 0;
+      ['easy', 'medium', 'hard'].forEach(function (d) {
+        top = Math.max(top, Arcade.bestScore(`${STORE}Best_${d}`));
+      });
+      Arcade.setBestScore(STORE + 'Best', top);
+      return top;
+    }
+
+    // ------------------------------------------------------------ render ---
+    function resizeCanvas() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      const topOffset = Math.max(0, controlsBar.getBoundingClientRect().bottom - rect.top) + 10;
+      const bottomOffset = Math.max(0, rect.bottom - bottomBar.getBoundingClientRect().top) + 10;
+      const availW = rect.width * 0.95;
+      const availH = Math.max(120, rect.height - topOffset - bottomOffset);
+
+      cellSize = Math.min(availW / W, availH / H);
+      boardX = (rect.width - cellSize * W) / 2;
+      boardY = topOffset + Math.max(0, (availH - cellSize * H) / 2);
+      render();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    /**
+     * Orbs sit in a little cluster so a cell's load can be read at a glance
+     * without counting: one in the middle, two side by side, three in a
+     * triangle. A cell one orb from bursting turns slowly, which is the only
+     * warning either player gets.
+     */
+    function drawOrbs(cx, cy, count, owner, spin) {
+      const colour = COLOURS[owner];
+      if (!colour) return;
+      const r = cellSize * 0.15;
+      const spread = cellSize * 0.17;
+      const spots = [];
+      if (count <= 1) spots.push([0, 0]);
+      else if (count === 2) spots.push([-spread, 0], [spread, 0]);
+      else if (count === 3) spots.push([0, -spread], [-spread, spread * 0.8], [spread, spread * 0.8]);
+      else {
+        spots.push([-spread, -spread], [spread, -spread], [-spread, spread], [spread, spread]);
+      }
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(spin);
+      ctx.shadowBlur = cellSize * 0.3;
+      ctx.shadowColor = colour.glow;
+      ctx.fillStyle = colour.orb;
+      for (let i = 0; i < spots.length; i++) {
+        ctx.beginPath();
+        ctx.arc(spots[i][0], spots[i][1], r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      if (count > 4) {
+        ctx.save();
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold ${cellSize * 0.3}px 'Segoe UI', Tahoma, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(count), cx, cy);
+        ctx.restore();
+      }
+    }
+
+    function render() {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      const frame = anim ? anim.steps[anim.index] : null;
+      const owner = frame ? frame.owner : state.owner;
+      const count = frame ? frame.count : state.count;
+      const spinBase = performance.now() / 500;
+
+      for (let i = 0; i < CELLS; i++) {
+        const x = boardX + (i % W) * cellSize;
+        const y = boardY + ((i / W) | 0) * cellSize;
+        const cx = x + cellSize / 2;
+        const cy = y + cellSize / 2;
+
+        // The cell, tinted by whoever holds it.
+        const held = owner[i];
+        ctx.fillStyle = held ? COLOURS[held].dim : 'rgba(255, 255, 255, 0.035)';
+        ctx.strokeStyle = held ? COLOURS[held].glow : 'rgba(0, 242, 255, 0.18)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(x + 2, y + 2, cellSize - 4, cellSize - 4, Math.max(4, cellSize * 0.16));
+        ctx.fill();
+        ctx.stroke();
+
+        if (!count[i]) continue;
+        const nearlyFull = count[i] === CAPACITY[i] - 1;
+        drawOrbs(cx, cy, count[i], held, nearlyFull ? spinBase : 0);
+      }
+
+      // Rings where a wave just went off.
+      if (frame && frame.burst) {
+        const p = Math.min(1, anim.t / WAVE_MS);
+        for (let k = 0; k < frame.burst.length; k++) {
+          const i = frame.burst[k];
+          const cx = boardX + (i % W) * cellSize + cellSize / 2;
+          const cy = boardY + ((i / W) | 0) * cellSize + cellSize / 2;
+          ctx.save();
+          ctx.globalAlpha = 1 - p;
+          ctx.strokeStyle = COLOURS[anim.player].orb;
+          ctx.lineWidth = Math.max(2, cellSize * 0.07);
+          ctx.beginPath();
+          ctx.arc(cx, cy, cellSize * (0.2 + p * 0.65), 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    }
+
+    function updateHUD() {
+      p1Score.textContent = orbsOf(state, P1);
+      p2Score.textContent = orbsOf(state, P2);
+      p1Label.textContent = labelFor(P1);
+      p2Label.textContent = labelFor(P2);
+      p1Panel.classList.toggle('turn', gameRunning && turn === P1);
+      p2Panel.classList.toggle('turn', gameRunning && turn === P2);
+      streakEl.textContent = mode === 'solo' ? streak : '–';
+      bestEl.textContent = mode === 'solo' ? getBestStreak() : '–';
+    }
+
+    function gameLoop(timestamp) {
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min(timestamp - lastTime, 60);
+      lastTime = timestamp;
+
+      if (anim) {
+        anim.t += dt;
+        if (anim.t >= WAVE_MS) {
+          anim.t = 0;
+          anim.index++;
+          if (anim.index >= anim.steps.length) {
+            anim = null;
+            busy = false;
+            settle();
+          } else {
+            playBurstSound(anim.index);
+          }
+        }
+      }
+
+      render();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    // -------------------------------------------------------------- play ---
+    function play(idx, player) {
+      const result = applyMove(state, idx, player);
+      state = result.state;
+
+      if (result.steps.length > biggestChain) biggestChain = result.steps.length;
+      if (result.steps.length >= 4) {
+        showToast(`${result.steps.length}× chain!`, COLOURS[player].orb);
+      }
+
+      playDropSound();
+      if (result.steps.length) {
+        anim = { steps: result.steps, index: 0, t: 0, player: player };
+        busy = true;
+        playBurstSound(0);
+      }
+      turn = 3 - player;
+      updateHUD();
+      if (!anim) settle();
+    }
+
+    /** Called once the board has stopped moving: end it, or hand over. */
+    function settle() {
+      updateHUD();
+      const win = winnerOf(state);
+      if (win) { endGame(win); return; }
+      if (!gameRunning) return;
+
+      if (!isHuman(turn)) {
+        busy = true;
+        // Yield first so the board is on screen before the search blocks.
+        setTimeout(function () {
+          if (!gameRunning) return;
+          const idx = chooseMove(state, turn, currentDifficulty);
+          busy = false;
+          if (idx < 0) return;
+          play(idx, turn);
+        }, CPU_PAUSE);
+      }
+    }
+
+    canvas.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      if (!gameRunning || busy || anim || !isHuman(turn)) return;
+      initAudio();
+      const rect = canvas.getBoundingClientRect();
+      const col = Math.floor((e.clientX - rect.left - boardX) / cellSize);
+      const row = Math.floor((e.clientY - rect.top - boardY) / cellSize);
+      if (col < 0 || col >= W || row < 0 || row >= H) return;
+      const idx = row * W + col;
+      if (!canPlay(state, idx, turn)) { playIllegalSound(); return; }
+      play(idx, turn);
+    });
+
+    function endGame(win) {
+      gameRunning = false;
+      busy = false;
+      anim = null;
+      const youWon = win === P1;
+
+      let isBest = false;
+      if (mode === 'solo') {
+        if (youWon) {
+          streak++;
+          if (streak > getBestStreak()) { setBestStreak(streak); isBest = true; }
+        } else {
+          streak = 0;
+        }
+      }
+      syncBestKey();
+
+      document.getElementById('winTitle').textContent = mode === 'duo'
+        ? (youWon ? '🔵 Player 1 Wins!' : '🟣 Player 2 Wins!')
+        : (youWon ? '🏆 You Win!' : '🤖 CPU Wins');
+      document.getElementById('finalBlurb').textContent =
+        `${labelFor(3 - win)} ran out of orbs.`;
+      document.getElementById('finalOrbs').textContent =
+        `${orbsOf(state, P1)} – ${orbsOf(state, P2)}`;
+      document.getElementById('finalMoves').textContent = state.moves;
+      document.getElementById('finalChain').textContent = biggestChain;
+      document.getElementById('finalBest').textContent = mode === 'solo' ? getBestStreak() : '–';
+      document.getElementById('newBestTag').style.display = isBest ? 'block' : 'none';
+
+      if (youWon) playWinSound(); else playLoseSound();
+      if (isBest) setTimeout(function () { Arcade.playBestJingle(); }, 320);
+
+      updateHUD();
+      render();
+      gameOverOverlay.classList.remove('hidden');
+    }
+
+    // ---------------------------------------------------------- controls ---
+    function setMode(next) {
+      mode = next;
+      document.querySelectorAll('#modeBar button').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.mode === next);
+      });
+      diffWrap.classList.toggle('dimmed', next === 'duo');
+      modeBlurb.textContent = next === 'duo'
+        ? 'Two players, one board. Burst your cells into theirs until one colour is left.'
+        : 'Drop an orb into an empty cell or one of your own. Fill a cell past what it can hold and it bursts into its neighbours, taking them over — and often setting them off too.';
+      if (next === 'duo') streak = 0;
+      updateHUD();
+    }
+
+    function setDifficulty(diff) {
+      currentDifficulty = diff;
+      document.querySelectorAll('#difficultyBar button').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.diff === diff);
+      });
+      diffNote.textContent = CPU_LEVELS[diff].note;
+      streak = 0;
+      updateHUD();
+    }
+
+    function showStartOverlay() {
+      gameRunning = false;
+      busy = false;
+      anim = null;
+      cancelAnimationFrame(animationId);
+      gameOverOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+      updateHUD();
+    }
+
+    function startGame() {
+      initAudio();
+      cancelAnimationFrame(animationId);
+      state = emptyState();
+      turn = P1;
+      anim = null;
+      busy = false;
+      biggestChain = 0;
+      gameRunning = true;
+
+      startOverlay.classList.add('hidden');
+      gameOverOverlay.classList.add('hidden');
+      hintLine.textContent = mode === 'duo'
+        ? 'Player 1 is cyan and goes first'
+        : 'Tap an empty cell or one of yours';
+
+      updateHUD();
+      resizeCanvas();
+      lastTime = 0;
+      animationId = requestAnimationFrame(gameLoop);
+      settle();
+    }
+
+    Arcade.wireFullscreen(fullscreenBtn, resizeCanvas);
+
+    try {
+      setMode('solo');
+      setDifficulty('medium');
+      updateHUD();
+      resizeCanvas();
+    } catch (err) {
+      console.error('Neon Chain Reaction init failed:', err);
+    }
+  </script>
+</body>
+</html>
