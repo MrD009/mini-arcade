@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🔢 Neon Sudoku | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    /* Width of this game's play column; the rest of the chrome is
+       inherited from the shared arcade sheet. */
+    :root { --play-max: 520px; }
+
+    #gameCanvas {
+      background: radial-gradient(ellipse at top, #0e1226 0%, #050510 100%);
+    }
+
+    /* Specific to this game. */
+    .hud-panel.hints strong { color: var(--gold); }
+
+    .pad {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: center;
+      width: 100%;
+    }
+
+    .pad-row {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      width: 100%;
+    }
+
+    .num-btn {
+      flex: 1 1 0;
+      max-width: 58px;
+      height: 44px;
+      border-radius: 10px;
+      background: rgba(15, 15, 36, 0.85);
+      border: 1px solid rgba(0, 242, 255, 0.3);
+      color: #fff;
+      font-size: 1.15rem;
+      font-weight: bold;
+      padding: 0;
+    }
+
+    .num-btn:active { background: rgba(0, 242, 255, 0.28); }
+
+    /* A digit already placed nine times has nowhere left to go. */
+    .num-btn.done {
+      opacity: 0.3;
+      border-color: rgba(255, 255, 255, 0.12);
+      color: #888;
+    }
+
+    .num-btn.wide { font-size: 0.95rem; }
+
+    /* Notes mode is a state you sit in, so the button stays lit while it is on. */
+    #notesBtn.on {
+      background: rgba(255, 215, 0, 0.2);
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    .mode-bar {
+      display: flex;
+      gap: 6px;
+      margin: 12px 0 2px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .mode-bar button {
+      padding: 8px 16px;
+      font-size: 0.78rem;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .mode-bar button.active {
+      background: rgba(255, 0, 170, 0.15);
+      border-color: var(--accent2);
+      box-shadow: 0 0 10px rgba(255, 0, 170, 0.25);
+    }
+
+    .daily-note {
+      font-size: 0.68rem;
+      color: #888;
+      margin-top: 2px;
+      min-height: 1em;
+    }
+
+    /* Shown while the generator is throwing away puzzles that came out too
+       easy for the tier — rare on Easy, a moment on Hard. */
+    .dealing {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 20;
+      text-align: center;
+      color: var(--accent);
+      font-size: 0.85rem;
+      pointer-events: none;
+    }
+
+    .dealing .spin {
+      display: block;
+      font-size: 1.8rem;
+      margin-bottom: 6px;
+      animation: pulse 1s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.35; transform: scale(0.92); }
+      50%      { opacity: 1;    transform: scale(1.06); }
+    }
+
+    .overlay .stats { max-width: 300px; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span id="modeLabel">Free Play</span>
+        <strong id="diffEl">Medium</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Time</span>
+        <strong id="timeEl">0:00</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Left</span>
+        <strong id="leftEl">0</strong>
+      </div>
+      <div class="hud-panel hints">
+        <span>Hints</span>
+        <strong id="hintsEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Solved</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button onclick="showStartOverlay()">New</button>
+      <button id="notesBtn" onclick="toggleNotes()">✏️ Notes</button>
+      <button onclick="useHint()">💡 Hint</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar" id="bottomBar">
+      <div class="hint-line" id="hintLine">Tap a square, then a number</div>
+      <div class="pad" id="pad">
+        <div class="pad-row" id="padRow1"></div>
+        <div class="pad-row" id="padRow2"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Solved!</div>
+
+  <div class="dealing hidden" id="dealing">
+    <span class="spin">🔢</span>
+    <span id="dealingText">Dealing a puzzle…</span>
+  </div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🔢 Neon Sudoku</h1>
+    <p id="modeBlurb">Every row, column and 3×3 box holds 1 to 9 exactly once. No puzzle here needs a guess — each one is checked before it is dealt.</p>
+
+    <div class="mode-bar" id="modeBar">
+      <button data-mode="free" onclick="setMode('free')">🎲 Free Play</button>
+      <button data-mode="daily" onclick="setMode('daily')">📅 Daily</button>
+    </div>
+    <p class="daily-note" id="dailyNote"></p>
+
+    <div class="difficulty-bar" id="difficultyBar">
+      <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+      <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+      <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+    </div>
+    <p class="diff-note" id="diffNote"></p>
+
+    <div class="legend">
+      <span>✏️ Pencil marks</span>
+      <span>💡 Hints explain</span>
+      <span>🚫 No guessing</span>
+    </div>
+
+    <button class="primary" id="playBtn" onclick="startGame()">▶ Start Puzzle</button>
+  </div>
+
+  <div class="overlay hidden" id="wonOverlay">
+    <h1>🏆 Solved!</h1>
+    <p class="new-best" id="newBestTag">🏆 Fastest Yet!</p>
+    <p id="wonBlurb">Clean grid.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalTime">0:00</div>
+        <div class="lbl">Time</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalHints">0</div>
+        <div class="lbl">Hints Used</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalClues">0</div>
+        <div class="lbl">Starting Clues</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBestTime">0:00</div>
+        <div class="lbl">Your Best</div>
+      </div>
+    </div>
+    <button class="primary" onclick="startGame()">▶ Another</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Level</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    // ======================================================= engine start ===
+    /*
+     * Sudoku rules, a solver that only uses techniques a person can follow, and
+     * a generator built on top of it. No DOM in here, so the whole thing can be
+     * run offline against thousands of puzzles.
+     *
+     * The rule the generator never breaks: a clue only comes out if what is
+     * left can still be finished by pure deduction at the chosen tier. So every
+     * puzzle the game deals is solvable without a single guess, and its
+     * difficulty is a fact about the puzzle rather than a clue count.
+     */
+    const ALL = 0x1FF;                       // candidate bitmask for digits 1-9
+
+    /** The 27 units — nine rows, nine columns, nine boxes. */
+    const UNITS = (function () {
+      const out = [];
+      for (let r = 0; r < 9; r++) {
+        const u = [];
+        for (let c = 0; c < 9; c++) u.push(r * 9 + c);
+        out.push(u);
+      }
+      for (let c = 0; c < 9; c++) {
+        const u = [];
+        for (let r = 0; r < 9; r++) u.push(r * 9 + c);
+        out.push(u);
+      }
+      for (let b = 0; b < 9; b++) {
+        const u = [];
+        const r0 = ((b / 3) | 0) * 3, c0 = (b % 3) * 3;
+        for (let r = r0; r < r0 + 3; r++) for (let c = c0; c < c0 + 3; c++) u.push(r * 9 + c);
+        out.push(u);
+      }
+      return out;
+    })();
+
+    /** For each cell: the three units it belongs to, and its 20 peers. */
+    const UNITS_OF = [];
+    const PEERS = [];
+    (function () {
+      for (let i = 0; i < 81; i++) { UNITS_OF.push([]); PEERS.push([]); }
+      UNITS.forEach(function (u, ui) {
+        u.forEach(function (i) { UNITS_OF[i].push(ui); });
+      });
+      for (let i = 0; i < 81; i++) {
+        const seen = new Set();
+        UNITS_OF[i].forEach(function (ui) {
+          UNITS[ui].forEach(function (j) { if (j !== i) seen.add(j); });
+        });
+        PEERS[i] = [...seen];
+      }
+    })();
+
+    function bitCount(m) {
+      let n = 0;
+      while (m) { m &= m - 1; n++; }
+      return n;
+    }
+
+    function lowestDigit(m) {
+      for (let d = 1; d <= 9; d++) if (m & (1 << (d - 1))) return d;
+      return 0;
+    }
+
+    /** Candidate masks for every empty cell; 0 for cells that already hold a digit. */
+    function buildCandidates(grid) {
+      const cand = new Uint16Array(81);
+      for (let i = 0; i < 81; i++) {
+        if (grid[i]) continue;
+        let m = ALL;
+        const peers = PEERS[i];
+        for (let p = 0; p < peers.length; p++) {
+          const v = grid[peers[p]];
+          if (v) m &= ~(1 << (v - 1));
+        }
+        cand[i] = m;
+      }
+      return cand;
+    }
+
+    function place(grid, cand, i, d) {
+      grid[i] = d;
+      cand[i] = 0;
+      const bit = 1 << (d - 1);
+      const peers = PEERS[i];
+      for (let p = 0; p < peers.length; p++) cand[peers[p]] &= ~bit;
+    }
+
+    // -------------------------------------------------------- techniques ---
+    /** A cell with exactly one candidate left. */
+    function nakedSingle(grid, cand) {
+      for (let i = 0; i < 81; i++) {
+        if (grid[i] || !cand[i]) continue;
+        if (bitCount(cand[i]) === 1) { place(grid, cand, i, lowestDigit(cand[i])); return true; }
+      }
+      return false;
+    }
+
+    /** A digit with only one square left in some unit. */
+    function hiddenSingle(grid, cand) {
+      for (let u = 0; u < 27; u++) {
+        const unit = UNITS[u];
+        for (let d = 1; d <= 9; d++) {
+          const bit = 1 << (d - 1);
+          let spot = -1, n = 0;
+          for (let k = 0; k < 9; k++) {
+            const i = unit[k];
+            if (grid[i] === d) { n = 0; break; }
+            if (cand[i] & bit) { spot = i; n++; if (n > 1) break; }
+          }
+          if (n === 1) { place(grid, cand, spot, d); return true; }
+        }
+      }
+      return false;
+    }
+
+    /**
+     * k cells in a unit sharing exactly k candidates between them: no other cell
+     * in that unit can hold those digits.
+     */
+    function nakedSubset(grid, cand, size) {
+      for (let u = 0; u < 27; u++) {
+        const unit = UNITS[u];
+        const open = unit.filter(function (i) { return !grid[i]; });
+        if (open.length <= size) continue;
+        const combo = [];
+        const walk = function (start) {
+          if (combo.length === size) {
+            let mask = 0;
+            for (let c = 0; c < combo.length; c++) mask |= cand[combo[c]];
+            if (bitCount(mask) !== size) return false;
+            let changed = false;
+            for (let k = 0; k < open.length; k++) {
+              const i = open[k];
+              if (combo.indexOf(i) >= 0) continue;
+              if (cand[i] & mask) { cand[i] &= ~mask; changed = true; }
+            }
+            return changed;
+          }
+          for (let k = start; k < open.length; k++) {
+            if (bitCount(cand[open[k]]) > size) continue;
+            combo.push(open[k]);
+            if (walk(k + 1)) return true;
+            combo.pop();
+          }
+          return false;
+        };
+        if (walk(0)) return true;
+      }
+      return false;
+    }
+
+    /**
+     * A digit confined to one row or column inside a box (pointing), or to one
+     * box inside a row or column (claiming). Either way it can be struck off
+     * the rest of the line or box.
+     */
+    function lockedCandidates(grid, cand) {
+      for (let u = 0; u < 27; u++) {
+        const unit = UNITS[u];
+        for (let d = 1; d <= 9; d++) {
+          const bit = 1 << (d - 1);
+          const spots = unit.filter(function (i) { return !grid[i] && (cand[i] & bit); });
+          if (spots.length < 2 || spots.length > 3) continue;
+
+          // Every other unit that contains all of these squares can be cleaned.
+          for (let v = 0; v < 27; v++) {
+            if (v === u) continue;
+            const other = UNITS[v];
+            let covers = true;
+            for (let s = 0; s < spots.length; s++) {
+              if (other.indexOf(spots[s]) < 0) { covers = false; break; }
+            }
+            if (!covers) continue;
+            let changed = false;
+            for (let k = 0; k < other.length; k++) {
+              const i = other[k];
+              if (grid[i] || spots.indexOf(i) >= 0) continue;
+              if (cand[i] & bit) { cand[i] &= ~bit; changed = true; }
+            }
+            if (changed) return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    /** Two digits that between them own exactly two squares of a unit. */
+    function hiddenPair(grid, cand) {
+      for (let u = 0; u < 27; u++) {
+        const unit = UNITS[u];
+        const spots = {};
+        for (let d = 1; d <= 9; d++) {
+          const bit = 1 << (d - 1);
+          const list = unit.filter(function (i) { return !grid[i] && (cand[i] & bit); });
+          if (list.length === 2) spots[d] = list;
+        }
+        const digits = Object.keys(spots).map(Number);
+        for (let a = 0; a < digits.length; a++) {
+          for (let b = a + 1; b < digits.length; b++) {
+            const sa = spots[digits[a]], sb = spots[digits[b]];
+            if (sa[0] !== sb[0] || sa[1] !== sb[1]) continue;
+            const mask = (1 << (digits[a] - 1)) | (1 << (digits[b] - 1));
+            let changed = false;
+            for (let k = 0; k < 2; k++) {
+              if (cand[sa[k]] & ~mask) { cand[sa[k]] &= mask; changed = true; }
+            }
+            if (changed) return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    /**
+     * X-wing: a digit that sits in the same two columns of two different rows
+     * (or the same two rows of two columns) cannot appear anywhere else in
+     * those columns.
+     */
+    function xWing(grid, cand) {
+      for (let d = 1; d <= 9; d++) {
+        const bit = 1 << (d - 1);
+        for (let orient = 0; orient < 2; orient++) {
+          const lines = [];
+          for (let a = 0; a < 9; a++) {
+            const spots = [];
+            for (let b = 0; b < 9; b++) {
+              const i = orient === 0 ? a * 9 + b : b * 9 + a;
+              if (!grid[i] && (cand[i] & bit)) spots.push(b);
+            }
+            lines.push(spots);
+          }
+          for (let a1 = 0; a1 < 9; a1++) {
+            if (lines[a1].length !== 2) continue;
+            for (let a2 = a1 + 1; a2 < 9; a2++) {
+              if (lines[a2].length !== 2) continue;
+              if (lines[a1][0] !== lines[a2][0] || lines[a1][1] !== lines[a2][1]) continue;
+              let changed = false;
+              for (let k = 0; k < 2; k++) {
+                const b = lines[a1][k];
+                for (let a = 0; a < 9; a++) {
+                  if (a === a1 || a === a2) continue;
+                  const i = orient === 0 ? a * 9 + b : b * 9 + a;
+                  if (!grid[i] && (cand[i] & bit)) { cand[i] &= ~bit; changed = true; }
+                }
+              }
+              if (changed) return true;
+            }
+          }
+        }
+      }
+      return false;
+    }
+
+    /*
+     * Techniques in the order a person would reach for them. `level` is what the
+     * difficulty tiers are cut on: a puzzle is rated by the hardest one it
+     * actually forces you to use.
+     */
+    const TECHNIQUES = [
+      { level: 1, name: 'naked single',      fn: nakedSingle },
+      { level: 2, name: 'hidden single',     fn: hiddenSingle },
+      { level: 3, name: 'naked pair',        fn: function (g, c) { return nakedSubset(g, c, 2); } },
+      { level: 3, name: 'locked candidates', fn: lockedCandidates },
+      { level: 4, name: 'naked triple',      fn: function (g, c) { return nakedSubset(g, c, 3); } },
+      { level: 4, name: 'hidden pair',       fn: hiddenPair },
+      { level: 4, name: 'x-wing',            fn: xWing }
+    ];
+
+    /**
+     * Solves as far as deduction alone will go, using nothing above `maxLevel`.
+     * Returns whether it finished and the hardest technique it had to reach for.
+     */
+    function logicSolve(puzzle, maxLevel) {
+      const grid = Int8Array.from(puzzle);
+      const cand = buildCandidates(grid);
+      let hardest = 0;
+      let filled = 0;
+      for (let i = 0; i < 81; i++) if (grid[i]) filled++;
+
+      for (;;) {
+        // A cell with no digit and no candidates means we have gone wrong.
+        for (let i = 0; i < 81; i++) if (!grid[i] && !cand[i]) return { solved: false, level: hardest, grid: grid };
+        if (filled === 81) return { solved: true, level: hardest, grid: grid };
+
+        let moved = false;
+        for (let t = 0; t < TECHNIQUES.length; t++) {
+          const tech = TECHNIQUES[t];
+          if (tech.level > maxLevel) break;
+          if (tech.fn(grid, cand)) {
+            if (tech.level > hardest) hardest = tech.level;
+            moved = true;
+            break;
+          }
+        }
+        if (!moved) return { solved: false, level: hardest, grid: grid };
+
+        filled = 0;
+        for (let i = 0; i < 81; i++) if (grid[i]) filled++;
+      }
+    }
+
+    /**
+     * The next single square deduction can pin down, for the hint button —
+     * which digit, where, and by which technique.
+     */
+    function nextStep(puzzle) {
+      const grid = Int8Array.from(puzzle);
+      const cand = buildCandidates(grid);
+      for (let t = 0; t < TECHNIQUES.length; t++) {
+        const before = Int8Array.from(grid);
+        if (!TECHNIQUES[t].fn(grid, cand)) continue;
+        for (let i = 0; i < 81; i++) {
+          if (grid[i] !== before[i]) return { idx: i, digit: grid[i], technique: TECHNIQUES[t].name };
+        }
+        // The technique only removed candidates; keep going for a placement.
+        for (let k = 0; k < 40; k++) {
+          for (let tt = 0; tt < TECHNIQUES.length; tt++) {
+            const snapshot = Int8Array.from(grid);
+            if (!TECHNIQUES[tt].fn(grid, cand)) continue;
+            for (let i = 0; i < 81; i++) {
+              if (grid[i] !== snapshot[i]) return { idx: i, digit: grid[i], technique: TECHNIQUES[tt].name };
+            }
+            break;
+          }
+        }
+        return null;
+      }
+      return null;
+    }
+
+    // ------------------------------------------------- brute-force solver ---
+    /**
+     * Counts solutions up to `limit`, so `=== 1` proves a puzzle has exactly one
+     * answer. Independent of the technique solver on purpose: it is the check,
+     * not the method.
+     */
+    function countSolutions(puzzle, limit) {
+      const grid = Int8Array.from(puzzle);
+      let found = 0;
+
+      const recur = function () {
+        let best = -1, bestMask = 0, bestCount = 10;
+        for (let i = 0; i < 81; i++) {
+          if (grid[i]) continue;
+          let m = ALL;
+          const peers = PEERS[i];
+          for (let p = 0; p < peers.length; p++) {
+            const v = grid[peers[p]];
+            if (v) m &= ~(1 << (v - 1));
+          }
+          const n = bitCount(m);
+          if (n === 0) return false;
+          if (n < bestCount) { bestCount = n; best = i; bestMask = m; if (n === 1) break; }
+        }
+        if (best < 0) { found++; return found >= limit; }
+
+        for (let d = 1; d <= 9; d++) {
+          if (!(bestMask & (1 << (d - 1)))) continue;
+          grid[best] = d;
+          if (recur()) { grid[best] = 0; return true; }
+          grid[best] = 0;
+        }
+        return false;
+      };
+
+      recur();
+      return found;
+    }
+
+    // ----------------------------------------------------------- generator ---
+    function shuffled(list, rng) {
+      const out = list.slice();
+      for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        const tmp = out[i]; out[i] = out[j]; out[j] = tmp;
+      }
+      return out;
+    }
+
+    /** A complete valid grid, built by backtracking in a random digit order. */
+    function fullGrid(rng) {
+      const grid = new Int8Array(81);
+      const fill = function () {
+        let best = -1, bestMask = 0, bestCount = 10;
+        for (let i = 0; i < 81; i++) {
+          if (grid[i]) continue;
+          let m = ALL;
+          const peers = PEERS[i];
+          for (let p = 0; p < peers.length; p++) {
+            const v = grid[peers[p]];
+            if (v) m &= ~(1 << (v - 1));
+          }
+          const n = bitCount(m);
+          if (n === 0) return false;
+          if (n < bestCount) { bestCount = n; best = i; bestMask = m; }
+        }
+        if (best < 0) return true;
+        const digits = shuffled([1, 2, 3, 4, 5, 6, 7, 8, 9], rng);
+        for (let k = 0; k < 9; k++) {
+          const d = digits[k];
+          if (!(bestMask & (1 << (d - 1)))) continue;
+          grid[best] = d;
+          if (fill()) return true;
+          grid[best] = 0;
+        }
+        return false;
+      };
+      fill();
+      return grid;
+    }
+
+    /*
+     * `cap` is the hardest technique the generator will lean on while carving
+     * clues away; `need` is the technique the finished puzzle must actually
+     * force you to use. They differ because carving under a generous cap does
+     * not, on its own, produce a puzzle that needs the generous technique —
+     * most of the time singles still get you home. So puzzles are generated and
+     * then rated, and one that comes out too easy for its tier is thrown away.
+     */
+    const TIERS = {
+      easy:   { cap: 2, need: 0, note: '🌱 Singles only — every step is there to be spotted.' },
+      medium: { cap: 3, need: 3, note: '✏️ Needs a naked pair or locked candidates.' },
+      hard:   { cap: 4, need: 4, note: '🔥 Needs a triple, a hidden pair or an X-wing.' }
+    };
+
+    const TECHNIQUE_NAMES = {
+      1: 'naked singles', 2: 'hidden singles',
+      3: 'naked pairs and locked candidates', 4: 'triples, hidden pairs or an X-wing'
+    };
+
+    /**
+     * Carves clues out of a finished grid, keeping a clue in whenever taking it
+     * out would leave a puzzle deduction cannot finish at this tier. One
+     * attempt; the caller rates it and decides whether to keep it.
+     */
+    function generateOnce(rng, tier) {
+      const cap = TIERS[tier].cap;
+      const solution = fullGrid(rng);
+      const puzzle = Int8Array.from(solution);
+
+      const order = shuffled(Array.from({ length: 81 }, function (_, i) { return i; }), rng);
+      for (let k = 0; k < order.length; k++) {
+        const i = order[k];
+        if (!puzzle[i]) continue;
+        const saved = puzzle[i];
+        puzzle[i] = 0;
+        if (!logicSolve(puzzle, cap).solved) puzzle[i] = saved;
+      }
+
+      const rated = logicSolve(puzzle, cap);
+      let clues = 0;
+      for (let i = 0; i < 81; i++) if (puzzle[i]) clues++;
+      return { puzzle: puzzle, solution: solution, clues: clues, level: rated.level, tier: tier };
+    }
+
+    function acceptable(p, tier) {
+      return p.level >= TIERS[tier].need;
+    }
+
+    /**
+     * Keeps generating until a puzzle really does need its tier's technique.
+     * Hard puzzles are the rare ones — roughly one attempt in twenty — so the
+     * budget exists to bound the wait; if it ever runs out, the hardest puzzle
+     * seen is used and the game reports what that puzzle actually needs rather
+     * than claiming the tier.
+     */
+    function generate(rng, tier, maxAttempts) {
+      const budget = maxAttempts || 200;
+      let best = null;
+      for (let n = 0; n < budget; n++) {
+        const p = generateOnce(rng, tier);
+        if (!best || p.level > best.level) best = p;
+        if (acceptable(p, tier)) { p.attempts = n + 1; return p; }
+      }
+      best.attempts = budget;
+      return best;
+    }
+
+    /** Deterministic per day and tier, so a daily puzzle is the same everywhere. */
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function dailySeed(day, tier) {
+      let h = 2166136261 ^ day;
+      const tag = 'sudoku:' + tier;
+      for (let i = 0; i < tag.length; i++) {
+        h ^= tag.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return h >>> 0;
+    }
+
+    /** Cells clashing with an identical digit elsewhere in one of their units. */
+    function conflicts(grid) {
+      const bad = new Set();
+      for (let u = 0; u < 27; u++) {
+        const unit = UNITS[u];
+        for (let a = 0; a < 9; a++) {
+          for (let b = a + 1; b < 9; b++) {
+            const i = unit[a], j = unit[b];
+            if (grid[i] && grid[i] === grid[j]) { bad.add(i); bad.add(j); }
+          }
+        }
+      }
+      return bad;
+    }
+    // ========================================================= engine end ===
+
+    // ------------------------------------------------------------- page ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const diffEl = document.getElementById('diffEl');
+    const modeLabel = document.getElementById('modeLabel');
+    const timeEl = document.getElementById('timeEl');
+    const leftEl = document.getElementById('leftEl');
+    const hintsEl = document.getElementById('hintsEl');
+    const bestEl = document.getElementById('bestEl');
+    const notesBtn = document.getElementById('notesBtn');
+    const startOverlay = document.getElementById('startOverlay');
+    const wonOverlay = document.getElementById('wonOverlay');
+    const dealing = document.getElementById('dealing');
+    const dealingText = document.getElementById('dealingText');
+    const diffNote = document.getElementById('diffNote');
+    const dailyNote = document.getElementById('dailyNote');
+    const modeBlurb = document.getElementById('modeBlurb');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.getElementById('bottomBar');
+
+    const STORE = 'sudoku';
+
+    let mode = 'free';                 // 'free' | 'daily'
+    let currentDifficulty = 'medium';
+    let puzzle = new Int8Array(81);    // the clues, fixed for the round
+    let solution = new Int8Array(81);
+    let grid = new Int8Array(81);      // clues plus whatever has been entered
+    let notes = [];                    // per cell, a Set of pencilled digits
+    let selected = -1;
+    let notesMode = false;
+    let hintsUsed = 0;
+    let startClues = 0;
+    let puzzleLevel = 0;
+    let gameRunning = false;
+    let dealingNow = false;
+    let hintCell = -1;                 // briefly ringed after a hint
+
+    let startedAt = 0, elapsed = 0, tickTimer = null;
+    let animationId = null;
+
+    let cellSize = 36;
+    let boardX = 0, boardY = 0;
+
+    // Audio, toast, best scores and fullscreen come from shared/arcade.js.
+    const initAudio = Arcade.initAudio;
+    function playTone(freq, type, duration, delay = 0, vol = 0.12) {
+      Arcade.playTone(freq, type, duration, delay, vol);
+    }
+
+    function playPlaceSound()   { playTone(520, 'sine', 0.05, 0, 0.06); }
+    function playNoteSound()    { playTone(700, 'triangle', 0.035, 0, 0.035); }
+    function playEraseSound()   { playTone(260, 'triangle', 0.05, 0, 0.045); }
+    function playClashSound()   { playTone(130, 'square', 0.07, 0, 0.05); }
+    function playHintSound()    { playTone(660, 'sine', 0.09, 0, 0.07); playTone(880, 'sine', 0.08, 0.06, 0.05); }
+    function playUnitSound()    { playTone(700, 'sine', 0.09, 0, 0.06); playTone(1050, 'sine', 0.1, 0.07, 0.05); }
+    function playWinSound()     { [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => playTone(f, 'sine', 0.26, i * 0.1)); }
+
+    function showToast(text, color) {
+      Arcade.showToast(toast, text, color, 1400);
+    }
+
+    function toggleFullscreen() {
+      Arcade.toggleFullscreen();
+    }
+
+    function formatTime(secs) {
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    // ---------------------------------------------------------- progress ---
+    function statsKey(diff) { return `${STORE}Stats_${diff}`; }
+
+    function readStats(diff) {
+      try {
+        const raw = localStorage.getItem(statsKey(diff));
+        const s = raw ? JSON.parse(raw) : {};
+        return { solved: s.solved | 0, bestTime: s.bestTime || 0, lastDaily: s.lastDaily };
+      } catch (err) {
+        return { solved: 0, bestTime: 0, lastDaily: undefined };
+      }
+    }
+
+    function writeStats(diff, s) {
+      localStorage.setItem(statsKey(diff), JSON.stringify(s));
+    }
+
+    /** The one number the arcade home page shows: puzzles solved in total. */
+    function syncBestKey() {
+      let total = 0;
+      ['easy', 'medium', 'hard'].forEach(function (d) { total += readStats(d).solved; });
+      Arcade.setBestScore(STORE + 'Best', total);
+      return total;
+    }
+
+    function localDayIndex(now) {
+      const d = now || new Date();
+      const today = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const epoch = new Date(2026, 0, 1);
+      return Math.round((today - epoch) / 86400000);
+    }
+
+    function dailyDone(diff) {
+      return readStats(diff).lastDaily === localDayIndex();
+    }
+
+    // -------------------------------------------------------------- deal ---
+    /**
+     * Generation is rejection sampling — most attempts come out too easy for
+     * the tier and are thrown away — so it runs in slices with the page
+     * repainting between them rather than locking up on a hard puzzle.
+     */
+    function dealPuzzle(onReady) {
+      const rng = mode === 'daily'
+        ? mulberry32(dailySeed(localDayIndex(), currentDifficulty))
+        : mulberry32((Math.random() * 0xFFFFFFFF) >>> 0);
+
+      let best = null;
+      let attempts = 0;
+      const budget = 200;
+      dealingNow = true;
+      dealing.classList.remove('hidden');
+      dealingText.textContent = 'Dealing a puzzle…';
+
+      const slice = function () {
+        const until = performance.now() + 24;         // about a frame and a half
+        while (performance.now() < until) {
+          attempts++;
+          const p = generateOnce(rng, currentDifficulty);
+          if (!best || p.level > best.level) best = p;
+          if (acceptable(p, currentDifficulty) || attempts >= budget) {
+            dealingNow = false;
+            dealing.classList.add('hidden');
+            onReady(acceptable(p, currentDifficulty) ? p : best);
+            return;
+          }
+        }
+        if (attempts > 12) dealingText.textContent = `Finding a proper ${currentDifficulty} one…`;
+        setTimeout(slice, 0);
+      };
+      setTimeout(slice, 0);
+    }
+
+    // ------------------------------------------------------------ render ---
+    function resizeCanvas() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      const topOffset = Math.max(0, controlsBar.getBoundingClientRect().bottom - rect.top) + 10;
+      const bottomOffset = Math.max(0, rect.bottom - bottomBar.getBoundingClientRect().top) + 10;
+      const availW = rect.width * 0.95;
+      const availH = Math.max(120, rect.height - topOffset - bottomOffset);
+
+      cellSize = Math.min(availW / 9, availH / 9);
+      boardX = (rect.width - cellSize * 9) / 2;
+      boardY = topOffset + Math.max(0, (availH - cellSize * 9) / 2);
+      render();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function cellRect(i) {
+      return { x: boardX + (i % 9) * cellSize, y: boardY + ((i / 9) | 0) * cellSize };
+    }
+
+    function render() {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      const size = cellSize * 9;
+      const bad = conflicts(grid);
+      const selDigit = selected >= 0 ? grid[selected] : 0;
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(0, 242, 255, 0.04)';
+      ctx.beginPath();
+      ctx.roundRect(boardX, boardY, size, size, Math.max(5, cellSize * 0.12));
+      ctx.fill();
+      ctx.restore();
+
+      // Cell shading: the selected cell, its row/column/box, and its twins.
+      for (let i = 0; i < 81; i++) {
+        const r = cellRect(i);
+        let fill = null;
+        if (selected >= 0) {
+          if (i === selected) fill = 'rgba(0, 242, 255, 0.22)';
+          else if (PEERS[selected].indexOf(i) >= 0) fill = 'rgba(0, 242, 255, 0.07)';
+          if (selDigit && grid[i] === selDigit && i !== selected) fill = 'rgba(255, 215, 0, 0.16)';
+        }
+        if (bad.has(i)) fill = 'rgba(255, 42, 42, 0.25)';
+        if (!fill) continue;
+        ctx.fillStyle = fill;
+        ctx.fillRect(r.x, r.y, cellSize, cellSize);
+      }
+
+      // Grid lines, heavy every three.
+      for (let k = 0; k <= 9; k++) {
+        const heavy = k % 3 === 0;
+        ctx.strokeStyle = heavy ? 'rgba(0, 242, 255, 0.55)' : 'rgba(0, 242, 255, 0.16)';
+        ctx.lineWidth = heavy ? Math.max(1.5, cellSize * 0.05) : 1;
+        ctx.beginPath();
+        ctx.moveTo(boardX + k * cellSize, boardY);
+        ctx.lineTo(boardX + k * cellSize, boardY + size);
+        ctx.moveTo(boardX, boardY + k * cellSize);
+        ctx.lineTo(boardX + size, boardY + k * cellSize);
+        ctx.stroke();
+      }
+
+      // Digits and pencil marks.
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (let i = 0; i < 81; i++) {
+        const r = cellRect(i);
+        const cx = r.x + cellSize / 2;
+        const cy = r.y + cellSize / 2;
+
+        if (grid[i]) {
+          const given = puzzle[i] !== 0;
+          ctx.save();
+          if (bad.has(i)) ctx.fillStyle = '#ff5555';
+          else if (given) ctx.fillStyle = '#00f2ff';
+          else ctx.fillStyle = '#ffffff';
+          ctx.font = `${given ? 'bold ' : ''}${cellSize * 0.56}px 'Segoe UI', Tahoma, sans-serif`;
+          if (!given) {
+            ctx.shadowBlur = cellSize * 0.25;
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.35)';
+          }
+          ctx.fillText(String(grid[i]), cx, cy + cellSize * 0.02);
+          ctx.restore();
+          continue;
+        }
+
+        const marks = notes[i];
+        if (marks && marks.size) {
+          ctx.fillStyle = 'rgba(190, 200, 220, 0.75)';
+          ctx.font = `${cellSize * 0.24}px 'Segoe UI', Tahoma, sans-serif`;
+          marks.forEach(function (d) {
+            const mx = r.x + cellSize * (0.22 + ((d - 1) % 3) * 0.28);
+            const my = r.y + cellSize * (0.24 + (((d - 1) / 3) | 0) * 0.27);
+            ctx.fillText(String(d), mx, my);
+          });
+        }
+      }
+
+      // The square a hint just filled, so it is obvious where to look.
+      if (hintCell >= 0) {
+        const r = cellRect(hintCell);
+        ctx.save();
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = Math.max(1.5, cellSize * 0.06);
+        ctx.shadowBlur = cellSize * 0.4;
+        ctx.shadowColor = 'rgba(255, 215, 0, 0.8)';
+        ctx.strokeRect(r.x + 2, r.y + 2, cellSize - 4, cellSize - 4);
+        ctx.restore();
+      }
+    }
+
+    function emptyCount() {
+      let n = 0;
+      for (let i = 0; i < 81; i++) if (!grid[i]) n++;
+      return n;
+    }
+
+    function updateHUD() {
+      diffEl.textContent = currentDifficulty[0].toUpperCase() + currentDifficulty.slice(1);
+      modeLabel.textContent = mode === 'daily' ? 'Daily' : 'Free Play';
+      timeEl.textContent = formatTime(elapsed);
+      leftEl.textContent = emptyCount();
+      hintsEl.textContent = hintsUsed;
+      bestEl.textContent = syncBestKey();
+
+      // Grey out any digit that has already been placed nine times.
+      const placed = new Array(10).fill(0);
+      for (let i = 0; i < 81; i++) if (grid[i]) placed[grid[i]]++;
+      for (let d = 1; d <= 9; d++) {
+        const btn = document.getElementById(`num${d}`);
+        if (btn) btn.classList.toggle('done', placed[d] >= 9);
+      }
+    }
+
+    function tick() {
+      if (!gameRunning) return;
+      elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      timeEl.textContent = formatTime(elapsed);
+    }
+
+    // -------------------------------------------------------------- play ---
+    function selectCell(i) {
+      selected = i;
+      hintCell = -1;
+      render();
+    }
+
+    function enterDigit(d) {
+      if (!gameRunning || selected < 0) return;
+      if (puzzle[selected]) { playClashSound(); return; }   // a given clue is fixed
+      initAudio();
+
+      if (notesMode) {
+        if (grid[selected]) return;
+        const set = notes[selected];
+        if (set.has(d)) set.delete(d); else set.add(d);
+        playNoteSound();
+        render();
+        return;
+      }
+
+      if (grid[selected] === d) { clearCell(); return; }    // tapping again clears
+
+      const unitsBefore = completedUnits();
+      grid[selected] = d;
+      notes[selected].clear();
+      // A digit placed here can no longer be pencilled in any square it sees.
+      PEERS[selected].forEach(function (p) { if (notes[p]) notes[p].delete(d); });
+
+      if (conflicts(grid).has(selected)) playClashSound();
+      else if (completedUnits() > unitsBefore) playUnitSound();
+      else playPlaceSound();
+
+      updateHUD();
+      render();
+      checkWin();
+    }
+
+    /** How many rows, columns and boxes are correctly full — used for the chime. */
+    function completedUnits() {
+      let n = 0;
+      for (let u = 0; u < 27; u++) {
+        let mask = 0;
+        for (let k = 0; k < 9; k++) {
+          const v = grid[UNITS[u][k]];
+          if (!v) { mask = 0; break; }
+          mask |= 1 << (v - 1);
+        }
+        if (mask === ALL) n++;
+      }
+      return n;
+    }
+
+    function clearCell() {
+      if (!gameRunning || selected < 0 || puzzle[selected]) return;
+      if (!grid[selected] && !notes[selected].size) return;
+      grid[selected] = 0;
+      notes[selected].clear();
+      playEraseSound();
+      updateHUD();
+      render();
+    }
+
+    /**
+     * Fills one square the way the solver would, and says which technique found
+     * it — the point being to teach the move, not just hand over the digit.
+     */
+    function useHint() {
+      if (!gameRunning) return;
+      initAudio();
+
+      // Wrong entries have to go first, or deduction from here is nonsense.
+      const wrong = [];
+      for (let i = 0; i < 81; i++) if (grid[i] && grid[i] !== solution[i]) wrong.push(i);
+      if (wrong.length) {
+        selected = wrong[0];
+        hintCell = wrong[0];
+        playClashSound();
+        showToast('That square is wrong', '#ff2a2a');
+        render();
+        return;
+      }
+
+      const step = nextStep(grid);
+      if (!step) { showToast('Nothing left to find', '#00f2ff'); return; }
+
+      grid[step.idx] = step.digit;
+      notes[step.idx].clear();
+      PEERS[step.idx].forEach(function (p) { if (notes[p]) notes[p].delete(step.digit); });
+      hintsUsed++;
+      selected = step.idx;
+      hintCell = step.idx;
+      playHintSound();
+      showToast(step.technique, '#ffd700');
+      updateHUD();
+      render();
+      checkWin();
+    }
+
+    function toggleNotes() {
+      notesMode = !notesMode;
+      notesBtn.classList.toggle('on', notesMode);
+      notesBtn.textContent = notesMode ? '✏️ Notes ON' : '✏️ Notes';
+    }
+
+    function checkWin() {
+      for (let i = 0; i < 81; i++) if (grid[i] !== solution[i]) return;
+      winGame();
+    }
+
+    function winGame() {
+      gameRunning = false;
+      clearInterval(tickTimer);
+      hintCell = -1;
+      selected = -1;
+
+      const stats = readStats(currentDifficulty);
+      stats.solved++;
+      const previousBest = stats.bestTime;
+      // Hints make a time incomparable, so only a clean solve sets a record.
+      const clean = hintsUsed === 0;
+      const isBest = clean && (!previousBest || elapsed < previousBest);
+      if (isBest) stats.bestTime = elapsed;
+      if (mode === 'daily') stats.lastDaily = localDayIndex();
+      writeStats(currentDifficulty, stats);
+
+      playWinSound();
+      document.getElementById('finalTime').textContent = formatTime(elapsed);
+      document.getElementById('finalHints').textContent = hintsUsed;
+      document.getElementById('finalClues').textContent = startClues;
+      document.getElementById('finalBestTime').textContent =
+        stats.bestTime ? formatTime(stats.bestTime) : '–';
+      document.getElementById('newBestTag').style.display = isBest ? 'block' : 'none';
+      document.getElementById('wonBlurb').textContent = puzzleLevel >= 3
+        ? `Hardest step needed: ${TECHNIQUE_NAMES[puzzleLevel]}.`
+        : 'Solved on singles alone.';
+      if (isBest) setTimeout(function () { Arcade.playBestJingle(); }, 320);
+
+      updateHUD();
+      render();
+      wonOverlay.classList.remove('hidden');
+    }
+
+    // ------------------------------------------------------------- input ---
+    canvas.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      if (!gameRunning) return;
+      initAudio();
+      const rect = canvas.getBoundingClientRect();
+      const col = Math.floor((e.clientX - rect.left - boardX) / cellSize);
+      const row = Math.floor((e.clientY - rect.top - boardY) / cellSize);
+      if (col < 0 || col > 8 || row < 0 || row > 8) return;
+      selectCell(row * 9 + col);
+    });
+
+    (function buildPad() {
+      const rows = [document.getElementById('padRow1'), document.getElementById('padRow2')];
+      for (let d = 1; d <= 9; d++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'num-btn';
+        btn.id = `num${d}`;
+        btn.textContent = String(d);
+        btn.addEventListener('pointerdown', function (e) { e.preventDefault(); enterDigit(d); });
+        rows[d <= 5 ? 0 : 1].appendChild(btn);
+      }
+      const erase = document.createElement('button');
+      erase.type = 'button';
+      erase.className = 'num-btn wide';
+      erase.textContent = '⌫';
+      erase.addEventListener('pointerdown', function (e) { e.preventDefault(); clearCell(); });
+      rows[1].appendChild(erase);
+    })();
+
+    document.addEventListener('keydown', function (e) {
+      if (!gameRunning) return;
+      if (e.key >= '1' && e.key <= '9') { enterDigit(Number(e.key)); return; }
+      if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') { clearCell(); return; }
+      if (e.key === 'n' || e.key === 'N') { toggleNotes(); return; }
+      if (e.key === 'h' || e.key === 'H') { useHint(); return; }
+      const step = { ArrowUp: -9, ArrowDown: 9, ArrowLeft: -1, ArrowRight: 1 }[e.key];
+      if (step === undefined) return;
+      e.preventDefault();
+      if (selected < 0) { selectCell(40); return; }
+      const col = selected % 9;
+      if ((step === -1 && col === 0) || (step === 1 && col === 8)) return;
+      const next = selected + step;
+      if (next < 0 || next > 80) return;
+      selectCell(next);
+    });
+
+    // ---------------------------------------------------------- controls ---
+    function setMode(next) {
+      mode = next;
+      document.querySelectorAll('#modeBar button').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.mode === next);
+      });
+      modeBlurb.textContent = next === 'daily'
+        ? 'One puzzle a day, the same for everyone, built from today’s date.'
+        : 'Every row, column and 3×3 box holds 1 to 9 exactly once. No puzzle here needs a guess — each one is checked before it is dealt.';
+      refreshDailyNote();
+    }
+
+    function refreshDailyNote() {
+      if (mode !== 'daily') { dailyNote.textContent = ''; return; }
+      dailyNote.textContent = dailyDone(currentDifficulty)
+        ? `Today’s ${currentDifficulty} daily is done — play it again, or switch to Free Play.`
+        : `Today’s ${currentDifficulty} puzzle.`;
+    }
+
+    function setDifficulty(diff) {
+      currentDifficulty = diff;
+      document.querySelectorAll('#difficultyBar button').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.diff === diff);
+      });
+      const stats = readStats(diff);
+      diffNote.textContent = TIERS[diff].note +
+        (stats.bestTime ? `  ·  best ${formatTime(stats.bestTime)}` : '');
+      refreshDailyNote();
+      updateHUD();
+    }
+
+    function showStartOverlay() {
+      gameRunning = false;
+      clearInterval(tickTimer);
+      wonOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+      setDifficulty(currentDifficulty);
+      updateHUD();
+    }
+
+    function startGame() {
+      initAudio();
+      if (dealingNow) return;
+      startOverlay.classList.add('hidden');
+      wonOverlay.classList.add('hidden');
+      clearInterval(tickTimer);
+      gameRunning = false;
+
+      grid = new Int8Array(81);
+      puzzle = new Int8Array(81);
+      notes = Array.from({ length: 81 }, function () { return new Set(); });
+      selected = -1;
+      hintCell = -1;
+      hintsUsed = 0;
+      elapsed = 0;
+      updateHUD();
+      render();
+
+      dealPuzzle(function (p) {
+        puzzle = p.puzzle;
+        solution = p.solution;
+        grid = Int8Array.from(p.puzzle);
+        startClues = p.clues;
+        puzzleLevel = p.level;
+        gameRunning = true;
+        startedAt = Date.now();
+        elapsed = 0;
+        tickTimer = setInterval(tick, 500);
+        hintLine.textContent = mode === 'daily'
+          ? 'Today’s puzzle — same grid for everyone'
+          : 'Tap a square, then a number';
+        updateHUD();
+        resizeCanvas();
+      });
+    }
+
+    Arcade.wireFullscreen(fullscreenBtn, resizeCanvas);
+    Arcade.wireAutoPause(function () { return gameRunning; }, function () {
+      // Nothing to freeze but the clock; the grid is safe either way.
+      clearInterval(tickTimer);
+      tickTimer = setInterval(tick, 500);
+    });
+
+    if (!('ontouchstart' in window)) {
+      hintLine.textContent = 'Click a square • 1-9 to fill • N notes • H hint';
+    }
+
+    try {
+      setMode('free');
+      setDifficulty('medium');
+      updateHUD();
+      resizeCanvas();
+    } catch (err) {
+      console.error('Neon Sudoku init failed:', err);
+    }
+  </script>
+</body>
+</html>
