@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>⚫ Neon Reversi | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    /* Width of this game's play column; the rest of the chrome is
+       inherited from the shared arcade sheet. */
+    :root { --play-max: 520px; }
+
+    #gameCanvas {
+      background: radial-gradient(ellipse at top, #0d1a24 0%, #050510 100%);
+    }
+
+    /* Specific to this game. */
+    .hud-panel.you strong { color: var(--accent); }
+    .hud-panel.them strong { color: var(--accent2); }
+
+    /* The side whose turn it is gets the lit border. */
+    .hud-panel.turn {
+      border-color: var(--gold);
+      box-shadow: 0 0 12px rgba(255, 215, 0, 0.35);
+    }
+
+    .mode-bar {
+      display: flex;
+      gap: 6px;
+      margin: 12px 0 2px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .mode-bar button {
+      padding: 8px 16px;
+      font-size: 0.78rem;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .mode-bar button.active {
+      background: rgba(255, 0, 170, 0.15);
+      border-color: var(--accent2);
+      box-shadow: 0 0 10px rgba(255, 0, 170, 0.25);
+    }
+
+    /* Difficulty is the CPU's, so two-player mode has nothing to set. */
+    .diff-wrap { transition: opacity 0.2s; }
+    .diff-wrap.dimmed { opacity: 0.35; pointer-events: none; }
+
+    .overlay .stats { max-width: 300px; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel you" id="p1Panel">
+        <span id="p1Label">You</span>
+        <strong id="p1Score">2</strong>
+      </div>
+      <div class="hud-panel them" id="p2Panel">
+        <span id="p2Label">CPU</span>
+        <strong id="p2Score">2</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Streak</span>
+        <strong id="streakEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button onclick="showStartOverlay()">Restart</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar" id="bottomBar">
+      <div class="hint-line" id="hintLine">Tap a glowing square to place a disc</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">No moves!</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>⚫ Neon Reversi</h1>
+    <p id="modeBlurb">Trap a line of your opponent's discs between two of yours and the whole line turns. Most discs when the board fills wins.</p>
+
+    <div class="mode-bar" id="modeBar">
+      <button data-mode="solo" onclick="setMode('solo')">👤 1 Player</button>
+      <button data-mode="duo" onclick="setMode('duo')">👥 2 Players</button>
+    </div>
+
+    <div class="diff-wrap" id="diffWrap">
+      <div class="difficulty-bar" id="difficultyBar">
+        <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+        <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+        <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+      </div>
+      <div class="diff-note" id="diffNote"></div>
+    </div>
+
+    <div class="legend">
+      <span>🔵 You move first</span>
+      <span>⭐ Corners stick</span>
+      <span>⏭ No move = pass</span>
+    </div>
+
+    <button class="primary" onclick="startGame()">▶ Start Game</button>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <h1 id="winTitle">🏆 You Win!</h1>
+    <p class="new-best" id="newBestTag">🏆 Longest Win Streak!</p>
+    <p id="finalBlurb">Board full.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalScore">0 – 0</div>
+        <div class="lbl">Final Discs</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalCorners">0 – 0</div>
+        <div class="lbl">Corners</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalStreak">0</div>
+        <div class="lbl">Win Streak</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBest">0</div>
+        <div class="lbl">Best Streak</div>
+      </div>
+    </div>
+    <button class="primary" onclick="startGame()">Play Again</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Mode</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    // ======================================================= engine start ===
+    /*
+     * Reversi rules and the CPU, kept free of the DOM so the whole thing can be
+     * lifted out and played against itself offline.
+     */
+    const EMPTY = 0, BLACK = 1, WHITE = 2;
+
+    /** For each square, the eight rays leading off it, clipped at the edge. */
+    const RAYS = (function () {
+      const steps = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
+      const out = [];
+      for (let i = 0; i < 64; i++) {
+        const x = i % 8, y = (i / 8) | 0;
+        out.push(steps.map(function (s) {
+          const ray = [];
+          let cx = x + s[0], cy = y + s[1];
+          while (cx >= 0 && cx < 8 && cy >= 0 && cy < 8) {
+            ray.push(cy * 8 + cx);
+            cx += s[0];
+            cy += s[1];
+          }
+          return ray;
+        }));
+      }
+      return out;
+    })();
+
+    /**
+     * Squares this move would turn over, or null if it is not legal. A move is
+     * legal exactly when it brackets at least one unbroken run of enemy discs
+     * between the new disc and one of your own.
+     */
+    function flipsFor(board, idx, player) {
+      if (board[idx] !== EMPTY) return null;
+      const opp = 3 - player;
+      let out = null;
+      const rays = RAYS[idx];
+      for (let d = 0; d < 8; d++) {
+        const ray = rays[d];
+        let k = 0;
+        while (k < ray.length && board[ray[k]] === opp) k++;
+        if (k > 0 && k < ray.length && board[ray[k]] === player) {
+          if (!out) out = [];
+          for (let j = 0; j < k; j++) out.push(ray[j]);
+        }
+      }
+      return out;
+    }
+
+    function legalMoves(board, player) {
+      const out = [];
+      for (let i = 0; i < 64; i++) {
+        const flips = flipsFor(board, i, player);
+        if (flips) out.push({ idx: i, flips: flips });
+      }
+      return out;
+    }
+
+    /**
+     * Legality without building the flip list. The search asks this far more
+     * often than it asks what actually flips, and the arrays flipsFor has to
+     * allocate are most of the cost of a leaf node.
+     */
+    function canPlay(board, idx, player) {
+      if (board[idx] !== EMPTY) return false;
+      const opp = 3 - player;
+      const rays = RAYS[idx];
+      for (let d = 0; d < 8; d++) {
+        const ray = rays[d];
+        let k = 0;
+        while (k < ray.length && board[ray[k]] === opp) k++;
+        if (k > 0 && k < ray.length && board[ray[k]] === player) return true;
+      }
+      return false;
+    }
+
+    function hasMove(board, player) {
+      for (let i = 0; i < 64; i++) if (canPlay(board, i, player)) return true;
+      return false;
+    }
+
+    function countMoves(board, player) {
+      let n = 0;
+      for (let i = 0; i < 64; i++) if (canPlay(board, i, player)) n++;
+      return n;
+    }
+
+    function applyMove(board, idx, flips, player) {
+      const next = board.slice();
+      next[idx] = player;
+      for (let i = 0; i < flips.length; i++) next[flips[i]] = player;
+      return next;
+    }
+
+    function counts(board) {
+      let black = 0, white = 0, empty = 0;
+      for (let i = 0; i < 64; i++) {
+        if (board[i] === BLACK) black++;
+        else if (board[i] === WHITE) white++;
+        else empty++;
+      }
+      return { black: black, white: white, empty: empty };
+    }
+
+    function startBoard() {
+      const b = new Int8Array(64);
+      b[27] = WHITE; b[28] = BLACK;
+      b[35] = BLACK; b[36] = WHITE;
+      return b;
+    }
+
+    // ------------------------------------------------------------ the CPU ---
+    /*
+     * Squares are not worth the same: corners can never be flipped back, and
+     * the squares beside them hand a corner over. The table says so, and the
+     * search adds mobility on top — a position where the opponent has nothing
+     * good to play is worth more than one extra disc.
+     */
+    const SQUARE_VALUE = [
+      120, -20,  20,   5,   5,  20, -20, 120,
+      -20, -40,  -5,  -5,  -5,  -5, -40, -20,
+       20,  -5,  15,   3,   3,  15,  -5,  20,
+        5,  -5,   3,   3,   3,   3,  -5,   5,
+        5,  -5,   3,   3,   3,   3,  -5,   5,
+       20,  -5,  15,   3,   3,  15,  -5,  20,
+      -20, -40,  -5,  -5,  -5,  -5, -40, -20,
+      120, -20,  20,   5,   5,  20, -20, 120
+    ];
+
+    const CORNERS = [0, 7, 56, 63];
+
+    /*
+     * Search order: best-looking squares first, so alpha-beta can throw the
+     * rest away. Corners lead, and among equals the move that flips the fewest
+     * discs goes first — grabbing discs early is the beginner's mistake, and it
+     * is usually the worse move here too.
+     */
+    function orderMoves(a, b) {
+      const d = SQUARE_VALUE[b.idx] - SQUARE_VALUE[a.idx];
+      return d !== 0 ? d : a.flips.length - b.flips.length;
+    }
+
+    function evaluate(board, player) {
+      const opp = 3 - player;
+      let positional = 0;
+      let mine = 0, theirs = 0;
+      for (let i = 0; i < 64; i++) {
+        const v = board[i];
+        if (v === player) { positional += SQUARE_VALUE[i]; mine++; }
+        else if (v === opp) { positional -= SQUARE_VALUE[i]; theirs++; }
+      }
+
+      let corners = 0;
+      for (let c = 0; c < 4; c++) {
+        if (board[CORNERS[c]] === player) corners++;
+        else if (board[CORNERS[c]] === opp) corners--;
+      }
+
+      const myMoves = countMoves(board, player);
+      const oppMoves = countMoves(board, opp);
+      const mobility = myMoves + oppMoves === 0 ? 0
+        : 100 * (myMoves - oppMoves) / (myMoves + oppMoves);
+
+      // Late on, discs are what actually decide it, so the count starts to bite.
+      const filled = mine + theirs;
+      const discs = filled > 50 ? 12 * (mine - theirs) : 0;
+
+      return positional + 25 * corners + 10 * mobility + discs;
+    }
+
+    /** Final score from `player`'s side: who has more discs when it ends. */
+    function finalScore(board, player) {
+      const c = counts(board);
+      const mine = player === BLACK ? c.black : c.white;
+      const theirs = player === BLACK ? c.white : c.black;
+      return (mine - theirs) * 1000;
+    }
+
+    /**
+     * Negamax with alpha-beta. `exact` searches to the end of the game and
+     * scores by the final disc difference, which is what the endgame is
+     * actually about; otherwise the heuristic above stands in.
+     */
+    function negamax(board, player, depth, alpha, beta, exact, greedy) {
+      const moves = legalMoves(board, player);
+      if (!moves.length) {
+        if (!hasMove(board, 3 - player)) return finalScore(board, player);
+        // Passing costs a turn but not the game.
+        return -negamax(board, 3 - player, depth, -beta, -alpha, exact, greedy);
+      }
+      if (depth <= 0) {
+        if (exact) return finalScore(board, player);
+        if (greedy) {
+          const c = counts(board);
+          return player === BLACK ? c.black - c.white : c.white - c.black;
+        }
+        return evaluate(board, player);
+      }
+
+      // Corners first, X-squares last: better ordering means deeper cutoffs.
+      moves.sort(orderMoves);
+
+      let best = -Infinity;
+      for (let i = 0; i < moves.length; i++) {
+        const m = moves[i];
+        const next = applyMove(board, m.idx, m.flips, player);
+        const score = -negamax(next, 3 - player, depth - 1, -beta, -alpha, exact, greedy);
+        if (score > best) best = score;
+        if (best > alpha) alpha = best;
+        if (alpha >= beta) break;
+      }
+      return best;
+    }
+
+    /*
+     * `depth` is [opening, late midgame]: the board branches widest early, so
+     * searching deep there costs the most and buys the least. Once the squares
+     * start running out the same search is cheap, and that is where games are
+     * decided — so the CPU thinks harder exactly when it matters, and the
+     * slowest move stays inside a phone's patience.
+     */
+    const CPU_LEVELS = {
+      easy:   { depth: [1, 1], greedy: true,  blunder: 0.30, exact: 0,  wide: 20,
+                note: '🌱 Grabs whatever flips the most discs right now.' },
+      medium: { depth: [4, 5], greedy: false, blunder: 0.06, exact: 8,  wide: 18,
+                note: '⚔️ Looks a few moves ahead and wants the corners.' },
+      hard:   { depth: [5, 7], greedy: false, blunder: 0,    exact: 12, wide: 20,
+                note: '🔥 Thinks deep, and plays the last 12 squares perfectly.' }
+    };
+
+    function depthFor(cfg, empty) {
+      return empty > cfg.wide ? cfg.depth[0] : cfg.depth[1];
+    }
+
+    /**
+     * Picks the CPU's move. Easy and Medium blunder on purpose now and then —
+     * a search that never slips is not a fun opponent at those tiers.
+     */
+    function chooseMove(board, player, level, rng) {
+      const cfg = CPU_LEVELS[level];
+      const moves = legalMoves(board, player);
+      if (!moves.length) return null;
+      if (moves.length === 1) return moves[0];
+
+      const random = rng || Math.random;
+      if (cfg.blunder && random() < cfg.blunder) {
+        return moves[Math.floor(random() * moves.length)];
+      }
+
+      const empty = counts(board).empty;
+      const exact = empty <= cfg.exact;
+      const depth = exact ? empty : depthFor(cfg, empty);
+
+      let best = null;
+      let bestScore = -Infinity;
+      let alpha = -Infinity;
+      moves.sort(orderMoves);
+      for (let i = 0; i < moves.length; i++) {
+        const m = moves[i];
+        const next = applyMove(board, m.idx, m.flips, player);
+        const score = -negamax(next, 3 - player, depth - 1, -Infinity, -alpha, exact, cfg.greedy);
+        if (score > bestScore) {
+          bestScore = score;
+          best = m;
+          if (score > alpha) alpha = score;
+        }
+      }
+      return best;
+    }
+    // ========================================================= engine end ===
+
+    // ------------------------------------------------------------ page ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const p1Panel = document.getElementById('p1Panel');
+    const p2Panel = document.getElementById('p2Panel');
+    const p1Label = document.getElementById('p1Label');
+    const p2Label = document.getElementById('p2Label');
+    const p1Score = document.getElementById('p1Score');
+    const p2Score = document.getElementById('p2Score');
+    const streakEl = document.getElementById('streakEl');
+    const bestEl = document.getElementById('bestEl');
+    const startOverlay = document.getElementById('startOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const diffWrap = document.getElementById('diffWrap');
+    const diffNote = document.getElementById('diffNote');
+    const modeBlurb = document.getElementById('modeBlurb');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.getElementById('bottomBar');
+
+    const FLIP_MS = 260;
+    const FLIP_STAGGER = 45;
+    const DROP_MS = 180;
+    const CPU_PAUSE = 340;        // so a fast reply still reads as a reply
+
+    const DISC_COLORS = {
+      1: { face: '#00f2ff', edge: '#7ffcff', glow: 'rgba(0, 242, 255, 0.55)' },
+      2: { face: '#ff00aa', edge: '#ff8ad4', glow: 'rgba(255, 0, 170, 0.55)' }
+    };
+
+    let mode = 'solo';
+    let currentDifficulty = 'medium';
+    let board = startBoard();
+    let turn = BLACK;
+    let moves = [];               // legal moves for whoever is to play
+    let gameRunning = false;
+    let busy = false;             // CPU thinking or discs mid-flip
+    let lastMove = -1;
+    let streak = 0;
+    let runStartBest = 0;
+
+    let anim = null;              // { t, placed, flips: [{ idx, delay }], player }
+    let animationId = null;
+    let lastTime = 0;
+
+    let cellSize = 40;
+    let boardX = 0, boardY = 0;
+
+    // Audio, toast, best scores and fullscreen come from shared/arcade.js.
+    const initAudio = Arcade.initAudio;
+    function playTone(freq, type, duration, delay = 0, vol = 0.12) {
+      Arcade.playTone(freq, type, duration, delay, vol);
+    }
+
+    function playPlaceSound()   { playTone(320, 'sine', 0.07, 0, 0.07); }
+    function playFlipSound(n)   { playTone(420 + Math.min(n, 6) * 45, 'triangle', 0.06, 0, 0.05); }
+    function playPassSound()    { playTone(220, 'sine', 0.12, 0, 0.05); playTone(180, 'sine', 0.14, 0.1, 0.04); }
+    function playIllegalSound() { playTone(110, 'square', 0.05, 0, 0.045); }
+    function playWinSound()     { [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => playTone(f, 'sine', 0.26, i * 0.1)); }
+    function playLoseSound()    {
+      playTone(440, 'sawtooth', 0.2);
+      playTone(330, 'sawtooth', 0.25, 0.15);
+      playTone(220, 'sawtooth', 0.35, 0.3);
+    }
+
+    function showToast(text, color) {
+      Arcade.showToast(toast, text, color, 1200);
+    }
+
+    function toggleFullscreen() {
+      Arcade.toggleFullscreen();
+    }
+
+    // -------------------------------------------------------- best score ---
+    function getBestStreak() { return Arcade.bestScore(`reversiBest_${currentDifficulty}`); }
+    function setBestStreak(v) { Arcade.setBestScore(`reversiBest_${currentDifficulty}`, v); }
+
+    /** Whose side the human is on. In two-player mode both sides are human. */
+    function isHuman(player) {
+      return mode === 'duo' || player === BLACK;
+    }
+
+    function labelFor(player) {
+      if (mode === 'duo') return player === BLACK ? 'P1' : 'P2';
+      return player === BLACK ? 'You' : 'CPU';
+    }
+
+    // ------------------------------------------------------------ render ---
+    function resizeCanvas() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      const topOffset = Math.max(0, controlsBar.getBoundingClientRect().bottom - rect.top) + 10;
+      const bottomOffset = Math.max(0, rect.bottom - bottomBar.getBoundingClientRect().top) + 10;
+      const availW = rect.width * 0.94;
+      const availH = Math.max(120, rect.height - topOffset - bottomOffset);
+
+      cellSize = Math.min(availW / 8, availH / 8);
+      boardX = (rect.width - cellSize * 8) / 2;
+      boardY = topOffset + Math.max(0, (availH - cellSize * 8) / 2);
+      render();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function cellCentre(idx) {
+      return {
+        x: boardX + (idx % 8) * cellSize + cellSize / 2,
+        y: boardY + ((idx / 8) | 0) * cellSize + cellSize / 2
+      };
+    }
+
+    /** `squash` is 1 for a full disc and 0 edge-on, which is how a flip reads. */
+    function drawDisc(x, y, player, squash, scale) {
+      const c = DISC_COLORS[player];
+      const r = cellSize * 0.38 * (scale === undefined ? 1 : scale);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(Math.max(0.02, squash === undefined ? 1 : squash), 1);
+      ctx.shadowBlur = cellSize * 0.35;
+      ctx.shadowColor = c.glow;
+      ctx.fillStyle = c.face;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = c.edge;
+      ctx.lineWidth = Math.max(1, cellSize * 0.035);
+      ctx.stroke();
+
+      // A soft highlight so the disc reads as a disc and not a flat dot.
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(-r * 0.28, -r * 0.3, r * 0.34, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawBoard() {
+      const size = cellSize * 8;
+      ctx.save();
+      ctx.fillStyle = 'rgba(0, 242, 255, 0.05)';
+      ctx.strokeStyle = 'rgba(0, 242, 255, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(boardX, boardY, size, size, Math.max(6, cellSize * 0.15));
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(0, 242, 255, 0.18)';
+      ctx.lineWidth = 1;
+      for (let i = 1; i < 8; i++) {
+        ctx.beginPath();
+        ctx.moveTo(boardX + i * cellSize, boardY);
+        ctx.lineTo(boardX + i * cellSize, boardY + size);
+        ctx.moveTo(boardX, boardY + i * cellSize);
+        ctx.lineTo(boardX + size, boardY + i * cellSize);
+        ctx.stroke();
+      }
+
+      // The four star points, as on a real board.
+      ctx.fillStyle = 'rgba(0, 242, 255, 0.5)';
+      [[2, 2], [2, 6], [6, 2], [6, 6]].forEach(function (p) {
+        ctx.beginPath();
+        ctx.arc(boardX + p[0] * cellSize, boardY + p[1] * cellSize, Math.max(1.5, cellSize * 0.045), 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    function render() {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      drawBoard();
+
+      // Where the side to move may play, shown only for a human's turn.
+      if (gameRunning && !busy && isHuman(turn)) {
+        const c = DISC_COLORS[turn];
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = c.face;
+        ctx.lineWidth = Math.max(1.5, cellSize * 0.05);
+        moves.forEach(function (m) {
+          const p = cellCentre(m.idx);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, cellSize * 0.15, 0, Math.PI * 2);
+          ctx.stroke();
+        });
+        ctx.restore();
+      }
+
+      const flipping = {};
+      if (anim) anim.flips.forEach(function (f) { flipping[f.idx] = f; });
+
+      for (let i = 0; i < 64; i++) {
+        const v = board[i];
+        if (v === EMPTY) continue;
+        const p = cellCentre(i);
+
+        if (anim && i === anim.placed) {
+          const t = Math.min(1, anim.t / DROP_MS);
+          drawDisc(p.x, p.y, v, 1, 0.4 + 0.6 * (1 - Math.pow(1 - t, 3)));
+          continue;
+        }
+
+        const f = flipping[i];
+        if (f) {
+          const local = anim.t - f.delay;
+          if (local <= 0) {
+            drawDisc(p.x, p.y, 3 - v, 1);                 // not turned yet
+            continue;
+          }
+          if (local < FLIP_MS) {
+            const phase = local / FLIP_MS;
+            const shown = phase < 0.5 ? 3 - v : v;        // colour swaps edge-on
+            drawDisc(p.x, p.y, shown, Math.abs(Math.cos(phase * Math.PI)));
+            continue;
+          }
+        }
+        drawDisc(p.x, p.y, v, 1);
+      }
+
+      // A ring on the square just played, so the CPU's reply is findable.
+      if (lastMove >= 0 && !anim) {
+        const p = cellCentre(lastMove);
+        ctx.save();
+        ctx.strokeStyle = 'var(--gold)';
+        ctx.strokeStyle = '#ffd700';
+        ctx.globalAlpha = 0.9;
+        ctx.lineWidth = Math.max(1.5, cellSize * 0.045);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, cellSize * 0.45, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    function updateHUD() {
+      const c = counts(board);
+      p1Score.textContent = c.black;
+      p2Score.textContent = c.white;
+      p1Label.textContent = labelFor(BLACK);
+      p2Label.textContent = labelFor(WHITE);
+      p1Panel.classList.toggle('turn', gameRunning && turn === BLACK);
+      p2Panel.classList.toggle('turn', gameRunning && turn === WHITE);
+      streakEl.textContent = mode === 'solo' ? streak : '–';
+      bestEl.textContent = mode === 'solo' ? getBestStreak() : '–';
+    }
+
+    function gameLoop(timestamp) {
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min(timestamp - lastTime, 50);
+      lastTime = timestamp;
+
+      if (anim) {
+        anim.t += dt;
+        if (anim.t >= anim.duration) {
+          anim = null;
+          busy = false;
+          advance();
+        }
+      }
+
+      render();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    // -------------------------------------------------------------- flow ---
+    /**
+     * Hands the turn on: ends the game when neither side can move, passes for
+     * a side with nothing legal, and sets the CPU thinking when it is its go.
+     */
+    function advance() {
+      if (!gameRunning || anim) return;
+      moves = legalMoves(board, turn);
+
+      if (!moves.length) {
+        if (!hasMove(board, 3 - turn)) { endGame(); return; }
+        playPassSound();
+        // "must pass" reads right for every label — You, CPU, P1 and P2 alike.
+        showToast(`${labelFor(turn)} must pass`, '#ffd700');
+        turn = 3 - turn;
+        moves = legalMoves(board, turn);
+        updateHUD();
+      }
+
+      updateHUD();
+      if (!isHuman(turn)) {
+        busy = true;
+        // Yield first so the board repaints before the search blocks the thread.
+        setTimeout(function () {
+          const move = chooseMove(board, turn, currentDifficulty);
+          if (!move) { busy = false; advance(); return; }
+          busy = false;
+          playMove(move);
+        }, CPU_PAUSE);
+      }
+    }
+
+    function playMove(move) {
+      lastMove = move.idx;
+      const player = turn;
+      board = applyMove(board, move.idx, move.flips, player);
+
+      // Flips ripple outward from the disc just placed.
+      const from = { x: move.idx % 8, y: (move.idx / 8) | 0 };
+      const flips = move.flips.map(function (idx) {
+        const d = Math.max(Math.abs(idx % 8 - from.x), Math.abs(((idx / 8) | 0) - from.y));
+        return { idx: idx, delay: DROP_MS * 0.5 + (d - 1) * FLIP_STAGGER };
+      });
+      const longest = flips.reduce(function (m, f) { return Math.max(m, f.delay); }, 0);
+
+      anim = { t: 0, placed: move.idx, flips: flips, duration: longest + FLIP_MS };
+      busy = true;
+      turn = 3 - player;
+
+      playPlaceSound();
+      playFlipSound(flips.length);
+      updateHUD();
+    }
+
+    function handleTap(clientX, clientY) {
+      if (!gameRunning || busy || !isHuman(turn)) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      const col = Math.floor((x - boardX) / cellSize);
+      const row = Math.floor((y - boardY) / cellSize);
+      if (col < 0 || col > 7 || row < 0 || row > 7) return;
+
+      const idx = row * 8 + col;
+      const move = moves.find(function (m) { return m.idx === idx; });
+      if (!move) { playIllegalSound(); return; }
+      initAudio();
+      playMove(move);
+    }
+
+    canvas.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      initAudio();
+      handleTap(e.clientX, e.clientY);
+    });
+
+    function cornerCount(player) {
+      return [0, 7, 56, 63].filter(function (i) { return board[i] === player; }).length;
+    }
+
+    function endGame() {
+      gameRunning = false;
+      busy = false;
+      cancelAnimationFrame(animationId);
+      const c = counts(board);
+      const youWon = c.black > c.white;
+      const drawn = c.black === c.white;
+
+      let isBest = false;
+      if (mode === 'solo') {
+        if (youWon) {
+          streak++;
+          if (streak > getBestStreak()) { setBestStreak(streak); isBest = true; }
+        } else {
+          streak = 0;
+        }
+      }
+
+      document.getElementById('winTitle').textContent = mode === 'duo'
+        ? (drawn ? '🤝 Drawn Game' : (youWon ? '🔵 Player 1 Wins!' : '🟣 Player 2 Wins!'))
+        : (drawn ? '🤝 Drawn Game' : (youWon ? '🏆 You Win!' : '🤖 CPU Wins'));
+      document.getElementById('finalBlurb').textContent = c.empty
+        ? 'Neither side had a legal move.'
+        : 'Board full.';
+      document.getElementById('finalScore').textContent = `${c.black} – ${c.white}`;
+      document.getElementById('finalCorners').textContent = `${cornerCount(BLACK)} – ${cornerCount(WHITE)}`;
+      document.getElementById('finalStreak').textContent = mode === 'solo' ? streak : '–';
+      document.getElementById('finalBest').textContent = mode === 'solo' ? getBestStreak() : '–';
+      document.getElementById('newBestTag').style.display = isBest ? 'block' : 'none';
+
+      if (youWon || drawn) playWinSound(); else playLoseSound();
+      if (isBest) setTimeout(function () { Arcade.playBestJingle(); }, 320);
+
+      updateHUD();
+      render();
+      gameOverOverlay.classList.remove('hidden');
+    }
+
+    // ---------------------------------------------------------- controls ---
+    function setMode(next) {
+      mode = next;
+      document.querySelectorAll('#modeBar button').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.mode === next);
+      });
+      diffWrap.classList.toggle('dimmed', next === 'duo');
+      modeBlurb.textContent = next === 'duo'
+        ? 'Two players, one board. Trap a line of the other colour between two of yours and it all turns over.'
+        : "Trap a line of your opponent's discs between two of yours and the whole line turns. Most discs when the board fills wins.";
+      streak = next === 'solo' ? streak : 0;
+      updateHUD();
+    }
+
+    function setDifficulty(diff) {
+      currentDifficulty = diff;
+      document.querySelectorAll('#difficultyBar button').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.diff === diff);
+      });
+      diffNote.textContent = CPU_LEVELS[diff].note;
+      streak = 0;
+      updateHUD();
+    }
+
+    function showStartOverlay() {
+      gameRunning = false;
+      busy = false;
+      cancelAnimationFrame(animationId);
+      gameOverOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+      updateHUD();
+    }
+
+    function startGame() {
+      initAudio();
+      cancelAnimationFrame(animationId);
+      board = startBoard();
+      turn = BLACK;
+      lastMove = -1;
+      anim = null;
+      busy = false;
+      gameRunning = true;
+      runStartBest = getBestStreak();
+
+      startOverlay.classList.add('hidden');
+      gameOverOverlay.classList.add('hidden');
+      hintLine.textContent = mode === 'duo'
+        ? 'Player 1 is cyan and moves first'
+        : 'Tap a glowing square to place a disc';
+
+      moves = legalMoves(board, turn);
+      updateHUD();
+      resizeCanvas();
+      lastTime = 0;
+      animationId = requestAnimationFrame(gameLoop);
+      advance();
+    }
+
+    Arcade.wireFullscreen(fullscreenBtn, resizeCanvas);
+
+    try {
+      setMode('solo');
+      setDifficulty('medium');
+      updateHUD();
+      resizeCanvas();
+    } catch (err) {
+      console.error('Neon Reversi init failed:', err);
+    }
+  </script>
+</body>
+</html>

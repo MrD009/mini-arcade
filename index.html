@@ -880,6 +880,20 @@
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
+
+    <a href="games/reversi/index.html" class="game-card" data-game="reversi" data-cat="brain">
+      <span class="favorite-tag">🔥 Favorite</span>
+      <div class="card-content">
+        <span class="game-icon">⚫</span>
+        <h2 class="game-title">Neon Reversi</h2>
+        <p class="game-desc">Trap a line of discs and the whole line turns. The arcade's first opponent that actually thinks — three CPU strengths, or pass the phone for two players.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
   </main>
 
   <button class="to-top" id="toTop" type="button" onclick="scrollToTop()" aria-label="Back to top">↑</button>
@@ -1048,7 +1062,10 @@
         } catch (err) {
           return total;
         }
-      }, 0)
+      }, 0),
+      // Reversi's "best" is the longest run of wins against the CPU.
+      reversi: () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
+        parseInt(localStorage.getItem(`reversiBest_${d}`) || '0', 10)))
     };
 
     // ---- Play counts ----
