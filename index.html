@@ -950,6 +950,20 @@
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
+
+    <a href="games/connect-four/index.html" class="game-card" data-game="connect-four" data-cat="strategy">
+      <span class="favorite-tag">🔥 Favorite</span>
+      <div class="card-content">
+        <span class="game-icon">🔴</span>
+        <h2 class="game-title">Neon Connect Four</h2>
+        <p class="game-desc">Drop discs down the grid and race to line up four. A CPU that reads the threats and blocks them — three strengths, or pass the phone for two players.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
   </main>
 
   <button class="to-top" id="toTop" type="button" onclick="scrollToTop()" aria-label="Back to top">↑</button>
@@ -1132,7 +1146,10 @@
       // which the game mirrors into one key of its own.
       rhythm: () => parseInt(localStorage.getItem('rhythmBest') || '0', 10),
       // Chain Reaction's "best" is the longest run of wins against the CPU.
-      'chain-reaction': () => parseInt(localStorage.getItem('chainBest') || '0', 10)
+      'chain-reaction': () => parseInt(localStorage.getItem('chainBest') || '0', 10),
+      // Connect Four's "best" is the longest run of wins against the CPU.
+      'connect-four': () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
+        parseInt(localStorage.getItem(`connect4Best_${d}`) || '0', 10)))
     };
 
     // ---- Play counts ----

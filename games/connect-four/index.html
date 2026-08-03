@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🔴 Neon Connect Four | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    /* Width of this game's play column; the rest of the chrome is
+       inherited from the shared arcade sheet. */
+    :root { --play-max: 520px; }
+
+    #gameCanvas {
+      background: radial-gradient(ellipse at top, #10162a 0%, #050510 100%);
+    }
+
+    /* Specific to this game. */
+    .hud-panel.you strong { color: var(--accent); }
+    .hud-panel.them strong { color: var(--accent2); }
+
+    /* The side whose turn it is gets the lit border. */
+    .hud-panel.turn {
+      border-color: var(--gold);
+      box-shadow: 0 0 12px rgba(255, 215, 0, 0.35);
+    }
+
+    .mode-bar {
+      display: flex;
+      gap: 6px;
+      margin: 12px 0 2px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .mode-bar button {
+      padding: 8px 16px;
+      font-size: 0.78rem;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .mode-bar button.active {
+      background: rgba(255, 0, 170, 0.15);
+      border-color: var(--accent2);
+      box-shadow: 0 0 10px rgba(255, 0, 170, 0.25);
+    }
+
+    /* Difficulty is the CPU's, so two-player mode has nothing to set. */
+    .diff-wrap { transition: opacity 0.2s; }
+    .diff-wrap.dimmed { opacity: 0.35; pointer-events: none; }
+
+    .overlay .stats { max-width: 300px; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel you" id="p1Panel">
+        <span id="p1Label">You</span>
+        <strong id="p1Score">0</strong>
+      </div>
+      <div class="hud-panel them" id="p2Panel">
+        <span id="p2Label">CPU</span>
+        <strong id="p2Score">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Streak</span>
+        <strong id="streakEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Best</span>
+        <strong id="bestEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button onclick="showStartOverlay()">Restart</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar" id="bottomBar">
+      <div class="hint-line" id="hintLine">Tap a column to drop a disc</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Column full!</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🔴 Neon Connect Four</h1>
+    <p id="modeBlurb">Drop discs down the grid and be the first to line up four — across, down, or on the diagonal. Gravity does the stacking; you only pick the column.</p>
+
+    <div class="mode-bar" id="modeBar">
+      <button data-mode="solo" onclick="setMode('solo')">👤 1 Player</button>
+      <button data-mode="duo" onclick="setMode('duo')">👥 2 Players</button>
+    </div>
+
+    <div class="diff-wrap" id="diffWrap">
+      <div class="difficulty-bar" id="difficultyBar">
+        <button data-diff="easy" onclick="setDifficulty('easy')">Easy</button>
+        <button data-diff="medium" onclick="setDifficulty('medium')">Medium</button>
+        <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
+      </div>
+      <div class="diff-note" id="diffNote"></div>
+    </div>
+
+    <div class="legend">
+      <span>🔵 You move first</span>
+      <span>↳ Discs stack up</span>
+      <span>4️⃣ In a row wins</span>
+    </div>
+
+    <button class="primary" onclick="startGame()">▶ Start Game</button>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <h1 id="winTitle">🏆 You Win!</h1>
+    <p class="new-best" id="newBestTag">🏆 Longest Win Streak!</p>
+    <p id="finalBlurb">Four in a row.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalResult">You</div>
+        <div class="lbl">Result</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalMoves">0</div>
+        <div class="lbl">Discs Played</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalStreak">0</div>
+        <div class="lbl">Win Streak</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalBest">0</div>
+        <div class="lbl">Best Streak</div>
+      </div>
+    </div>
+    <button class="primary" onclick="startGame()">Play Again</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Mode</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    // ======================================================= engine start ===
+    /*
+     * Connect Four rules and the CPU, kept free of the DOM so the whole thing
+     * can be lifted out and played against itself offline.
+     *
+     * The board is a flat array, row 0 at the top. A drop falls to the lowest
+     * empty cell in its column, which is how gravity is modelled.
+     */
+    const COLS = 7, ROWS = 6, CELLS = COLS * ROWS;
+    const EMPTY = 0, P1 = 1, P2 = 2;
+    const NEED = 4;               // discs in a row to win
+
+    /* Centre-out column order: the middle column touches the most winning
+       lines, so trying it first makes alpha-beta prune far more aggressively. */
+    const COL_ORDER = [3, 2, 4, 1, 5, 0, 6];
+
+    /*
+     * Every length-4 window on the board, precomputed once as arrays of cell
+     * indices. Both the win check and the heuristic walk these instead of
+     * re-deriving the geometry on every call.
+     */
+    const LINES = (function () {
+      const out = [];
+      const dirs = [[1, 0], [0, 1], [1, 1], [1, -1]];
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          for (let d = 0; d < 4; d++) {
+            const dx = dirs[d][0], dy = dirs[d][1];
+            const ex = c + dx * (NEED - 1), ey = r + dy * (NEED - 1);
+            if (ex < 0 || ex >= COLS || ey < 0 || ey >= ROWS) continue;
+            const line = [];
+            for (let k = 0; k < NEED; k++) line.push((r + dy * k) * COLS + (c + dx * k));
+            out.push(line);
+          }
+        }
+      }
+      return out;
+    })();
+
+    /** For each cell, the windows that pass through it — used to check a win
+        cheaply right after a drop instead of scanning the whole board. */
+    const LINES_THROUGH = (function () {
+      const out = [];
+      for (let i = 0; i < CELLS; i++) out.push([]);
+      LINES.forEach(function (line) {
+        line.forEach(function (idx) { out[idx].push(line); });
+      });
+      return out;
+    })();
+
+    function emptyBoard() { return new Int8Array(CELLS); }
+
+    /** Lowest empty row in a column, or -1 when the column is full. */
+    function dropRow(board, col) {
+      for (let r = ROWS - 1; r >= 0; r--) {
+        if (board[r * COLS + col] === EMPTY) return r;
+      }
+      return -1;
+    }
+
+    function validCols(board) {
+      const out = [];
+      for (let c = 0; c < COLS; c++) if (board[c] === EMPTY) out.push(c);
+      return out;
+    }
+
+    function isFull(board) {
+      for (let c = 0; c < COLS; c++) if (board[c] === EMPTY) return false;
+      return true;
+    }
+
+    /** The four cells of the win through `idx`, or null if the last drop there
+        did not complete one. */
+    function winLineAt(board, idx) {
+      const player = board[idx];
+      if (player === EMPTY) return null;
+      const lines = LINES_THROUGH[idx];
+      for (let l = 0; l < lines.length; l++) {
+        const line = lines[l];
+        if (board[line[0]] === player && board[line[1]] === player &&
+            board[line[2]] === player && board[line[3]] === player) {
+          return line;
+        }
+      }
+      return null;
+    }
+
+    // ------------------------------------------------------------ the CPU ---
+    /*
+     * Negamax with alpha-beta. Connect Four branches by at most seven, so the
+     * tree is shallow enough to search several plies exactly; the heuristic
+     * only stands in when the depth limit is hit before the game ends.
+     */
+    const WIN = 100000;
+
+    /*
+     * A window's worth to the side to move: three of ours with room to finish
+     * is a live threat, two is a start. The opponent's threats count for a
+     * touch more than ours so the search leans to blocking, which is what a
+     * human most wants the machine to do rather than walk into a four.
+     */
+    function scoreWindow(mine, theirs) {
+      if (mine && theirs) return 0;         // contested, nobody can use it
+      if (mine === 3) return 60;
+      if (mine === 2) return 8;
+      if (mine === 1) return 1;
+      if (theirs === 3) return -70;
+      if (theirs === 2) return -9;
+      if (theirs === 1) return -1;
+      return 0;
+    }
+
+    function evaluate(board, player) {
+      const opp = 3 - player;
+      let score = 0;
+
+      // Central discs feed the most lines, so they are worth holding.
+      for (let r = 0; r < ROWS; r++) {
+        const v = board[r * COLS + 3];
+        if (v === player) score += 6;
+        else if (v === opp) score -= 6;
+      }
+
+      for (let l = 0; l < LINES.length; l++) {
+        const line = LINES[l];
+        let mine = 0, theirs = 0;
+        for (let k = 0; k < NEED; k++) {
+          const v = board[line[k]];
+          if (v === player) mine++;
+          else if (v === opp) theirs++;
+        }
+        score += scoreWindow(mine, theirs);
+      }
+      return score;
+    }
+
+    /**
+     * Value of the position to `player`, searching `depth` plies. Wins are
+     * scored nearer to zero the deeper they are, so the CPU takes the quickest
+     * win and postpones an unavoidable loss — the difference between a machine
+     * that gives up and one that makes you finish the job.
+     */
+    function negamax(board, player, depth, alpha, beta) {
+      const opp = 3 - player;
+      const cols = validCols(board);
+      if (!cols.length) return 0;                      // drawn, board full
+      if (depth <= 0) return evaluate(board, player);
+
+      let best = -Infinity;
+      for (let i = 0; i < COL_ORDER.length; i++) {
+        const col = COL_ORDER[i];
+        const row = dropRow(board, col);
+        if (row < 0) continue;
+        const idx = row * COLS + col;
+        board[idx] = player;
+        let score;
+        if (winLineAt(board, idx)) {
+          score = WIN - (12 - depth);                  // sooner is better
+        } else {
+          score = -negamax(board, opp, depth - 1, -beta, -alpha);
+        }
+        board[idx] = EMPTY;
+        if (score > best) best = score;
+        if (best > alpha) alpha = best;
+        if (alpha >= beta) break;
+      }
+      return best;
+    }
+
+    /*
+     * `depth` is [opening, endgame]: once enough discs are down the tree
+     * narrows and the same search reaches further, so the CPU is told to look
+     * deeper late — which is also where a missed threat actually loses.
+     */
+    const CPU_LEVELS = {
+      easy:   { depth: [2, 2], blunder: 0.45,
+                note: '🌱 Blocks the obvious and not much more.' },
+      medium: { depth: [5, 6], blunder: 0.10,
+                note: '⚔️ Sees a few moves ahead and sets small traps.' },
+      hard:   { depth: [7, 9], blunder: 0,
+                note: '🔥 Reads deep threats and rarely lets a four slip.' }
+    };
+
+    /** A single-drop win or an immediate block, found without the full search —
+        so even a blundering Easy still refuses the most glaring mistakes. */
+    function tacticalMove(board, player) {
+      const opp = 3 - player;
+      const cols = validCols(board);
+      for (let s = 0; s < 2; s++) {
+        const who = s === 0 ? player : opp;            // win first, then block
+        for (let i = 0; i < cols.length; i++) {
+          const col = cols[i];
+          const row = dropRow(board, col);
+          const idx = row * COLS + col;
+          board[idx] = who;
+          const win = winLineAt(board, idx);
+          board[idx] = EMPTY;
+          if (win) return col;
+        }
+      }
+      return -1;
+    }
+
+    function chooseMove(board, player, level, rng) {
+      const cfg = CPU_LEVELS[level];
+      const cols = validCols(board);
+      if (!cols.length) return -1;
+      if (cols.length === 1) return cols[0];
+
+      // A win now, or a forced block, is never worth gambling on.
+      const forced = tacticalMove(board, player);
+      if (forced >= 0) return forced;
+
+      const random = rng || Math.random;
+      if (cfg.blunder && random() < cfg.blunder) {
+        return cols[Math.floor(random() * cols.length)];
+      }
+
+      let filled = 0;
+      for (let i = 0; i < CELLS; i++) if (board[i] !== EMPTY) filled++;
+      const depth = filled < 12 ? cfg.depth[0] : cfg.depth[1];
+
+      let best = -1, bestScore = -Infinity, alpha = -Infinity;
+      for (let i = 0; i < COL_ORDER.length; i++) {
+        const col = COL_ORDER[i];
+        const row = dropRow(board, col);
+        if (row < 0) continue;
+        const idx = row * COLS + col;
+        board[idx] = player;
+        let score;
+        if (winLineAt(board, idx)) score = WIN;
+        else score = -negamax(board, 3 - player, depth - 1, -Infinity, -alpha);
+        board[idx] = EMPTY;
+        if (score > bestScore) {
+          bestScore = score;
+          best = col;
+          if (score > alpha) alpha = score;
+        }
+      }
+      return best;
+    }
+    // ========================================================= engine end ===
+
+    // ------------------------------------------------------------ page ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const p1Panel = document.getElementById('p1Panel');
+    const p2Panel = document.getElementById('p2Panel');
+    const p1Label = document.getElementById('p1Label');
+    const p2Label = document.getElementById('p2Label');
+    const p1Score = document.getElementById('p1Score');
+    const p2Score = document.getElementById('p2Score');
+    const streakEl = document.getElementById('streakEl');
+    const bestEl = document.getElementById('bestEl');
+    const startOverlay = document.getElementById('startOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const diffWrap = document.getElementById('diffWrap');
+    const diffNote = document.getElementById('diffNote');
+    const modeBlurb = document.getElementById('modeBlurb');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.getElementById('bottomBar');
+
+    const CPU_PAUSE = 340;        // so a fast reply still reads as a reply
+    const GRAVITY = 2600;         // px/s^2 for the falling disc
+
+    const DISC_COLORS = {
+      1: { face: '#00f2ff', edge: '#7ffcff', glow: 'rgba(0, 242, 255, 0.55)' },
+      2: { face: '#ff00aa', edge: '#ff8ad4', glow: 'rgba(255, 0, 170, 0.55)' }
+    };
+
+    let mode = 'solo';
+    let currentDifficulty = 'medium';
+    let board = emptyBoard();
+    let turn = P1;
+    let gameRunning = false;
+    let busy = false;             // CPU thinking or a disc mid-drop
+    let moveCount = 0;
+    let streak = 0;
+    let hoverCol = -1;            // column the pointer is over, for the ghost disc
+    let winLine = null;           // the four winning cells, once found
+    let winFlash = 0;             // pulse phase for the winning line
+
+    let drop = null;              // { col, row, player, y, vy, targetY, onland }
+    let animationId = null;
+    let lastTime = 0;
+
+    let cellSize = 40;
+    let boardX = 0, boardY = 0;   // top-left of the playable grid
+    let topPad = 0;               // room above the grid for the falling disc
+
+    // Audio, toast, best scores and fullscreen come from shared/arcade.js.
+    const initAudio = Arcade.initAudio;
+    function playTone(freq, type, duration, delay = 0, vol = 0.12) {
+      Arcade.playTone(freq, type, duration, delay, vol);
+    }
+
+    function playDropSound()    { playTone(300, 'sine', 0.08, 0, 0.06); }
+    function playLandSound()    { playTone(180, 'triangle', 0.09, 0, 0.06); playTone(120, 'sine', 0.12, 0.02, 0.05); }
+    function playIllegalSound() { playTone(110, 'square', 0.05, 0, 0.045); }
+    function playWinSound()     { [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => playTone(f, 'sine', 0.26, i * 0.1)); }
+    function playLoseSound()    {
+      playTone(440, 'sawtooth', 0.2);
+      playTone(330, 'sawtooth', 0.25, 0.15);
+      playTone(220, 'sawtooth', 0.35, 0.3);
+    }
+
+    function showToast(text, color) {
+      Arcade.showToast(toast, text, color, 1200);
+    }
+
+    function toggleFullscreen() {
+      Arcade.toggleFullscreen();
+    }
+
+    // -------------------------------------------------------- best score ---
+    function getBestStreak() { return Arcade.bestScore(`connect4Best_${currentDifficulty}`); }
+    function setBestStreak(v) { Arcade.setBestScore(`connect4Best_${currentDifficulty}`, v); }
+
+    /** Whose side the human is on. In two-player mode both sides are human. */
+    function isHuman(player) {
+      return mode === 'duo' || player === P1;
+    }
+
+    function labelFor(player) {
+      if (mode === 'duo') return player === P1 ? 'P1' : 'P2';
+      return player === P1 ? 'You' : 'CPU';
+    }
+
+    function discCount(player) {
+      let n = 0;
+      for (let i = 0; i < CELLS; i++) if (board[i] === player) n++;
+      return n;
+    }
+
+    // ------------------------------------------------------------ render ---
+    function resizeCanvas() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      const topOffset = Math.max(0, controlsBar.getBoundingClientRect().bottom - rect.top) + 10;
+      const bottomOffset = Math.max(0, rect.bottom - bottomBar.getBoundingClientRect().top) + 10;
+      const availW = rect.width * 0.94;
+      const availH = Math.max(120, rect.height - topOffset - bottomOffset);
+
+      // Leave a row's worth of headroom for the disc to fall from.
+      cellSize = Math.min(availW / COLS, availH / (ROWS + 1));
+      const gridW = cellSize * COLS;
+      const gridH = cellSize * ROWS;
+      topPad = cellSize;
+      boardX = (rect.width - gridW) / 2;
+      boardY = topOffset + Math.max(0, (availH - gridH - topPad)) / 2 + topPad;
+      render();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function cellCentre(row, col) {
+      return {
+        x: boardX + col * cellSize + cellSize / 2,
+        y: boardY + row * cellSize + cellSize / 2
+      };
+    }
+
+    function drawDisc(x, y, player, scale) {
+      const c = DISC_COLORS[player];
+      const r = cellSize * 0.4 * (scale === undefined ? 1 : scale);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.shadowBlur = cellSize * 0.35;
+      ctx.shadowColor = c.glow;
+      ctx.fillStyle = c.face;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = c.edge;
+      ctx.lineWidth = Math.max(1, cellSize * 0.035);
+      ctx.stroke();
+
+      // A soft highlight so the disc reads as a disc and not a flat dot.
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(-r * 0.28, -r * 0.3, r * 0.34, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    /* The grid is drawn as a solid neon panel with the cells punched out, so
+       the discs sit behind the board and show through the holes — the look of
+       the real thing. */
+    function drawBoard() {
+      const gridW = cellSize * COLS;
+      const gridH = cellSize * ROWS;
+      const hole = cellSize * 0.4;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(boardX, boardY, gridW, gridH, Math.max(8, cellSize * 0.2));
+      // Punch the holes as counter-clockwise sub-paths (even-odd fill).
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const p = cellCentre(r, c);
+          ctx.moveTo(p.x + hole, p.y);
+          ctx.arc(p.x, p.y, hole, 0, Math.PI * 2, true);
+        }
+      }
+      ctx.fillStyle = 'rgba(0, 242, 255, 0.08)';
+      ctx.fill('evenodd');
+
+      ctx.strokeStyle = 'rgba(0, 242, 255, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(boardX, boardY, gridW, gridH, Math.max(8, cellSize * 0.2));
+      ctx.stroke();
+
+      // Thin ring around each hole.
+      ctx.strokeStyle = 'rgba(0, 242, 255, 0.22)';
+      ctx.lineWidth = 1;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const p = cellCentre(r, c);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, hole, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
+    function render() {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      // Settled discs first, so the board's holes frame them.
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const v = board[r * COLS + c];
+          if (v === EMPTY) continue;
+          const p = cellCentre(r, c);
+          drawDisc(p.x, p.y, v, 1);
+        }
+      }
+
+      // The disc currently falling is not on the board yet.
+      if (drop) drawDisc(cellCentre(0, drop.col).x, drop.y, drop.player, 1);
+
+      drawBoard();
+
+      // Where the human's next disc would land: a marker over the column plus a
+      // faint ghost in the slot it would fill.
+      if (gameRunning && !busy && !drop && isHuman(turn) && hoverCol >= 0) {
+        const row = dropRow(board, hoverCol);
+        if (row >= 0) {
+          const c = DISC_COLORS[turn];
+          const top = cellCentre(0, hoverCol);
+          ctx.save();
+          ctx.globalAlpha = 0.85;
+          ctx.fillStyle = c.face;
+          ctx.beginPath();
+          const ay = boardY - cellSize * 0.5;
+          ctx.moveTo(top.x, ay + cellSize * 0.24);
+          ctx.lineTo(top.x - cellSize * 0.16, ay - cellSize * 0.06);
+          ctx.lineTo(top.x + cellSize * 0.16, ay - cellSize * 0.06);
+          ctx.closePath();
+          ctx.fill();
+
+          const slot = cellCentre(row, hoverCol);
+          ctx.globalAlpha = 0.22;
+          ctx.beginPath();
+          ctx.arc(slot.x, slot.y, cellSize * 0.34, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      // The winning four, pulsing.
+      if (winLine) {
+        const a = 0.55 + 0.4 * Math.sin(winFlash);
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = '#ffd700';
+        ctx.shadowBlur = cellSize * 0.5;
+        ctx.shadowColor = 'rgba(255, 215, 0, 0.9)';
+        ctx.lineWidth = Math.max(2, cellSize * 0.06);
+        winLine.forEach(function (idx) {
+          const p = cellCentre((idx / COLS) | 0, idx % COLS);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, cellSize * 0.44, 0, Math.PI * 2);
+          ctx.stroke();
+        });
+        const a0 = cellCentre((winLine[0] / COLS) | 0, winLine[0] % COLS);
+        const a3 = cellCentre((winLine[3] / COLS) | 0, winLine[3] % COLS);
+        ctx.beginPath();
+        ctx.moveTo(a0.x, a0.y);
+        ctx.lineTo(a3.x, a3.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    function updateHUD() {
+      p1Score.textContent = discCount(P1);
+      p2Score.textContent = discCount(P2);
+      p1Label.textContent = labelFor(P1);
+      p2Label.textContent = labelFor(P2);
+      p1Panel.classList.toggle('turn', gameRunning && turn === P1);
+      p2Panel.classList.toggle('turn', gameRunning && turn === P2);
+      streakEl.textContent = mode === 'solo' ? streak : '–';
+      bestEl.textContent = mode === 'solo' ? getBestStreak() : '–';
+    }
+
+    function gameLoop(timestamp) {
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min(timestamp - lastTime, 50) / 1000;
+      lastTime = timestamp;
+
+      if (drop) {
+        drop.vy += GRAVITY * dt;
+        drop.y += drop.vy * dt;
+        if (drop.y >= drop.targetY) {
+          drop.y = drop.targetY;
+          const landed = drop;
+          drop = null;
+          landed.onland();
+        }
+      }
+
+      if (winLine) winFlash += dt * 6;
+
+      render();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    // -------------------------------------------------------------- flow ---
+    /**
+     * Drops the current player's disc into `col`, animating the fall and only
+     * settling it on the board once it lands. `after` runs when it settles.
+     */
+    function playColumn(col) {
+      const row = dropRow(board, col);
+      if (row < 0) return false;
+      const player = turn;
+      const idx = row * COLS + col;
+      busy = true;
+      moveCount++;
+      playDropSound();
+
+      drop = {
+        col: col,
+        player: player,
+        y: cellCentre(0, col).y - topPad,
+        vy: 0,
+        targetY: cellCentre(row, col).y,
+        onland: function () {
+          board[idx] = player;
+          playLandSound();
+          const line = winLineAt(board, idx);
+          if (line) { endGame(player, line); return; }
+          if (isFull(board)) { endGame(0, null); return; }
+          turn = 3 - player;
+          busy = false;
+          updateHUD();
+          maybeCpuTurn();
+        }
+      };
+      updateHUD();
+      return true;
+    }
+
+    /** Sets the CPU thinking when it is its turn. */
+    function maybeCpuTurn() {
+      if (!gameRunning || isHuman(turn)) return;
+      busy = true;
+      // Yield first so the board repaints before the search blocks the thread.
+      setTimeout(function () {
+        if (!gameRunning) return;
+        const col = chooseMove(board, turn, currentDifficulty);
+        if (col < 0) { busy = false; return; }
+        playColumn(col);
+      }, CPU_PAUSE);
+    }
+
+    function columnAt(clientX) {
+      const rect = canvas.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const col = Math.floor((x - boardX) / cellSize);
+      return col >= 0 && col < COLS ? col : -1;
+    }
+
+    function handleTap(clientX) {
+      if (!gameRunning || busy || drop || !isHuman(turn)) return;
+      const col = columnAt(clientX);
+      if (col < 0) return;
+      initAudio();
+      if (dropRow(board, col) < 0) {
+        playIllegalSound();
+        showToast('Column full!', '#ff2a2a');
+        return;
+      }
+      hoverCol = -1;
+      playColumn(col);
+    }
+
+    canvas.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      initAudio();
+      handleTap(e.clientX);
+    });
+
+    canvas.addEventListener('pointermove', function (e) {
+      if (!gameRunning || busy || drop || !isHuman(turn)) { return; }
+      const col = columnAt(e.clientX);
+      if (col !== hoverCol) hoverCol = col;
+    });
+
+    canvas.addEventListener('pointerleave', function () { hoverCol = -1; });
+
+    function endGame(winner, line) {
+      gameRunning = false;
+      busy = false;
+      winLine = line;
+      winFlash = 0;
+      const youWon = winner === P1;
+      const drawn = winner === 0;
+
+      let isBest = false;
+      if (mode === 'solo') {
+        if (youWon) {
+          streak++;
+          if (streak > getBestStreak()) { setBestStreak(streak); isBest = true; }
+        } else if (!drawn) {
+          streak = 0;
+        }
+      }
+
+      document.getElementById('winTitle').textContent = drawn
+        ? '🤝 Grid Full — Draw'
+        : mode === 'duo'
+          ? (winner === P1 ? '🔵 Player 1 Wins!' : '🟣 Player 2 Wins!')
+          : (youWon ? '🏆 You Win!' : '🤖 CPU Wins');
+      document.getElementById('finalBlurb').textContent = drawn
+        ? 'Every slot filled with no four in a row.'
+        : 'Four discs in a row.';
+      document.getElementById('finalResult').textContent = drawn
+        ? 'Draw' : labelFor(winner);
+      document.getElementById('finalMoves').textContent = moveCount;
+      document.getElementById('finalStreak').textContent = mode === 'solo' ? streak : '–';
+      document.getElementById('finalBest').textContent = mode === 'solo' ? getBestStreak() : '–';
+      document.getElementById('newBestTag').style.display = isBest ? 'block' : 'none';
+
+      if (youWon || (drawn && mode === 'solo')) playWinSound();
+      else if (mode === 'duo') playWinSound();
+      else playLoseSound();
+      if (isBest) setTimeout(function () { Arcade.playBestJingle(); }, 320);
+
+      updateHUD();
+      // Let the winning line pulse for a beat before the overlay covers it.
+      setTimeout(function () {
+        if (!gameRunning) gameOverOverlay.classList.remove('hidden');
+      }, line ? 1100 : 500);
+    }
+
+    // ---------------------------------------------------------- controls ---
+    function setMode(next) {
+      mode = next;
+      document.querySelectorAll('#modeBar button').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.mode === next);
+      });
+      diffWrap.classList.toggle('dimmed', next === 'duo');
+      modeBlurb.textContent = next === 'duo'
+        ? 'Two players, one grid. Take turns dropping discs and be the first to line up four in any direction.'
+        : 'Drop discs down the grid and be the first to line up four — across, down, or on the diagonal. Gravity does the stacking; you only pick the column.';
+      streak = next === 'solo' ? streak : 0;
+      updateHUD();
+    }
+
+    function setDifficulty(diff) {
+      currentDifficulty = diff;
+      document.querySelectorAll('#difficultyBar button').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.diff === diff);
+      });
+      diffNote.textContent = CPU_LEVELS[diff].note;
+      streak = 0;
+      updateHUD();
+    }
+
+    function showStartOverlay() {
+      gameRunning = false;
+      busy = false;
+      drop = null;
+      winLine = null;
+      cancelAnimationFrame(animationId);
+      gameOverOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+      updateHUD();
+    }
+
+    function startGame() {
+      initAudio();
+      cancelAnimationFrame(animationId);
+      board = emptyBoard();
+      turn = P1;
+      moveCount = 0;
+      drop = null;
+      winLine = null;
+      hoverCol = -1;
+      busy = false;
+      gameRunning = true;
+
+      startOverlay.classList.add('hidden');
+      gameOverOverlay.classList.add('hidden');
+      hintLine.textContent = mode === 'duo'
+        ? 'Player 1 is cyan and drops first'
+        : 'Tap a column to drop a disc';
+
+      updateHUD();
+      resizeCanvas();
+      lastTime = 0;
+      animationId = requestAnimationFrame(gameLoop);
+      maybeCpuTurn();
+    }
+
+    Arcade.wireFullscreen(fullscreenBtn, resizeCanvas);
+
+    try {
+      setMode('solo');
+      setDifficulty('medium');
+      updateHUD();
+      resizeCanvas();
+    } catch (err) {
+      console.error('Neon Connect Four init failed:', err);
+    }
+  </script>
+</body>
+</html>
