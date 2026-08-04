@@ -46,6 +46,50 @@
       border-radius: 10px; color: #eaf6ff; padding: 0;
     }
     .promo-btn:hover, .promo-btn:active { background: rgba(0,242,255,0.22); }
+
+    /* Learn mode */
+    .track-list { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 360px; margin: 4px 0 14px; }
+    .track-btn {
+      display: flex; align-items: center; gap: 12px; text-align: left;
+      padding: 12px 14px; background: var(--panel);
+      border: 1px solid rgba(0,242,255,0.22); border-radius: 12px; width: 100%;
+    }
+    .track-btn:hover { border-color: var(--accent); box-shadow: 0 0 12px rgba(0,242,255,0.2); }
+    .track-btn.done { border-color: var(--gold); }
+    .track-btn .tb-icon { font-size: 26px; line-height: 1; width: 30px; text-align: center; }
+    .track-btn .tb-main { flex: 1; min-width: 0; }
+    .track-btn .tb-name { display: block; font-weight: 700; color: #eaf6ff; font-size: 0.98rem; }
+    .track-btn .tb-blurb { display: block; font-size: 0.74rem; color: #9fb2d8; margin-top: 3px; line-height: 1.3; }
+    .track-btn .tb-prog { font-size: 0.72rem; color: var(--gold); white-space: nowrap; font-weight: 700; flex-shrink: 0; }
+
+    .learn-header {
+      width: min(94vw, var(--play-max)); box-sizing: border-box;
+      margin: 10px auto 0; pointer-events: none;
+      background: var(--panel); border: 1px solid rgba(0,242,255,0.25); border-radius: 12px;
+      padding: 8px 14px;
+    }
+    .learn-header .lh-top { display: flex; justify-content: space-between; font-size: 0.74rem; color: #9fb2d8; text-transform: uppercase; letter-spacing: 0.05em; }
+    .learn-header .lh-top #lhProgress { color: var(--gold); font-weight: 700; }
+    .learn-header .lh-theme { font-size: 1.05rem; font-weight: 700; color: var(--accent); margin-top: 2px; }
+
+    #learnBar { margin-top: 8px; }
+
+    .hint-line.good { color: #6effc0; font-weight: 700; }
+    .hint-line.bad { color: #ff8fb0; font-weight: 700; }
+
+    .reader {
+      max-width: 460px; width: 92vw; max-height: 74vh; overflow-y: auto;
+      text-align: left; background: rgba(10,14,28,0.6); border: 1px solid rgba(0,242,255,0.18);
+      border-radius: 14px; padding: 18px 20px; margin-bottom: 16px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .reader h2 { font-size: 1.5rem; color: var(--accent); margin: 0 0 4px; text-align: center; }
+    .reader h3 { font-size: 1rem; color: var(--gold); margin: 18px 0 6px; }
+    .reader p { font-size: 0.86rem; color: #cfe0f5; line-height: 1.5; margin: 6px 0; }
+    .reader ol, .reader ul { margin: 6px 0 6px 2px; padding-left: 18px; }
+    .reader li { font-size: 0.85rem; color: #cfe0f5; line-height: 1.45; margin: 5px 0; }
+    .reader li b { color: #eaf6ff; }
+    .reader .lead { text-align: center; color: #9fb2d8; font-size: 0.8rem; margin-bottom: 6px; }
   </style>
 </head>
 <body>
@@ -79,6 +123,18 @@
       <a href="../../index.html" style="text-decoration:none;">
         <button type="button">🏠 Home</button>
       </a>
+    </div>
+
+    <div class="learn-header hidden" id="learnHeader">
+      <div class="lh-top"><span id="lhTrack">Tactics</span><span id="lhProgress">1 / 6</span></div>
+      <div class="lh-theme" id="lhTheme">Knight Fork</div>
+    </div>
+
+    <div class="controls-bar hidden" id="learnBar">
+      <button id="hintBtn" onclick="learnHint()">💡 Hint</button>
+      <button id="solutionBtn" onclick="learnSolution()">👁 Solution</button>
+      <button id="nextBtn" onclick="learnNext()">Next ▶</button>
+      <button onclick="openLearn()">← Lessons</button>
     </div>
 
     <div class="bottom-bar" id="bottomBar">
@@ -120,6 +176,26 @@
     </div>
 
     <button class="primary" onclick="startGame()">▶ Start Game</button>
+    <div class="secondary-row">
+      <button onclick="openLearn()">📚 Learn to Play</button>
+    </div>
+  </div>
+
+  <!-- Learn: track chooser -->
+  <div class="overlay hidden" id="learnOverlay">
+    <h1>📚 Chess Academy</h1>
+    <p>From the very first move to a real player. Solve positions on the board — the game checks every answer. Work through the tracks in order, then read the roadmap to keep improving.</p>
+    <div class="track-list" id="trackList"></div>
+    <button class="primary" onclick="openPrinciples()">📖 Principles &amp; Roadmap to Pro</button>
+    <div class="secondary-row">
+      <button onclick="backToStart()">← Back</button>
+    </div>
+  </div>
+
+  <!-- Learn: principles / roadmap reading -->
+  <div class="overlay hidden" id="principlesOverlay">
+    <div class="reader" id="principlesReader"></div>
+    <button class="primary" onclick="openLearn()">← Back to Academy</button>
   </div>
 
   <div class="overlay hidden" id="gameOverOverlay">
@@ -284,6 +360,18 @@
       for(let i=0;i<pseudo.length;i++){ const u=make(st,pseudo[i]); if(!inCheck(st,me)) out.push(pseudo[i]); unmake(st,u); }
       return out;
     }
+
+    // Load a position from FEN — used by the Learn puzzles.
+    function loadFEN(fen){
+      const b=new Int8Array(64), parts=fen.split(' '), rows=parts[0].split('/');
+      const map={p:-WP,n:-WN,b:-WB,r:-WR,q:-WQ,k:-WK,P:WP,N:WN,B:WB,R:WR,Q:WQ,K:WK};
+      for(let r=0;r<8;r++){ let c=0; for(const ch of rows[r]){ if(ch>='1'&&ch<='8') c+=+ch; else { b[sqi(r,c)]=map[ch]; c++; } } }
+      const stm=parts[1]==='w'?1:-1, cr=parts[2]||'-';
+      const castle={K:cr.includes('K'),Q:cr.includes('Q'),k:cr.includes('k'),q:cr.includes('q')};
+      let ep=-1; if(parts[3]&&parts[3]!=='-'){ const f=parts[3].charCodeAt(0)-97, rank=+parts[3][1]; ep=sqi(8-rank,f); }
+      return { board:b, stm, castle, ep, half:+(parts[4]||0), full:+(parts[5]||1) };
+    }
+    function algToSq(s){ return sqi(8-(+s[1]), s.charCodeAt(0)-97); }
     // ========================================================= engine end ===
 
     // ========================================================== ai start ====
@@ -347,6 +435,88 @@
     }
     // ============================================================ ai end ====
 
+    // ======================================================= curriculum =====
+    // Every puzzle is White to move. The learner plays even indices of `line`;
+    // odd indices are the forced reply. All are engine-verified before ship.
+    const TRACKS = [
+      { id:'basics', name:'The Pieces', icon:'♙', blurb:'How every piece moves — plus castling.',
+        puzzles:[
+          { id:'b_rook', theme:'The Rook', prompt:'Capture the pawn with your rook.',
+            explain:'The rook moves any number of squares in straight lines — along ranks and files.',
+            fen:'4k3/p7/8/8/8/8/8/R3K3 w - - 0 1', line:[{from:'a1',to:'a7'}] },
+          { id:'b_bishop', theme:'The Bishop', prompt:'Capture the pawn with your bishop.',
+            explain:'The bishop slides diagonally, staying on one colour of square for the whole game.',
+            fen:'4k3/8/7p/8/8/8/8/2B1K3 w - - 0 1', line:[{from:'c1',to:'h6'}] },
+          { id:'b_queen', theme:'The Queen', prompt:'Capture the pawn with your queen.',
+            explain:'The queen is strongest of all: it moves like a rook and a bishop combined.',
+            fen:'4k3/8/8/8/p7/8/8/3QK3 w - - 0 1', line:[{from:'d1',to:'a4'}] },
+          { id:'b_knight', theme:'The Knight', prompt:'Capture the pawn with your knight.',
+            explain:'The knight hops in an L — two then one — and is the only piece that jumps over others.',
+            fen:'4k3/8/5p2/8/4N3/3PPP2/8/4K3 w - - 0 1', line:[{from:'e4',to:'f6'}] },
+          { id:'b_pawn', theme:'The Pawn', prompt:'Capture the pawn — pawns take diagonally.',
+            explain:'A pawn pushes straight but captures one square diagonally, and it never moves backward.',
+            fen:'4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1', line:[{from:'e4',to:'d5'}] },
+          { id:'b_king', theme:'The King', prompt:'Capture the pawn with your king.',
+            explain:'The king steps one square any direction. Keep it safe — no escape from check means you lose.',
+            fen:'4k3/8/8/4p3/4K3/8/8/8 w - - 0 1', line:[{from:'e4',to:'e5'}] },
+          { id:'b_castle', theme:'Castling', prompt:'Castle: tap the king, then its square two to the right.',
+            explain:'Castling jumps the king two squares toward a rook and tucks the rook beside it — quick safety.',
+            fen:'4k3/8/8/8/8/8/8/4K2R w K - 0 1', line:[{from:'e1',to:'g1'}] }
+        ]},
+      { id:'tactics', name:'Tactics', icon:'⚔️', blurb:'Forks, pins and skewers — moves that win material.',
+        puzzles:[
+          { id:'t_knightfork', theme:'Knight Fork', prompt:'Fork the king and queen with a check.',
+            explain:'A fork hits two pieces at once. Ne7+ checks the king and attacks the queen — next move you take it.',
+            fen:'2q3k1/8/2N5/8/8/8/8/4K3 w - - 0 1', line:[{from:'c6',to:'e7'}] },
+          { id:'t_pawnfork', theme:'Pawn Fork', prompt:'Push your pawn to attack both pieces.',
+            explain:'Even a pawn forks. e5 attacks the bishop and the knight together — one of them is lost.',
+            fen:'4k3/8/3b1n2/8/4P3/8/8/4K3 w - - 0 1', line:[{from:'e4',to:'e5'}] },
+          { id:'t_skewer', theme:'Skewer', prompt:'Check the king so the queen behind it falls.',
+            explain:'A skewer attacks a piece in front; when it moves, you win what stood behind. Bd5+ then Bxa8.',
+            fen:'q7/1k6/8/8/8/5B2/8/4K3 w - - 0 1', line:[{from:'f3',to:'d5'}] },
+          { id:'t_discovered', theme:'Discovered Check', prompt:'Move the knight to uncover a check — and hit the queen.',
+            explain:'The knight steps aside so the rook checks. The same move attacks the queen: Ng6+, then Nxh4.',
+            fen:'4k3/8/8/4N3/7q/8/8/4R1K1 w - - 0 1', line:[{from:'e5',to:'g6'}] },
+          { id:'t_double', theme:'Double Attack', prompt:'Attack both black pieces with one queen move.',
+            explain:'The queen’s reach lets it strike two targets. Qd4 attacks the rook and the bishop at once.',
+            fen:'4k3/r5b1/8/8/8/8/8/3QK3 w - - 0 1', line:[{from:'d1',to:'d4'}] },
+          { id:'t_pin', theme:'The Pin', prompt:'Win the knight — it is pinned to its king.',
+            explain:'The knight can’t move without exposing its king to the rook, so it can’t flee. exd5 wins it.',
+            fen:'3k4/8/8/3n4/4P3/8/3R4/4K3 w - - 0 1', line:[{from:'e4',to:'d5'}] }
+        ]},
+      { id:'mates', name:'Checkmates', icon:'♚', blurb:'The patterns that end the game.',
+        puzzles:[
+          { id:'m_backrank', theme:'Back-Rank Mate', prompt:'Deliver checkmate in one.',
+            explain:'The king is trapped behind its own pawns; the rook mates along the open back rank.',
+            fen:'6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1', line:[{from:'e1',to:'e8'}], mate:true },
+          { id:'m_scholar', theme:'Scholar’s Mate', prompt:'Checkmate in one — the four-move mate.',
+            explain:'The bishop guards f7 while the queen strikes. Qxf7# is the famous Scholar’s Mate.',
+            fen:'r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 1', line:[{from:'f3',to:'f7'}], mate:true },
+          { id:'m_ladder', theme:'Two-Rook Mate', prompt:'Checkmate in one with the rooks.',
+            explain:'One rook fences off the 7th rank while the other checks on the 8th — the ladder mate.',
+            fen:'k7/7R/8/8/8/8/8/6RK w - - 0 1', line:[{from:'g1',to:'g8'}], mate:true },
+          { id:'m_smother', theme:'Smothered Mate', prompt:'Checkmate in one with the knight.',
+            explain:'The king is smothered by its own pieces; only a knight can reach it. Nf7#.',
+            fen:'6rk/6pp/7N/8/8/8/8/6K1 w - - 0 1', line:[{from:'h6',to:'f7'}], mate:true },
+          { id:'m_mate2', theme:'Mate in Two', prompt:'Force mate in two — begin with a check.',
+            explain:'Qxf7+ forces the king to h8 (the rook guards f7). Then Qf8# finishes on the back rank.',
+            fen:'6k1/5ppp/8/8/8/1Q6/8/5RK1 w - - 0 1', line:[{from:'b3',to:'f7'},{from:'g8',to:'h8'},{from:'f7',to:'f8'}], mate:true }
+        ]},
+      { id:'endgame', name:'Endgame', icon:'♛', blurb:'Promote a pawn and deliver the basic mates.',
+        puzzles:[
+          { id:'e_promote', theme:'Promotion', prompt:'Promote your pawn — step it onto the last rank.',
+            explain:'A pawn reaching the far side becomes any piece — almost always a queen. Now the win is easy.',
+            fen:'4k3/P7/8/8/8/8/8/4K3 w - - 0 1', line:[{from:'a7',to:'a8',promo:5}], anyPromo:true },
+          { id:'e_kqmate', theme:'King + Queen Mate', prompt:'Checkmate the lone king in one.',
+            explain:'King and queen drive the enemy to the edge, then mate — the king guards the queen’s square.',
+            fen:'k7/8/1K6/8/8/8/6Q1/8 w - - 0 1', line:[{from:'g2',to:'g8'}], mate:true },
+          { id:'e_krmate', theme:'King + Rook Mate', prompt:'Checkmate the lone king in one.',
+            explain:'Kings in opposition, rook mates on the edge. This is the essential endgame to master.',
+            fen:'k7/8/K7/8/8/8/8/7R w - - 0 1', line:[{from:'h1',to:'h8'}], mate:true }
+        ]}
+    ];
+    // ==================================================== curriculum end =====
+
     // ------------------------------------------------------------ page ---
     const canvas=document.getElementById('gameCanvas');
     const ctx=canvas.getContext('2d');
@@ -360,6 +530,16 @@
     const fullscreenBtn=document.getElementById('fullscreenBtn'), controlsBar=document.getElementById('controlsBar'), bottomBar=document.getElementById('bottomBar');
     const undoBtn=document.getElementById('undoBtn');
     const promoOverlay=document.getElementById('promoOverlay'), promoRow=document.getElementById('promoRow');
+    const learnOverlay=document.getElementById('learnOverlay'), principlesOverlay=document.getElementById('principlesOverlay');
+    const trackList=document.getElementById('trackList'), principlesReader=document.getElementById('principlesReader');
+    const learnHeader=document.getElementById('learnHeader'), learnBar=document.getElementById('learnBar');
+    const lhTrack=document.getElementById('lhTrack'), lhProgress=document.getElementById('lhProgress'), lhTheme=document.getElementById('lhTheme');
+    const hintBtn=document.getElementById('hintBtn'), solutionBtn=document.getElementById('solutionBtn'), nextBtn=document.getElementById('nextBtn');
+    const hud=document.getElementById('hud');
+
+    // Learn mode state
+    let learnMode=false, learnTrackIdx=0, learnPuzzleIdx=0, learnPly=0, learnSolvedFlag=false, learnWrong=0, hintSquare=-1;
+    let learnSolved=(function(){ try { return JSON.parse(localStorage.getItem('chessLearn')||'{}'); } catch(e){ return {}; } })();
 
     const GLYPH={1:'♟',2:'♞',3:'♝',4:'♜',5:'♛',6:'♚'};
     const CPU_PAUSE=260, MOVE_MS=200;
@@ -407,7 +587,8 @@
     let cell=48, boardX=0, boardY=0;
     function resizeCanvas(){
       const rect=Arcade.fitCanvas(canvas,ctx);
-      const topOffset=Math.max(0,controlsBar.getBoundingClientRect().bottom-rect.top)+10;
+      const topBar = learnMode ? learnBar : controlsBar;
+      const topOffset=Math.max(0,topBar.getBoundingClientRect().bottom-rect.top)+10;
       const bottomOffset=Math.max(0,rect.bottom-bottomBar.getBoundingClientRect().top)+10;
       const availW=rect.width*0.96, availH=Math.max(120,rect.height-topOffset-bottomOffset);
       cell=Math.min(availW/8, availH/8);
@@ -502,10 +683,20 @@
         ctx.restore();
       }
 
-      // pieces (skip the one currently animating)
+      // hint ring (learn mode)
+      if(learnMode && hintSquare>=0){
+        const a=0.5+0.4*Math.sin(checkPulse);
+        ctx.save();
+        ctx.strokeStyle='rgba(255,215,0,'+a+')'; ctx.lineWidth=Math.max(2,cell*0.07);
+        ctx.shadowBlur=cell*0.3; ctx.shadowColor='rgba(255,215,0,0.8)';
+        ctx.strokeRect(boardX+colOf(hintSquare)*cell+3, boardY+rowOf(hintSquare)*cell+3, cell-6, cell-6);
+        ctx.restore();
+      }
+
+      // pieces (the piece in flight is drawn separately below)
       for(let s=0;s<64;s++){
         const p=state.board[s]; if(p===0) continue;
-        if(anim && s===anim.to) continue;
+        if(anim && s===anim.from) continue;
         const c=sqCentre(s);
         drawPiece(p, c.x, c.y);
       }
@@ -544,7 +735,7 @@
       if(!lastTime) lastTime=ts;
       const dt=Math.min(ts-lastTime,50); lastTime=ts;
       checkPulse+=dt/1000*5;
-      if(anim){ anim.t+=dt/MOVE_MS; if(anim.t>=1){ anim=null; onAnimDone(); } }
+      if(anim){ anim.t+=dt/MOVE_MS; if(anim.t>=1){ const after=anim.after; anim=null; if(after) after(); else onAnimDone(); } }
       render();
       animationId=requestAnimationFrame(gameLoop);
     }
@@ -632,6 +823,7 @@
 
     // ---------------------------------------------------------- input ---
     function onTap(px,py){
+      if(learnMode) return learnOnTap(px,py);
       if(!gameRunning || busy || anim || gameOverFlag) return;
       if(!isHuman(state.stm)) return;
       const s=sqAt(px,py); if(s<0) return;
@@ -656,8 +848,8 @@
       render();
     }
 
-    function openPromo(options){
-      pendingPromo=options;
+    function openPromo(options, onPick){
+      pendingPromo={ options, cb: onPick || beginMove };
       promoRow.innerHTML='';
       const order=[5,4,3,2];
       order.forEach(function(pt){
@@ -666,7 +858,7 @@
         btn.className='promo-btn';
         btn.textContent=GLYPH[pt];
         btn.style.color = state.stm===1 ? '#eef7ff' : '#ffb3e6';
-        btn.onclick=function(){ promoOverlay.classList.remove('show'); const chosen=pendingPromo.find(o=>o.promo===pt); pendingPromo=null; beginMove(chosen); };
+        btn.onclick=function(){ promoOverlay.classList.remove('show'); const chosen=pendingPromo.options.find(o=>o.promo===pt); const cb=pendingPromo.cb; pendingPromo=null; cb(chosen); };
         promoRow.appendChild(btn);
       });
       promoOverlay.classList.add('show');
@@ -751,9 +943,9 @@
     }
 
     function showStartOverlay(){
-      gameRunning=false; busy=false; anim=null; gameOverFlag=false;
+      gameRunning=false; busy=false; anim=null; gameOverFlag=false; learnMode=false;
       cancelAnimationFrame(animationId);
-      gameOverOverlay.classList.add('hidden'); promoOverlay.classList.remove('show');
+      showLearnChrome(false); hideAllOverlays();
       startOverlay.classList.remove('hidden');
       updateHUD();
     }
@@ -761,15 +953,240 @@
     function startGame(){
       initAudio();
       cancelAnimationFrame(animationId);
+      learnMode=false; hintSquare=-1; showLearnChrome(false);
       state=initialState();
       history=[]; posCounts={}; posCounts[posKey()]=1;
       selected=-1; legalFromSel=[]; lastMove=null; anim=null; animPending=null;
       busy=false; gameOverFlag=false; gameRunning=true;
-      startOverlay.classList.add('hidden'); gameOverOverlay.classList.add('hidden'); promoOverlay.classList.remove('show');
+      hideAllOverlays();
       hintLine.textContent = mode==='duo' ? 'White moves first — tap a piece' : 'Tap a piece, then tap where it goes';
       updateHUD(); resizeCanvas();
       lastTime=0; animationId=requestAnimationFrame(gameLoop);
     }
+
+    // -------------------------------------------------------- learn mode ---
+    function hideAllOverlays(){
+      [startOverlay, gameOverOverlay, learnOverlay, principlesOverlay].forEach(o=>o.classList.add('hidden'));
+      promoOverlay.classList.remove('show');
+    }
+    function showLearnChrome(on){
+      hud.classList.toggle('hidden', on);
+      controlsBar.classList.toggle('hidden', on);
+      learnHeader.classList.toggle('hidden', !on);
+      learnBar.classList.toggle('hidden', !on);
+    }
+    function curPuzzle(){ return TRACKS[learnTrackIdx].puzzles[learnPuzzleIdx]; }
+
+    function openLearn(){
+      learnMode=false; gameRunning=false; busy=false; anim=null; hintSquare=-1;
+      cancelAnimationFrame(animationId);
+      showLearnChrome(false); hideAllOverlays();
+      buildTrackList();
+      learnOverlay.classList.remove('hidden');
+    }
+    function backToStart(){ showStartOverlay(); }
+
+    function buildTrackList(){
+      trackList.innerHTML='';
+      TRACKS.forEach(function(tr, i){
+        const solved=tr.puzzles.filter(p=>learnSolved[p.id]).length, done=solved===tr.puzzles.length;
+        const btn=document.createElement('button');
+        btn.className='track-btn'+(done?' done':'');
+        btn.innerHTML='<span class="tb-icon">'+tr.icon+'</span>'+
+          '<span class="tb-main"><span class="tb-name">'+tr.name+'</span><span class="tb-blurb">'+tr.blurb+'</span></span>'+
+          '<span class="tb-prog">'+solved+'/'+tr.puzzles.length+(done?' ✓':'')+'</span>';
+        btn.onclick=function(){ openTrack(i); };
+        trackList.appendChild(btn);
+      });
+    }
+
+    function openTrack(i){
+      learnTrackIdx=i;
+      const tr=TRACKS[i];
+      let idx=tr.puzzles.findIndex(p=>!learnSolved[p.id]);
+      if(idx<0) idx=0;
+      loadPuzzle(idx);
+    }
+
+    function loadPuzzle(idx){
+      initAudio();
+      learnMode=true; learnPuzzleIdx=idx; learnPly=0; learnSolvedFlag=false; learnWrong=0;
+      hintSquare=-1; selected=-1; legalFromSel=[]; anim=null; animPending=null;
+      busy=false; gameOverFlag=false; gameRunning=true;
+      const tr=TRACKS[learnTrackIdx], p=tr.puzzles[idx];
+      state=loadFEN(p.fen); lastMove=null;
+      hideAllOverlays(); showLearnChrome(true);
+      lhTrack.textContent=tr.name;
+      lhProgress.textContent=(idx+1)+' / '+tr.puzzles.length;
+      lhTheme.textContent=p.theme;
+      hintLine.className='hint-line'; hintLine.textContent=p.prompt;
+      nextBtn.disabled=true; nextBtn.style.opacity='0.4';
+      hintBtn.disabled=false; hintBtn.style.opacity='1';
+      solutionBtn.disabled=false; solutionBtn.style.opacity='1';
+      resizeCanvas();
+      lastTime=0; cancelAnimationFrame(animationId); animationId=requestAnimationFrame(gameLoop);
+    }
+
+    function playLearnMove(move, after){
+      selected=-1; legalFromSel=[]; hintSquare=-1;
+      const piece = move.promo ? state.stm*move.promo : state.board[move.from];
+      const captured = move.ep || state.board[move.to]!==0;
+      anim={ piece, from:move.from, to:move.to, t:0, after:function(){
+        make(state, move);
+        lastMove={ from:move.from, to:move.to };
+        if(move.castle) sCastle(); else if(move.promo) sPromo(); else if(captured) sCap(); else sMove();
+        if(after) after();
+      }};
+    }
+
+    function learnOnTap(px,py){
+      if(!learnMode || anim || busy || learnSolvedFlag) return;
+      const s=sqAt(px,py); if(s<0) return;
+      const p=curPuzzle(), exp=p.line[learnPly];
+      if(selected>=0){
+        const targets=legalFromSel.filter(m=>m.to===s);
+        if(targets.length){
+          if(selected===algToSq(exp.from) && s===algToSq(exp.to)){
+            const promoTargets=targets.filter(m=>m.promo);
+            if(promoTargets.length){ openPromo(promoTargets, function(mv){ advanceLearner(mv); }); return; }
+            advanceLearner(targets[0]); return;
+          }
+          wrongMove(); return;
+        }
+      }
+      const pc=state.board[s];
+      if(pc!==0 && colorOf(pc)===state.stm){
+        selected=s; legalFromSel=legalMoves(state).filter(m=>m.from===s);
+        playTone(500,'sine',0.03,0,0.03);
+      } else { selected=-1; legalFromSel=[]; }
+      render();
+    }
+
+    function wrongMove(){
+      learnWrong++;
+      selected=-1; legalFromSel=[];
+      playTone(160,'sawtooth',0.12,0,0.06);
+      hintLine.className='hint-line bad';
+      hintLine.textContent = learnWrong>=2 ? 'Not quite — tap 💡 Hint for the piece to move.' : 'Not the move — try again.';
+      render();
+    }
+
+    function advanceLearner(mv){
+      hintSquare=-1;
+      playLearnMove(mv, function(){
+        learnPly++;
+        const p=curPuzzle();
+        if(learnPly < p.line.length){
+          const rep=p.line[learnPly];
+          const repMove=legalMoves(state).find(m=>m.from===algToSq(rep.from)&&m.to===algToSq(rep.to));
+          hintLine.className='hint-line good'; hintLine.textContent='Good move! The reply is forced…';
+          busy=true;
+          setTimeout(function(){
+            if(!repMove){ busy=false; return; }
+            playLearnMove(repMove, function(){
+              learnPly++; busy=false;
+              hintLine.className='hint-line'; hintLine.textContent='Your move — finish it.';
+              render();
+            });
+          }, 420);
+        } else {
+          solvePuzzle();
+        }
+      });
+    }
+
+    function solvePuzzle(){
+      learnSolvedFlag=true;
+      const p=curPuzzle();
+      if(!learnSolved[p.id]){ learnSolved[p.id]=true; try { localStorage.setItem('chessLearn', JSON.stringify(learnSolved)); } catch(e){} }
+      hintLine.className='hint-line good';
+      hintLine.textContent='✓ Solved! '+p.explain;
+      nextBtn.disabled=false; nextBtn.style.opacity='1';
+      sWin();
+      render();
+    }
+
+    function learnHint(){
+      if(!learnMode || anim || busy || learnSolvedFlag) return;
+      const exp=curPuzzle().line[learnPly];
+      hintSquare=algToSq(exp.from);
+      selected=hintSquare; legalFromSel=legalMoves(state).filter(m=>m.from===selected);
+      hintLine.className='hint-line'; hintLine.textContent='Move the glowing piece.';
+      render();
+    }
+
+    function learnSolution(){
+      if(!learnMode || anim || busy || learnSolvedFlag) return;
+      const p=curPuzzle();
+      selected=-1; legalFromSel=[]; hintSquare=-1;
+      solutionBtn.disabled=true; solutionBtn.style.opacity='0.4';
+      hintBtn.disabled=true; hintBtn.style.opacity='0.4';
+      busy=true;
+      (function step(){
+        if(learnPly>=p.line.length){
+          learnSolvedFlag=true; busy=false;
+          hintLine.className='hint-line'; hintLine.textContent='Solution: '+p.explain;
+          nextBtn.disabled=false; nextBtn.style.opacity='1'; render();
+          return;
+        }
+        const mv=p.line[learnPly];
+        const m=legalMoves(state).find(x=>x.from===algToSq(mv.from)&&x.to===algToSq(mv.to)&&(mv.promo?x.promo===mv.promo:true));
+        playLearnMove(m, function(){ learnPly++; setTimeout(step, 300); });
+      })();
+    }
+
+    function learnNext(){
+      if(nextBtn.disabled) return;
+      const tr=TRACKS[learnTrackIdx];
+      if(learnPuzzleIdx+1 < tr.puzzles.length){ loadPuzzle(learnPuzzleIdx+1); }
+      else { showToast('Track complete! 🎉','#ffd700'); openLearn(); }
+    }
+
+    function openPrinciples(){
+      hideAllOverlays();
+      if(!principlesReader.dataset.built){ principlesReader.innerHTML=PRINCIPLES_HTML; principlesReader.dataset.built='1'; }
+      principlesOverlay.classList.remove('hidden');
+    }
+
+    const PRINCIPLES_HTML = [
+      '<h2>Roadmap to Pro</h2>',
+      '<p class="lead">Improvement isn’t a secret — it’s a handful of habits, repeated.</p>',
+      '<ol>',
+      '<li><b>Learn how the pieces move</b> — done, if you cleared The Pieces track.</li>',
+      '<li><b>Never hang a piece.</b> Before every move ask: “Is anything of mine attacked?” This alone beats most beginners.</li>',
+      '<li><b>Drill tactics daily.</b> Most games are decided by a fork, pin or skewer. Repetition builds pattern recognition.</li>',
+      '<li><b>Follow the opening principles</b> below — you don’t need memorised lines to play a good opening.</li>',
+      '<li><b>Know the basic checkmates</b> (K+Q and K+R) and how to promote a pawn. You practised these in the Endgame track.</li>',
+      '<li><b>Play longer games, then review your losses.</b> Find the move that lost, and learn the lesson once.</li>',
+      '<li><b>Study a few master games.</b> Watch how strong players develop, castle, and convert small edges.</li>',
+      '</ol>',
+      '<h3>Before every move, ask three questions</h3>',
+      '<ul>',
+      '<li><b>Checks, captures, threats</b> — do I have any that win material or mate?</li>',
+      '<li><b>What did my opponent’s move threaten?</b> Answer the threat before you attack.</li>',
+      '<li><b>Is my move safe?</b> Does it leave a piece — or my king — undefended?</li>',
+      '</ul>',
+      '<h3>Opening principles</h3>',
+      '<ul>',
+      '<li><b>Fight for the centre</b> with a pawn (1.e4 or 1.d4). Central pawns give your pieces room.</li>',
+      '<li><b>Develop knights before bishops</b>, toward the centre. Get every piece into the game.</li>',
+      '<li><b>Castle early</b> — usually by move ten — to shelter your king and connect your rooks.</li>',
+      '<li><b>Don’t move the same piece twice</b> in the opening, and don’t bring the queen out too soon.</li>',
+      '</ul>',
+      '<h3>Middlegame</h3>',
+      '<ul>',
+      '<li><b>Make a plan.</b> Improve your worst-placed piece; aim your pieces at the enemy king or a weak pawn.</li>',
+      '<li><b>Trade when you’re ahead</b> in material — fewer pieces make your advantage decisive.</li>',
+      '<li><b>Keep your king safe</b> before launching an attack. Open positions punish an exposed king.</li>',
+      '</ul>',
+      '<h3>Endgame</h3>',
+      '<ul>',
+      '<li><b>Activate your king</b> — in the endgame it’s a fighting piece, not a liability.</li>',
+      '<li><b>Push passed pawns</b> and race them to promotion; a new queen usually ends the game.</li>',
+      '<li><b>Learn the “box” mates</b> (K+Q, K+R) and the opposition so you never miss a win.</li>',
+      '</ul>',
+      '<p class="lead" style="margin-top:14px;">Clear the four tracks, keep these habits, and you’ll leave the beginner ranks behind. ♟</p>'
+    ].join('');
 
     Arcade.wireFullscreen(fullscreenBtn, resizeCanvas);
 
