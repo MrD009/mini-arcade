@@ -992,6 +992,20 @@
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
+
+    <a href="games/chess/index.html" class="game-card" data-game="chess" data-cat="brain">
+      <span class="favorite-tag">🔥 Favorite</span>
+      <div class="card-content">
+        <span class="game-icon">♞</span>
+        <h2 class="game-title">Neon Chess</h2>
+        <p class="game-desc">The whole game — castling, en passant, promotion and mate. A CPU that searches several moves ahead across three strengths, or pass the phone for two players.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
   </main>
 
   <button class="to-top" id="toTop" type="button" onclick="scrollToTop()" aria-label="Back to top">↑</button>
@@ -1183,7 +1197,10 @@
       solitaire: () => parseInt(localStorage.getItem('solitaireBest') || '0', 10),
       // Flow's "best" is how many boards have been solved; the game keeps that
       // running total in one key of its own.
-      flow: () => parseInt(localStorage.getItem('flowBest') || '0', 10)
+      flow: () => parseInt(localStorage.getItem('flowBest') || '0', 10),
+      // Chess's "best" is the longest run of wins against the CPU.
+      chess: () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
+        parseInt(localStorage.getItem(`chessBest_${d}`) || '0', 10)))
     };
 
     // ---- Play counts ----
