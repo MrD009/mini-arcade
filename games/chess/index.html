@@ -575,7 +575,10 @@
             fen:'4kb2/2P2p2/8/6B1/8/8/8/3R2K1 w - - 0 1', line:[{from:'d1',to:'d8'}], mate:true },
           { id:'c_greco', theme:'Greco’s Mate', prompt:'Mate in one — swing the rook to the open file.',
             explain:'The bishop covers g8 and the rook mates down the open h-file; the king is fenced in by its own pawn.',
-            fen:'7k/6p1/8/8/2B5/8/6K1/R7 w - - 0 1', line:[{from:'a1',to:'h1'}], mate:true }
+            fen:'7k/6p1/8/8/2B5/8/6K1/R7 w - - 0 1', line:[{from:'a1',to:'h1'}], mate:true },
+          { id:'c_legal', theme:'Légal’s Mate', prompt:'Mate in one — the famous opening trap.',
+            explain:'Black grabbed the queen (…Bxd1); now the knight mates. Two knights and a bishop net the king — Légal’s Mate.',
+            fen:'r2q1bnr/ppp1kBpp/2np4/4N3/4P3/2N5/PPPP1PPP/R2bK2R w KQ - 0 7', line:[{from:'c3',to:'d5'}], mate:true }
         ]}
     ];
     // ==================================================== curriculum end =====
@@ -1255,7 +1258,44 @@
       '<li><b>Push passed pawns</b> and race them to promotion; a new queen usually ends the game.</li>',
       '<li><b>Learn the “box” mates</b> (K+Q, K+R) and the opposition so you never miss a win.</li>',
       '</ul>',
-      '<p class="lead" style="margin-top:14px;">Clear the four tracks, keep these habits, and you’ll leave the beginner ranks behind. ♟</p>'
+      '<h3>Opening traps to know</h3>',
+      '<ul>',
+      '<li><b>Watch f7 and f2.</b> These squares are guarded only by the king — most quick knockouts (Scholar’s Mate, the Fried Liver) hit them. Develop so they’re defended.</li>',
+      '<li><b>Don’t chase material with your queen.</b> Bringing the queen out for a pawn invites a barrage of tempo-gaining developing moves.</li>',
+      '<li><b>Beware the greedy capture.</b> In Légal’s Mate, Black wins the queen — and gets mated three moves later. Before you take, ask what you allow.</li>',
+      '<li><b>Meet a wing attack with a strike in the centre.</b> An early flank thrust usually crumbles when you open the middle.</li>',
+      '</ul>',
+      '<h3>The tactical motifs — a checklist</h3>',
+      '<p>Nearly every combination is one of these. Learn to spot them and you’ll find the shots:</p>',
+      '<ul>',
+      '<li><b>Fork</b> — one piece attacks two.</li>',
+      '<li><b>Pin</b> — a piece can’t move without exposing something worse behind it.</li>',
+      '<li><b>Skewer</b> — a valuable piece is forced to move, losing the one behind it.</li>',
+      '<li><b>Discovered attack</b> — moving one piece unveils another’s attack.</li>',
+      '<li><b>Double attack</b> — one move creates two threats.</li>',
+      '<li><b>Deflection</b> — chase a defender off its post.</li>',
+      '<li><b>Decoy</b> — lure a piece (or the king) to a bad square.</li>',
+      '<li><b>Remove the defender</b> — trade off the piece that guards the target.</li>',
+      '<li><b>Overload</b> — a piece with two jobs can’t do both.</li>',
+      '<li><b>Back-rank</b> — a king trapped behind its own pawns.</li>',
+      '</ul>',
+      '<h3>Common mistakes to unlearn</h3>',
+      '<ul>',
+      '<li>Moving the <b>same piece over and over</b> in the opening while others sleep.</li>',
+      '<li><b>Leaving the king in the centre</b> — castle before you attack.</li>',
+      '<li><b>Grabbing pawns</b> when you’re behind in development.</li>',
+      '<li><b>Trading pieces when behind</b> in material — you want to keep attackers, not swap them off.</li>',
+      '<li><b>Making a move, then checking</b> — check first, before your hand leaves the piece.</li>',
+      '</ul>',
+      '<h3>How to practise</h3>',
+      '<ol>',
+      '<li><b>Solve tactics every day.</b> Ten a day beats a hundred once a week — the tracks here are a start.</li>',
+      '<li><b>Play slower games</b> so you have time to use these ideas, then speed up once they’re second nature.</li>',
+      '<li><b>Review every loss</b> and find the single move that decided it.</li>',
+      '<li><b>Pick one opening</b> for White and one for each reply as Black — you’ll stop wasting the first ten moves.</li>',
+      '<li><b>Drill the basic endgames</b> until K+Q and K+R mates are automatic.</li>',
+      '</ol>',
+      '<p class="lead" style="margin-top:14px;">Clear the tracks, keep these habits, and you’ll leave the beginner ranks behind. ♟</p>'
     ].join('');
 
     Arcade.wireFullscreen(fullscreenBtn, resizeCanvas);
