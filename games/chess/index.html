@@ -513,6 +513,30 @@
           { id:'e_krmate', theme:'King + Rook Mate', prompt:'Checkmate the lone king in one.',
             explain:'Kings in opposition, rook mates on the edge. This is the essential endgame to master.',
             fen:'k7/8/K7/8/8/8/8/7R w - - 0 1', line:[{from:'h1',to:'h8'}], mate:true }
+        ]},
+      { id:'patterns', name:'Mating Patterns', icon:'🎯', blurb:'The named mates and sacrifices masters know on sight.',
+        puzzles:[
+          { id:'p_kiss', theme:'Kiss of Death', prompt:'Mate in one — bring the queen right up to the king.',
+            explain:'Queen beside the king, defended by your own king so it can’t be taken. The most basic mating duo.',
+            fen:'7k/8/6K1/8/8/2Q5/8/8 w - - 0 1', line:[{from:'c3',to:'g7'}], mate:true },
+          { id:'p_epaulette', theme:'Épaulette Mate', prompt:'Mate in one — the king is boxed by its own rooks.',
+            explain:'The king’s own rooks block its only flight squares (the “épaulettes”); the queen mates in front.',
+            fen:'5rkr/8/7P/8/8/8/6Q1/1K6 w - - 0 1', line:[{from:'g2',to:'g7'}], mate:true },
+          { id:'p_arabian', theme:'Arabian Mate', prompt:'Mate in one with the rook — the knight guards the escape.',
+            explain:'One of the oldest patterns: a rook on the edge, a knight covering the king’s only escape square.',
+            fen:'7k/R7/5N2/8/8/8/8/6K1 w - - 0 1', line:[{from:'a7',to:'h7'}], mate:true },
+          { id:'p_anastasia', theme:'Anastasia’s Mate', prompt:'Mate in one — swing the rook to the h-file.',
+            explain:'The knight on e7 seals g6 and g8; the rook checks down the file with no way out. A classic finish.',
+            fen:'8/4N1pk/8/4R3/8/8/8/6K1 w - - 0 1', line:[{from:'e5',to:'h5'}], mate:true },
+          { id:'p_boden', theme:'Boden’s Mate', prompt:'Mate in one — two bishops on crossing diagonals.',
+            explain:'Two bishops criss-cross to net the king; the king’s own pieces block every escape. Boden’s Mate.',
+            fen:'2kr4/3p4/8/8/5B2/8/8/5BK1 w - - 0 1', line:[{from:'f1',to:'a6'}], mate:true },
+          { id:'p_deflect', theme:'Deflection', prompt:'Force mate in two — a queen check drags the defender away.',
+            explain:'Qe8+ deflects the only back-rank defender: after Rxe8, Rxe8# mates. Remove the guard, then strike.',
+            fen:'3r2k1/5ppp/8/8/8/8/4Q3/4R1K1 w - - 0 1', line:[{from:'e2',to:'e8'},{from:'d8',to:'e8'},{from:'e1',to:'e8'}], mate:true },
+          { id:'p_philidor', theme:'Smothered Mate', prompt:'Force mate in two — sacrifice the queen to smother the king.',
+            explain:'Qg8+! is defended by the knight, so the rook must take — then Nf7# smothers. This is Philidor’s Legacy.',
+            fen:'5r1k/6pp/7N/3Q4/8/8/8/6K1 w - - 0 1', line:[{from:'d5',to:'g8'},{from:'f8',to:'g8'},{from:'h6',to:'f7'}], mate:true }
         ]}
     ];
     // ==================================================== curriculum end =====
