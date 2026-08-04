@@ -167,10 +167,14 @@
         <button data-diff="hard" onclick="setDifficulty('hard')">Hard</button>
       </div>
       <div class="diff-note" id="diffNote"></div>
+      <div class="difficulty-bar" id="sideBar" style="margin-top:8px;">
+        <button data-side="w" onclick="setColor(1)">♔ Play White</button>
+        <button data-side="b" onclick="setColor(-1)">♚ Play Black</button>
+      </div>
     </div>
 
     <div class="legend">
-      <span>♔ You are White</span>
+      <span>♟ Pick your side</span>
       <span>♜ Full rules</span>
       <span>♛ Mate to win</span>
     </div>
@@ -610,7 +614,7 @@
     const GLYPH={1:'♟',2:'♞',3:'♝',4:'♜',5:'♛',6:'♚'};
     const CPU_PAUSE=260, MOVE_MS=200;
 
-    let mode='solo', currentDifficulty='medium';
+    let mode='solo', currentDifficulty='medium', humanColor=1, flipped=false;
     let state=initialState();
     let history=[];               // { move, undo, key }
     let posCounts={};             // for threefold
@@ -639,8 +643,8 @@
     function getBest(){ return Arcade.bestScore(`chessBest_${currentDifficulty}`); }
     function setBest(v){ Arcade.setBestScore(`chessBest_${currentDifficulty}`, v); }
 
-    function isHuman(color){ return mode==='duo' || color===1; }
-    function labelFor(color){ if(mode==='duo') return color===1?'White':'Black'; return color===1?'You':'CPU'; }
+    function isHuman(color){ return mode==='duo' || color===humanColor; }
+    function labelFor(color){ if(mode==='duo') return color===1?'White':'Black'; return color===humanColor?'You':'CPU'; }
 
     // -------------------------------------------------------- material ---
     function materialAdv(){
@@ -664,15 +668,17 @@
     }
     window.addEventListener('resize', resizeCanvas);
 
-    function sqCentre(s){ return { x:boardX+colOf(s)*cell+cell/2, y:boardY+rowOf(s)*cell+cell/2 }; }
-    function sqAt(px,py){ const c=Math.floor((px-boardX)/cell), r=Math.floor((py-boardY)/cell); if(r<0||r>7||c<0||c>7) return -1; return sqi(r,c); }
+    // Board-square → pixels. When `flipped` (you play Black), the board is
+    // rotated 180° so your pieces sit at the bottom.
+    function sqTopLeft(s){ let r=rowOf(s), c=colOf(s); if(flipped){ r=7-r; c=7-c; } return { x:boardX+c*cell, y:boardY+r*cell }; }
+    function sqCentre(s){ const p=sqTopLeft(s); return { x:p.x+cell/2, y:p.y+cell/2 }; }
+    function sqAt(px,py){ let c=Math.floor((px-boardX)/cell), r=Math.floor((py-boardY)/cell); if(r<0||r>7||c<0||c>7) return -1; if(flipped){ r=7-r; c=7-c; } return sqi(r,c); }
 
     // ------------------------------------------------------------ render ---
     function drawSquare(s){
-      const r=rowOf(s), c=colOf(s), x=boardX+c*cell, y=boardY+r*cell;
-      const light=(r+c)%2===0;
+      const p=sqTopLeft(s), light=(rowOf(s)+colOf(s))%2===0;
       ctx.fillStyle = light ? '#1c2749' : '#111a33';
-      ctx.fillRect(x,y,cell,cell);
+      ctx.fillRect(p.x,p.y,cell,cell);
     }
 
     function drawPiece(p, cx, cy, scale){
@@ -711,16 +717,17 @@
       // last move highlight
       if(lastMove){
         [lastMove.from,lastMove.to].forEach(function(s){
-          const c=sqCentre(s);
+          const p=sqTopLeft(s);
           ctx.fillStyle='rgba(255,215,0,0.16)';
-          ctx.fillRect(boardX+colOf(s)*cell, boardY+rowOf(s)*cell, cell, cell);
+          ctx.fillRect(p.x, p.y, cell, cell);
         });
       }
 
       // selected + legal targets
       if(selected>=0){
         ctx.fillStyle='rgba(0,242,255,0.22)';
-        ctx.fillRect(boardX+colOf(selected)*cell, boardY+rowOf(selected)*cell, cell, cell);
+        const sp=sqTopLeft(selected);
+        ctx.fillRect(sp.x, sp.y, cell, cell);
         legalFromSel.forEach(function(m){
           const c=sqCentre(m.to);
           const capture = state.board[m.to]!==0 || m.ep;
@@ -745,7 +752,8 @@
         ctx.save();
         ctx.strokeStyle='rgba(255,45,45,'+a+')'; ctx.lineWidth=Math.max(2,cell*0.08);
         ctx.shadowBlur=cell*0.4; ctx.shadowColor='rgba(255,45,45,0.9)';
-        ctx.strokeRect(boardX+colOf(k)*cell+3, boardY+rowOf(k)*cell+3, cell-6, cell-6);
+        const kp=sqTopLeft(k);
+        ctx.strokeRect(kp.x+3, kp.y+3, cell-6, cell-6);
         ctx.restore();
       }
 
@@ -755,7 +763,8 @@
         ctx.save();
         ctx.strokeStyle='rgba(255,215,0,'+a+')'; ctx.lineWidth=Math.max(2,cell*0.07);
         ctx.shadowBlur=cell*0.3; ctx.shadowColor='rgba(255,215,0,0.8)';
-        ctx.strokeRect(boardX+colOf(hintSquare)*cell+3, boardY+rowOf(hintSquare)*cell+3, cell-6, cell-6);
+        const hp=sqTopLeft(hintSquare);
+        ctx.strokeRect(hp.x+3, hp.y+3, cell-6, cell-6);
         ctx.restore();
       }
 
@@ -779,8 +788,9 @@
       ctx.fillStyle='rgba(180,200,255,0.35)';
       ctx.font=Math.max(8,cell*0.16)+'px "Segoe UI",sans-serif';
       ctx.textBaseline='top';
-      for(let c=0;c<8;c++){ ctx.textAlign='left'; ctx.fillText('abcdefgh'[c], boardX+c*cell+2, boardY+cell*8-cell*0.2); }
-      for(let r=0;r<8;r++){ ctx.textAlign='left'; ctx.fillText(String(8-r), boardX+2, boardY+r*cell+2); }
+      ctx.textAlign='left';
+      for(let c=0;c<8;c++){ const ac=flipped?7-c:c; ctx.fillText('abcdefgh'[ac], boardX+c*cell+2, boardY+cell*8-cell*0.2); }
+      for(let r=0;r<8;r++){ const ar=flipped?7-r:r; ctx.fillText(String(8-ar), boardX+2, boardY+r*cell+2); }
       ctx.restore();
     }
 
@@ -952,6 +962,8 @@
       gameOverOverlay.classList.add('hidden');
       hintLine.textContent='Tap a piece, then tap where it goes';
       updateHUD(); render();
+      // If undoing lands on the CPU's move (e.g. you play Black), let it move.
+      if(mode==='solo' && !isHuman(state.stm)) scheduleCpu();
     }
 
     // ---------------------------------------------------------- endgame ---
@@ -1007,6 +1019,10 @@
       diffNote.textContent=LEVELS[diff].note;
       streak=0; updateHUD();
     }
+    function setColor(c){
+      humanColor=c;
+      document.querySelectorAll('#sideBar button').forEach(b=>b.classList.toggle('active', (b.dataset.side==='w')===(c===1)));
+    }
 
     function showStartOverlay(){
       gameRunning=false; busy=false; anim=null; gameOverFlag=false; learnMode=false;
@@ -1020,14 +1036,18 @@
       initAudio();
       cancelAnimationFrame(animationId);
       learnMode=false; hintSquare=-1; showLearnChrome(false);
+      flipped = (mode==='solo' && humanColor===-1);
       state=initialState();
       history=[]; posCounts={}; posCounts[posKey()]=1;
       selected=-1; legalFromSel=[]; lastMove=null; anim=null; animPending=null;
       busy=false; gameOverFlag=false; gameRunning=true;
       hideAllOverlays();
-      hintLine.textContent = mode==='duo' ? 'White moves first — tap a piece' : 'Tap a piece, then tap where it goes';
+      hintLine.textContent = mode==='duo' ? 'White moves first — tap a piece'
+        : (humanColor===1 ? 'You are White — tap a piece' : 'You are Black — White moves first');
       updateHUD(); resizeCanvas();
       lastTime=0; animationId=requestAnimationFrame(gameLoop);
+      // If you chose Black, the CPU (White) opens.
+      if(!isHuman(state.stm)) scheduleCpu();
     }
 
     // -------------------------------------------------------- learn mode ---
@@ -1077,6 +1097,7 @@
     function loadPuzzle(idx){
       initAudio();
       learnMode=true; learnPuzzleIdx=idx; learnPly=0; learnSolvedFlag=false; learnWrong=0;
+      flipped=false;   // puzzles are always shown from White's side
       hintSquare=-1; selected=-1; legalFromSel=[]; anim=null; animPending=null;
       busy=false; gameOverFlag=false; gameRunning=true;
       const tr=TRACKS[learnTrackIdx], p=tr.puzzles[idx];
@@ -1301,7 +1322,7 @@
     Arcade.wireFullscreen(fullscreenBtn, resizeCanvas);
 
     try {
-      setMode('solo'); setDifficulty('medium');
+      setMode('solo'); setDifficulty('medium'); setColor(1);
       updateHUD(); resizeCanvas();
       lastTime=0; animationId=requestAnimationFrame(gameLoop);
     } catch(err){ console.error('Neon Chess init failed:', err); }
