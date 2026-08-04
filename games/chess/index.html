@@ -472,8 +472,8 @@
             explain:'Even a pawn forks. e5 attacks the bishop and the knight together — one of them is lost.',
             fen:'4k3/8/3b1n2/8/4P3/8/8/4K3 w - - 0 1', line:[{from:'e4',to:'e5'}] },
           { id:'t_skewer', theme:'Skewer', prompt:'Check the king so the queen behind it falls.',
-            explain:'A skewer attacks a piece in front; when it moves, you win what stood behind. Bd5+ then Bxa8.',
-            fen:'q7/1k6/8/8/8/5B2/8/4K3 w - - 0 1', line:[{from:'f3',to:'d5'}] },
+            explain:'A skewer attacks a piece in front; when it moves, you win what stood behind. Be4+ then Bxa8.',
+            fen:'q7/1k6/8/5B2/8/8/8/4K3 w - - 0 1', line:[{from:'f5',to:'e4'}] },
           { id:'t_discovered', theme:'Discovered Check', prompt:'Move the knight to uncover a check — and hit the queen.',
             explain:'The knight steps aside so the rook checks. The same move attacks the queen: Ng6+, then Nxh4.',
             fen:'4k3/8/8/4N3/7q/8/8/4R1K1 w - - 0 1', line:[{from:'e5',to:'g6'}] },
@@ -530,7 +530,7 @@
             fen:'4k3/P7/8/8/8/8/8/4K3 w - - 0 1', line:[{from:'a7',to:'a8',promo:5}], anyPromo:true },
           { id:'e_kqmate', theme:'King + Queen Mate', prompt:'Checkmate the lone king in one.',
             explain:'King and queen drive the enemy to the edge, then mate — the king guards the queen’s square.',
-            fen:'k7/8/1K6/8/8/8/6Q1/8 w - - 0 1', line:[{from:'g2',to:'g8'}], mate:true },
+            fen:'k7/7Q/1K6/8/8/8/8/8 w - - 0 1', line:[{from:'h7',to:'g8'}], mate:true },
           { id:'e_krmate', theme:'King + Rook Mate', prompt:'Checkmate the lone king in one.',
             explain:'Kings in opposition, rook mates on the edge. This is the essential endgame to master.',
             fen:'k7/8/K7/8/8/8/8/7R w - - 0 1', line:[{from:'h1',to:'h8'}], mate:true }
@@ -539,10 +539,10 @@
         puzzles:[
           { id:'p_kiss', theme:'Kiss of Death', prompt:'Mate in one — bring the queen right up to the king.',
             explain:'Queen beside the king, defended by your own king so it can’t be taken. The most basic mating duo.',
-            fen:'7k/8/6K1/8/8/2Q5/8/8 w - - 0 1', line:[{from:'c3',to:'g7'}], mate:true },
+            fen:'7k/Q7/6K1/8/8/8/8/8 w - - 0 1', line:[{from:'a7',to:'g7'}], mate:true },
           { id:'p_epaulette', theme:'Épaulette Mate', prompt:'Mate in one — the king is boxed by its own rooks.',
             explain:'The king’s own rooks block its only flight squares (the “épaulettes”); the queen mates in front.',
-            fen:'5rkr/8/7P/8/8/8/6Q1/1K6 w - - 0 1', line:[{from:'g2',to:'g7'}], mate:true },
+            fen:'5rkr/Q7/7P/8/8/8/8/1K6 w - - 0 1', line:[{from:'a7',to:'g7'}], mate:true },
           { id:'p_arabian', theme:'Arabian Mate', prompt:'Mate in one with the rook — the knight guards the escape.',
             explain:'One of the oldest patterns: a rook on the edge, a knight covering the king’s only escape square.',
             fen:'7k/R7/5N2/8/8/8/8/6K1 w - - 0 1', line:[{from:'a7',to:'h7'}], mate:true },
@@ -558,6 +558,24 @@
           { id:'p_philidor', theme:'Smothered Mate', prompt:'Force mate in two — sacrifice the queen to smother the king.',
             explain:'Qg8+! is defended by the knight, so the rook must take — then Nf7# smothers. This is Philidor’s Legacy.',
             fen:'5r1k/6pp/7N/3Q4/8/8/8/6K1 w - - 0 1', line:[{from:'d5',to:'g8'},{from:'f8',to:'g8'},{from:'h6',to:'f7'}], mate:true }
+        ]},
+      { id:'classic', name:'Classic Mates', icon:'👑', blurb:'More named finishes: supported queens, rook-and-bishop nets.',
+        puzzles:[
+          { id:'c_lolli', theme:'Lolli’s Mate', prompt:'Mate in one — the pawn guards the queen.',
+            explain:'The pawn on f6 defends g7, so the queen can’t be captured. Qg7 seals every escape.',
+            fen:'6k1/Q7/5P2/8/8/8/8/6K1 w - - 0 1', line:[{from:'a7',to:'g7'}], mate:true },
+          { id:'c_damiano', theme:'Damiano’s Mate', prompt:'Mate in one — a pawn supports the corner blow.',
+            explain:'The g6 pawn props up the queen on h7; the king in the corner has nowhere to run.',
+            fen:'7k/Q7/6P1/8/8/8/8/6K1 w - - 0 1', line:[{from:'a7',to:'h7'}], mate:true },
+          { id:'c_damianob', theme:'Damiano’s Bishop Mate', prompt:'Mate in one — the bishop guards the queen.',
+            explain:'The bishop on the long diagonal defends g7, so Qg7 is untouchable and the king is mated.',
+            fen:'6k1/8/7Q/8/8/8/1B4K1/8 w - - 0 1', line:[{from:'h6',to:'g7'}], mate:true },
+          { id:'c_opera', theme:'Opera Mate', prompt:'Mate in one — rook and bishop, from Morphy’s opera box.',
+            explain:'Named for Morphy’s famous opera-house game: the rook mates on the back rank while the bishop covers e7.',
+            fen:'4kb2/2P2p2/8/6B1/8/8/8/3R2K1 w - - 0 1', line:[{from:'d1',to:'d8'}], mate:true },
+          { id:'c_greco', theme:'Greco’s Mate', prompt:'Mate in one — swing the rook to the open file.',
+            explain:'The bishop covers g8 and the rook mates down the open h-file; the king is fenced in by its own pawn.',
+            fen:'7k/6p1/8/8/2B5/8/6K1/R7 w - - 0 1', line:[{from:'a1',to:'h1'}], mate:true }
         ]}
     ];
     // ==================================================== curriculum end =====
@@ -1094,7 +1112,9 @@
           const isExpected = selected===algToSq(exp.from) && s===algToSq(exp.to);
           const isAccepted = p.accept && p.line.length===1 && learnPly===0 &&
                              p.accept.some(a=>selected===algToSq(a.from) && s===algToSq(a.to));
-          if(isExpected || isAccepted){
+          // On a mate puzzle, any move that delivers checkmate solves it.
+          const isMate = p.mate && targets.some(function(t){ const u=make(state,t); const m=legalMoves(state).length===0&&inCheck(state,state.stm); unmake(state,u); return m; });
+          if(isExpected || isAccepted || isMate){
             const promoTargets=targets.filter(m=>m.promo);
             if(promoTargets.length){ openPromo(promoTargets, function(mv){ advanceLearner(mv); }); return; }
             advanceLearner(targets[0]); return;
@@ -1122,6 +1142,8 @@
     function advanceLearner(mv){
       hintSquare=-1;
       playLearnMove(mv, function(){
+        // Any move that delivers checkmate finishes the puzzle immediately.
+        if(legalMoves(state).length===0 && inCheck(state, state.stm)){ solvePuzzle(); return; }
         learnPly++;
         const p=curPuzzle();
         if(learnPly < p.line.length){
