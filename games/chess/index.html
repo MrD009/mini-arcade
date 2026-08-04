@@ -484,6 +484,27 @@
             explain:'The knight can’t move without exposing its king to the rook, so it can’t flee. exd5 wins it.',
             fen:'3k4/8/8/3n4/4P3/8/3R4/4K3 w - - 0 1', line:[{from:'e4',to:'d5'}] }
         ]},
+      { id:'sharper', name:'Winning Tactics', icon:'💥', blurb:'Sharper shots that win a rook or the queen outright.',
+        puzzles:[
+          { id:'s_royalfork', theme:'Royal Fork', prompt:'Win the queen — one knight leap does it.',
+            explain:'Ne7+ checks the king and forks the queen. When the king steps away, Nxc8 wins her.',
+            fen:'2q3k1/pp3ppp/2N5/8/8/8/PP3PPP/6K1 w - - 0 1', line:[{from:'c6',to:'e7'}] },
+          { id:'s_rookskewer', theme:'Rook Skewer', prompt:'Win the queen with a skewer on the file.',
+            explain:'Ra1+ checks the king with the queen right behind it. The king must move, then Rxa8 takes the queen.',
+            fen:'q7/8/8/8/k7/8/6PP/1R4K1 w - - 0 1', line:[{from:'b1',to:'a1'}] },
+          { id:'s_familyfork', theme:'Family Fork', prompt:'Win the rook with a forking check.',
+            explain:'Nc7+ forks the king and the rook in the corner. After the king moves, Nxa8 wins the rook.',
+            fen:'r3k3/pp6/8/1N6/8/8/PP3PPP/6K1 w - - 0 1', line:[{from:'b5',to:'c7'}] },
+          { id:'s_bishskewer', theme:'Bishop Skewer', prompt:'Win the rook — skewer down the long diagonal.',
+            explain:'Bd5+ checks the king with the rook behind on the diagonal. The king steps off and Bxh1 wins the rook.',
+            fen:'8/pk6/4B3/8/8/8/PP3K2/7r w - - 0 1', line:[{from:'e6',to:'d5'}] },
+          { id:'s_pin', theme:'Exploit the Pin', prompt:'The queen is pinned to its king — win it.',
+            explain:'Pinned to the king, the queen can’t run. Bxe7 — or Rxe7 — wins her for a lesser piece.',
+            fen:'4k3/4q3/8/6B1/8/8/PP3PPP/4R1K1 w - - 0 1', line:[{from:'g5',to:'e7'}], accept:[{from:'e1',to:'e7'}] },
+          { id:'s_discovered', theme:'Discovered Check', prompt:'Uncover a check and win the queen.',
+            explain:'Ng6 unveils the rook’s check and attacks the queen at once. After the king moves, Nxh4 wins her.',
+            fen:'4k3/pp3ppp/8/4N3/7q/8/PP3PPP/4R1K1 w - - 0 1', line:[{from:'e5',to:'g6'}] }
+        ]},
       { id:'mates', name:'Checkmates', icon:'♚', blurb:'The patterns that end the game.',
         puzzles:[
           { id:'m_backrank', theme:'Back-Rank Mate', prompt:'Deliver checkmate in one.',
@@ -1070,7 +1091,10 @@
       if(selected>=0){
         const targets=legalFromSel.filter(m=>m.to===s);
         if(targets.length){
-          if(selected===algToSq(exp.from) && s===algToSq(exp.to)){
+          const isExpected = selected===algToSq(exp.from) && s===algToSq(exp.to);
+          const isAccepted = p.accept && p.line.length===1 && learnPly===0 &&
+                             p.accept.some(a=>selected===algToSq(a.from) && s===algToSq(a.to));
+          if(isExpected || isAccepted){
             const promoTargets=targets.filter(m=>m.promo);
             if(promoTargets.length){ openPromo(promoTargets, function(mv){ advanceLearner(mv); }); return; }
             advanceLearner(targets[0]); return;
