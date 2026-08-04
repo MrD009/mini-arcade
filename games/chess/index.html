@@ -58,8 +58,9 @@
     .track-btn.done { border-color: var(--gold); }
     .track-btn .tb-icon { font-size: 26px; line-height: 1; width: 30px; text-align: center; }
     .track-btn .tb-main { flex: 1; min-width: 0; }
-    .track-btn .tb-name { display: block; font-weight: 700; color: #eaf6ff; font-size: 0.98rem; }
-    .track-btn .tb-blurb { display: block; font-size: 0.74rem; color: #9fb2d8; margin-top: 3px; line-height: 1.3; }
+    /* buttons default to white-space:nowrap in the shared CSS; let these wrap */
+    .track-btn .tb-name { display: block; font-weight: 700; color: #eaf6ff; font-size: 0.98rem; white-space: normal; }
+    .track-btn .tb-blurb { display: block; font-size: 0.74rem; color: #9fb2d8; margin-top: 3px; line-height: 1.3; white-space: normal; }
     .track-btn .tb-prog { font-size: 0.72rem; color: var(--gold); white-space: nowrap; font-weight: 700; flex-shrink: 0; }
 
     .learn-header {
@@ -77,11 +78,14 @@
     .hint-line.good { color: #6effc0; font-weight: 700; }
     .hint-line.bad { color: #ff8fb0; font-weight: 700; }
 
+    /* The shared reset sets `* { touch-action: none }` to stop the page
+       scrolling during play; re-enable vertical touch-scroll where we need it. */
+    .overlay { touch-action: pan-y; justify-content: safe center; }
     .reader {
       max-width: 460px; width: 92vw; max-height: 74vh; overflow-y: auto;
       text-align: left; background: rgba(10,14,28,0.6); border: 1px solid rgba(0,242,255,0.18);
       border-radius: 14px; padding: 18px 20px; margin-bottom: 16px;
-      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
     }
     .reader h2 { font-size: 1.5rem; color: var(--accent); margin: 0 0 4px; text-align: center; }
     .reader h3 { font-size: 1rem; color: var(--gold); margin: 18px 0 6px; }
