@@ -964,6 +964,20 @@
         <span class="play-btn">PLAY ▶</span>
       </div>
     </a>
+
+    <a href="games/solitaire/index.html" class="game-card" data-game="solitaire" data-cat="brain">
+      <span class="favorite-tag">🔥 Favorite</span>
+      <div class="card-content">
+        <span class="game-icon">🃏</span>
+        <h2 class="game-title">Neon Solitaire</h2>
+        <p class="game-desc">Klondike, the one everybody knows. Build the aces up and the tableau down until every card is home — draw one or draw three, with tap-to-move and a bouncing-card finish.</p>
+        <div class="card-meta">
+          <span class="meta-chip best-chip">🏆 Not played yet</span>
+          <span class="meta-chip plays-chip">▶ 0 plays</span>
+        </div>
+        <span class="play-btn">PLAY ▶</span>
+      </div>
+    </a>
   </main>
 
   <button class="to-top" id="toTop" type="button" onclick="scrollToTop()" aria-label="Back to top">↑</button>
@@ -1149,7 +1163,10 @@
       'chain-reaction': () => parseInt(localStorage.getItem('chainBest') || '0', 10),
       // Connect Four's "best" is the longest run of wins against the CPU.
       'connect-four': () => Math.max(0, ...['easy', 'medium', 'hard'].map(d =>
-        parseInt(localStorage.getItem(`connect4Best_${d}`) || '0', 10)))
+        parseInt(localStorage.getItem(`connect4Best_${d}`) || '0', 10))),
+      // Solitaire's "best" is how many deals have been solved; the game keeps
+      // that running total in one key of its own.
+      solitaire: () => parseInt(localStorage.getItem('solitaireBest') || '0', 10)
     };
 
     // ---- Play counts ----

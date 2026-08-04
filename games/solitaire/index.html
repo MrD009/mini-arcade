@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🃏 Neon Solitaire | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    /* Width of this game's play column; the rest of the chrome is
+       inherited from the shared arcade sheet. Solitaire wants the room:
+       seven tableau columns have to fit across it. */
+    :root { --play-max: 680px; }
+
+    #gameCanvas {
+      background: radial-gradient(ellipse at top, #0b1626 0%, #050510 100%);
+    }
+
+    .mode-bar {
+      display: flex;
+      gap: 6px;
+      margin: 12px 0 2px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .mode-bar button {
+      padding: 8px 16px;
+      font-size: 0.78rem;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .mode-bar button.active {
+      background: rgba(0, 242, 255, 0.15);
+      border-color: var(--accent);
+      box-shadow: 0 0 10px rgba(0, 242, 255, 0.25);
+    }
+
+    /* The auto-finish nudge only appears once the game can play itself out. */
+    #autoBtn { display: none; }
+    #autoBtn.show { display: inline-block; }
+
+    .overlay .stats { max-width: 300px; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span>Time</span>
+        <strong id="timeEl">0:00</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Moves</span>
+        <strong id="movesEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Home</span>
+        <strong id="homeEl">0/52</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Wins</span>
+        <strong id="winsEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button id="undoBtn" onclick="undo()">↶ Undo</button>
+      <button onclick="showStartOverlay()">New</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar" id="bottomBar">
+      <button id="autoBtn" onclick="autoFinish()">▶ Auto-Finish</button>
+      <div class="hint-line" id="hintLine">Tap the stock to deal. Tap a card, then its new home.</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">No move</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🃏 Neon Solitaire</h1>
+    <p id="modeBlurb">Klondike, the one everybody knows. Build the four foundations up from the aces, and the tableau down in alternating colours, until every card is home.</p>
+
+    <div class="mode-bar" id="modeBar">
+      <button data-draw="1" onclick="setDraw(1)">Draw 1</button>
+      <button data-draw="3" onclick="setDraw(3)">Draw 3</button>
+    </div>
+    <div class="diff-note" id="drawNote"></div>
+
+    <div class="legend">
+      <span>🔴 Reds on blacks</span>
+      <span>⬆️ Aces first</span>
+      <span>♻️ Stock recycles</span>
+    </div>
+
+    <button class="primary" onclick="startGame()">▶ Deal</button>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <h1 id="winTitle">🏆 Solved!</h1>
+    <p class="new-best" id="newBestTag">⚡ Fastest Win!</p>
+    <p id="finalBlurb">Every card home.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalTime">0:00</div>
+        <div class="lbl">Time</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalMoves">0</div>
+        <div class="lbl">Moves</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalFastest">—</div>
+        <div class="lbl">Fastest</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalWins">0</div>
+        <div class="lbl">Games Won</div>
+      </div>
+    </div>
+    <button class="primary" onclick="startGame()">Deal Again</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Mode</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    // ======================================================= engine start ===
+    /*
+     * Klondike, kept free of the DOM so the rules can be reasoned about on
+     * their own. Piles are plain arrays of card objects; a card is
+     * { rank: 1..13, suit: 0..3, up: bool }. Suits 1 and 2 are the red ones.
+     */
+    const RANKS = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+    const SUITS = ['♠', '♥', '♦', '♣'];
+    function isRed(suit) { return suit === 1 || suit === 2; }
+
+    function makeDeck() {
+      const deck = [];
+      for (let s = 0; s < 4; s++) {
+        for (let r = 1; r <= 13; r++) deck.push({ rank: r, suit: s, up: false });
+      }
+      return deck;
+    }
+
+    /** Fisher–Yates, taking its randomness from `rng` so a deal can be seeded. */
+    function shuffle(deck, rng) {
+      for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        const tmp = deck[i]; deck[i] = deck[j]; deck[j] = tmp;
+      }
+      return deck;
+    }
+
+    /** A fresh Klondike layout: seven tableau columns 1..7 deep, the top of
+        each turned up, the remaining twenty-four cards left in the stock. */
+    function deal(rng) {
+      const deck = shuffle(makeDeck(), rng);
+      const tableau = [[], [], [], [], [], [], []];
+      let k = 0;
+      for (let col = 0; col < 7; col++) {
+        for (let n = 0; n <= col; n++) {
+          const card = deck[k++];
+          card.up = (n === col);
+          tableau[col].push(card);
+        }
+      }
+      const stock = deck.slice(k);
+      stock.forEach(function (c) { c.up = false; });
+      return {
+        stock: stock,
+        waste: [],
+        foundations: [[], [], [], []],
+        tableau: tableau
+      };
+    }
+
+    // Can `card` sit on `onto` in the tableau? Opposite colour, one rank lower.
+    function fitsTableau(card, onto) {
+      if (!onto) return card.rank === 13;                 // only a King on empty
+      return isRed(card.suit) !== isRed(onto.suit) && card.rank === onto.rank - 1;
+    }
+
+    // Can `card` go onto a foundation pile? Same suit, next rank up from the top.
+    function fitsFoundation(card, pile) {
+      if (!pile.length) return card.rank === 1;           // aces open a pile
+      const top = pile[pile.length - 1];
+      return top.suit === card.suit && card.rank === top.rank + 1;
+    }
+
+    /** The face-up run starting at `idx` in a column is always a legal moving
+        group in Klondike, but this checks it rather than trusting the caller. */
+    function isRun(cards) {
+      for (let i = 0; i < cards.length; i++) {
+        if (!cards[i].up) return false;
+        if (i > 0 && !fitsTableau(cards[i], cards[i - 1])) return false;
+      }
+      return true;
+    }
+
+    function foundationCount(state) {
+      return state.foundations.reduce(function (n, p) { return n + p.length; }, 0);
+    }
+
+    function isWon(state) { return foundationCount(state) === 52; }
+
+    /** Every tableau card face up and the stock spent: from here the game can
+        be played out with no more choices, so the auto-finish is offered. */
+    function canAutoFinish(state) {
+      if (state.stock.length || state.waste.length) return false;
+      return state.tableau.every(function (col) {
+        return col.every(function (c) { return c.up; });
+      });
+    }
+    // ========================================================= engine end ===
+
+    // ------------------------------------------------------------ page ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const timeEl = document.getElementById('timeEl');
+    const movesEl = document.getElementById('movesEl');
+    const homeEl = document.getElementById('homeEl');
+    const winsEl = document.getElementById('winsEl');
+    const undoBtn = document.getElementById('undoBtn');
+    const autoBtn = document.getElementById('autoBtn');
+    const startOverlay = document.getElementById('startOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const drawNote = document.getElementById('drawNote');
+    const modeBlurb = document.getElementById('modeBlurb');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.getElementById('bottomBar');
+
+    const RED = '#ff5c8a', BLACK = '#5cd6ff';   // suit ink, tuned for the dark felt
+
+    let drawCount = 1;
+    let state = null;
+    let moveCount = 0;
+    let startTime = 0, elapsed = 0, timerRunning = false;
+    let gameRunning = false;
+    let sel = null;                 // { pile, col, idx } of the picked-up card(s)
+    let history = [];               // snapshots for undo
+    let win = null;                 // bouncing-card celebration, when solved
+    let lastTapCard = null, lastTapAt = 0;
+    let animationId = null, lastTime = 0;
+
+    // Geometry, recomputed on every resize and reused for hit-testing.
+    let L = { cardW: 60, cardH: 84, pileW: 60, top: 0, left: 0, tabTop: 0,
+              stock: null, waste: null, foundations: [], columns: [] };
+
+    const initAudio = Arcade.initAudio;
+    function playTone(freq, type, duration, delay = 0, vol = 0.12) {
+      Arcade.playTone(freq, type, duration, delay, vol);
+    }
+    function playDeal()    { playTone(300, 'sine', 0.05, 0, 0.05); }
+    function playPick()    { playTone(520, 'triangle', 0.05, 0, 0.05); }
+    function playPlace()   { playTone(360, 'sine', 0.07, 0, 0.06); }
+    function playFound()   { playTone(660, 'sine', 0.09, 0, 0.06); playTone(880, 'sine', 0.08, 0.06, 0.05); }
+    function playFlip()    { playTone(440, 'triangle', 0.06, 0, 0.05); }
+    function playNope()    { playTone(120, 'square', 0.05, 0, 0.045); }
+    function playWinSound() { [523.25, 659.25, 783.99, 1046.50, 1318.5].forEach((f, i) => playTone(f, 'sine', 0.3, i * 0.12)); }
+
+    function showToast(text, color) { Arcade.showToast(toast, text, color || '#ffd700', 1000); }
+    function toggleFullscreen() { Arcade.toggleFullscreen(); }
+
+    // -------------------------------------------------------- best scores ---
+    function getWins() { return Arcade.bestScore('solitaireBest'); }
+    function setWins(v) { Arcade.setBestScore('solitaireBest', v); }
+    function getFastest() { return Arcade.bestScore(`solitaireTime_${drawCount}`); }   // seconds, lower is better
+    function setFastest(v) { Arcade.setBestScore(`solitaireTime_${drawCount}`, v); }
+
+    function fmtTime(sec) {
+      sec = Math.max(0, Math.floor(sec));
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    // -------------------------------------------------------------- layout ---
+    function resizeCanvas() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      const topOffset = Math.max(0, controlsBar.getBoundingClientRect().bottom - rect.top) + 8;
+      const bottomOffset = Math.max(0, rect.bottom - bottomBar.getBoundingClientRect().top) + 8;
+
+      // Seven columns with a small gap between; the card aspect is the usual ~0.68.
+      const availW = rect.width * 0.97;
+      const gap = availW / 7 * 0.12;
+      const cardW = (availW - gap * 6) / 7;
+      const cardH = Math.min(cardW / 0.68, (rect.height - topOffset - bottomOffset) * 0.34);
+
+      L.cardW = cardW;
+      L.cardH = cardH;
+      L.gap = gap;
+      L.left = (rect.width - (cardW * 7 + gap * 6)) / 2;
+      L.top = topOffset;
+      L.tabTop = topOffset + cardH + gap * 2.2;
+      L.viewH = rect.height - bottomOffset;
+
+      // Top row: stock, waste, a gap, then four foundations flush right.
+      const x = L.left;
+      L.stock = { x: x, y: L.top, w: cardW, h: cardH };
+      L.waste = { x: x + (cardW + gap), y: L.top, w: cardW, h: cardH };
+      L.foundations = [];
+      for (let i = 0; i < 4; i++) {
+        L.foundations.push({ x: x + (cardW + gap) * (3 + i), y: L.top, w: cardW, h: cardH });
+      }
+      L.columns = [];
+      for (let c = 0; c < 7; c++) L.columns.push({ x: x + (cardW + gap) * c });
+
+      render();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    /** Per-column vertical offsets, squeezed so even a long column stays on
+        screen. Face-down cards peek less than face-up ones. */
+    function columnGaps(col) {
+      const downGap = L.cardH * 0.17;
+      const upGap = L.cardH * 0.32;
+      let sum = 0;
+      for (let i = 0; i < col.length - 1; i++) sum += col[i].up ? upGap : downGap;
+      const avail = L.viewH - L.tabTop - L.cardH - 4;
+      const scale = sum > avail && sum > 0 ? avail / sum : 1;
+      return { down: downGap * scale, up: upGap * scale };
+    }
+
+    function cardYs(colIndex) {
+      const col = state.tableau[colIndex];
+      const gaps = columnGaps(col);
+      const ys = [];
+      let y = L.tabTop;
+      for (let i = 0; i < col.length; i++) {
+        ys.push(y);
+        y += col[i].up ? gaps.up : gaps.down;
+      }
+      return ys;
+    }
+
+    // ------------------------------------------------------------ render ---
+    function roundRectPath(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, r);
+    }
+
+    function drawSlot(x, y, glyph) {
+      const r = Math.max(5, L.cardW * 0.12);
+      ctx.save();
+      roundRectPath(x, y, L.cardW, L.cardH, r);
+      ctx.fillStyle = 'rgba(0, 242, 255, 0.05)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0, 242, 255, 0.28)';
+      ctx.setLineDash([5, 4]);
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      if (glyph) {
+        ctx.fillStyle = 'rgba(0, 242, 255, 0.25)';
+        ctx.font = (L.cardH * 0.42) + 'px "Segoe UI", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(glyph, x + L.cardW / 2, y + L.cardH / 2);
+      }
+      ctx.restore();
+    }
+
+    function drawCardBack(x, y) {
+      const r = Math.max(5, L.cardW * 0.12);
+      ctx.save();
+      roundRectPath(x, y, L.cardW, L.cardH, r);
+      const g = ctx.createLinearGradient(x, y, x + L.cardW, y + L.cardH);
+      g.addColorStop(0, '#141a3a');
+      g.addColorStop(1, '#0d1030');
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 0, 170, 0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      // A faint lattice so a face-down card reads as patterned, not blank.
+      ctx.clip();
+      ctx.strokeStyle = 'rgba(0, 242, 255, 0.18)';
+      ctx.lineWidth = 1;
+      const step = L.cardW * 0.24;
+      for (let d = -L.cardH; d < L.cardW; d += step) {
+        ctx.beginPath(); ctx.moveTo(x + d, y); ctx.lineTo(x + d + L.cardH, y + L.cardH); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x + d + L.cardH, y); ctx.lineTo(x + d, y + L.cardH); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawCardFace(x, y, card, highlight) {
+      const r = Math.max(5, L.cardW * 0.12);
+      const ink = isRed(card.suit) ? RED : BLACK;
+      ctx.save();
+      roundRectPath(x, y, L.cardW, L.cardH, r);
+      ctx.fillStyle = '#0f1330';
+      ctx.fill();
+      if (highlight) {
+        ctx.shadowBlur = L.cardW * 0.35;
+        ctx.shadowColor = 'rgba(255, 215, 0, 0.9)';
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 2.4;
+      } else {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+        ctx.lineWidth = 1.4;
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      const rank = RANKS[card.rank];
+      const suit = SUITS[card.suit];
+      ctx.fillStyle = ink;
+      ctx.textBaseline = 'top';
+
+      // Top-left rank + suit.
+      ctx.textAlign = 'left';
+      ctx.font = 'bold ' + (L.cardH * 0.24) + 'px "Segoe UI", sans-serif';
+      ctx.fillText(rank, x + L.cardW * 0.09, y + L.cardH * 0.06);
+      ctx.font = (L.cardH * 0.2) + 'px "Segoe UI", sans-serif';
+      ctx.fillText(suit, x + L.cardW * 0.09, y + L.cardH * 0.32);
+
+      // Big centre pip, glowing faintly.
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowBlur = L.cardW * 0.25;
+      ctx.shadowColor = ink;
+      ctx.font = (L.cardH * 0.42) + 'px "Segoe UI", sans-serif';
+      ctx.fillText(suit, x + L.cardW * 0.62, y + L.cardH * 0.64);
+      ctx.restore();
+    }
+
+    function render() {
+      if (!state) return;
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      // --- top row ---
+      if (state.stock.length) drawCardBack(L.stock.x, L.stock.y);
+      else drawSlot(L.stock.x, L.stock.y, '♻');
+
+      if (state.waste.length) {
+        // In draw-3 the last three fan out a touch so the count reads.
+        const shown = Math.min(state.waste.length, drawCount === 3 ? 3 : 1);
+        const fan = L.cardW * 0.26;
+        for (let i = shown - 1; i >= 0; i--) {
+          const card = state.waste[state.waste.length - shown + i];
+          const wx = L.waste.x + (shown - 1 - i) * fan;
+          const isTop = i === 0;
+          drawCardFace(wx, L.waste.y, card, isTop && isSel('waste', 0, state.waste.length - 1));
+        }
+      } else {
+        drawSlot(L.waste.x, L.waste.y, '');
+      }
+
+      for (let f = 0; f < 4; f++) {
+        const pile = state.foundations[f];
+        const slot = L.foundations[f];
+        if (pile.length) drawCardFace(slot.x, slot.y, pile[pile.length - 1], false);
+        else drawSlot(slot.x, slot.y, '♦♠♥♣'[f]);
+      }
+
+      // --- tableau ---
+      for (let c = 0; c < 7; c++) {
+        const col = state.tableau[c];
+        const x = L.columns[c].x;
+        if (!col.length) { drawSlot(x, L.tabTop, ''); continue; }
+        const ys = cardYs(c);
+        for (let i = 0; i < col.length; i++) {
+          const card = col[i];
+          if (!card.up) drawCardBack(x, ys[i]);
+          else drawCardFace(x, ys[i], card, isSel('tableau', c, i) || (sel && sel.pile === 'tableau' && sel.col === c && i > sel.idx));
+        }
+      }
+
+      // The celebration draws over the top, once solved.
+      if (win) drawWin(rect);
+    }
+
+    function isSel(pile, col, idx) {
+      return sel && sel.pile === pile && (pile !== 'tableau' || sel.col === col) && sel.idx === idx;
+    }
+
+    function updateHUD() {
+      timeEl.textContent = fmtTime(elapsed);
+      movesEl.textContent = moveCount;
+      homeEl.textContent = (state ? foundationCount(state) : 0) + '/52';
+      winsEl.textContent = getWins();
+      undoBtn.disabled = history.length === 0;
+      undoBtn.style.opacity = history.length ? '1' : '0.4';
+      autoBtn.classList.toggle('show', gameRunning && !win && state && canAutoFinish(state));
+    }
+
+    // -------------------------------------------------------------- flow ---
+    function snapshot() {
+      history.push(JSON.stringify({ s: state, m: moveCount }));
+      if (history.length > 300) history.shift();
+    }
+
+    function undo() {
+      if (!history.length || win) return;
+      const prev = JSON.parse(history.pop());
+      state = prev.s;
+      moveCount = prev.m;
+      sel = null;
+      playFlip();
+      updateHUD();
+      render();
+    }
+
+    function countMove() { moveCount++; }
+
+    // Turn the newly exposed tableau card face up, if any.
+    function flipExposed(col) {
+      const pile = state.tableau[col];
+      if (pile.length && !pile[pile.length - 1].up) {
+        pile[pile.length - 1].up = true;
+        playFlip();
+        return true;
+      }
+      return false;
+    }
+
+    function drawFromStock() {
+      snapshot();
+      if (!state.stock.length) {
+        if (!state.waste.length) { history.pop(); return; }
+        // Recycle: the waste flips back into the stock, face down.
+        while (state.waste.length) {
+          const card = state.waste.pop();
+          card.up = false;
+          state.stock.push(card);
+        }
+        playDeal();
+      } else {
+        const n = Math.min(drawCount, state.stock.length);
+        for (let i = 0; i < n; i++) {
+          const card = state.stock.pop();
+          card.up = true;
+          state.waste.push(card);
+        }
+        playDeal();
+      }
+      sel = null;
+      countMove();
+      afterMove();
+    }
+
+    /** Try to move the current selection onto the pile the tap landed on.
+        Returns true if a legal move happened. */
+    function tryMoveTo(target) {
+      if (!sel) return false;
+      const moving = grabbed();
+      if (!moving.length) return false;
+
+      if (target.type === 'foundation') {
+        if (moving.length !== 1) return false;
+        if (!fitsFoundation(moving[0], state.foundations[target.i])) return false;
+        removeGrabbed();
+        state.foundations[target.i].push(moving[0]);
+        playFound();
+      } else if (target.type === 'tableau') {
+        const col = state.tableau[target.i];
+        if (!fitsTableau(moving[0], col.length ? col[col.length - 1] : null)) return false;
+        removeGrabbed();
+        moving.forEach(function (c) { col.push(c); });
+        playPlace();
+      } else {
+        return false;
+      }
+
+      if (sel.pile === 'tableau') flipExposed(sel.col);
+      sel = null;
+      countMove();
+      afterMove();
+      return true;
+    }
+
+    /** The cards the current selection represents. */
+    function grabbed() {
+      if (!sel) return [];
+      if (sel.pile === 'waste') return state.waste.slice(-1);
+      return state.tableau[sel.col].slice(sel.idx);
+    }
+
+    function removeGrabbed() {
+      if (sel.pile === 'waste') state.waste.pop();
+      else state.tableau[sel.col].length = sel.idx;
+    }
+
+    /** Send a single card straight to a foundation if one will take it. */
+    function toFoundation(card, remove) {
+      for (let f = 0; f < 4; f++) {
+        if (fitsFoundation(card, state.foundations[f])) {
+          remove();
+          state.foundations[f].push(card);
+          playFound();
+          countMove();
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function afterMove() {
+      updateHUD();
+      render();
+      if (isWon(state)) startWin();
+    }
+
+    // ---------------------------------------------------------- input ---
+    function hitTest(px, py) {
+      // Top row first.
+      if (inRect(px, py, L.stock)) return { type: 'stock' };
+      if (state.waste.length && inRect(px, py, L.waste)) {
+        return { type: 'waste', idx: state.waste.length - 1 };
+      }
+      for (let f = 0; f < 4; f++) {
+        if (inRect(px, py, L.foundations[f])) return { type: 'foundation', i: f };
+      }
+      // Tableau columns: find the card whose vertical slice was hit.
+      for (let c = 0; c < 7; c++) {
+        const x = L.columns[c].x;
+        if (px < x || px > x + L.cardW) continue;
+        const col = state.tableau[c];
+        if (!col.length) {
+          if (py >= L.tabTop && py <= L.tabTop + L.cardH) return { type: 'tableau', i: c, idx: -1 };
+          continue;
+        }
+        const ys = cardYs(c);
+        for (let i = col.length - 1; i >= 0; i--) {
+          const bottom = (i === col.length - 1) ? ys[i] + L.cardH : ys[i + 1];
+          if (py >= ys[i] && py < bottom) return { type: 'tableau', i: c, idx: i };
+        }
+      }
+      return null;
+    }
+
+    function inRect(px, py, r) {
+      return r && px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+    }
+
+    function onTap(px, py) {
+      if (!gameRunning || win) return;
+      const hit = hitTest(px, py);
+
+      if (!hit) { sel = null; render(); return; }
+
+      if (hit.type === 'stock') { drawFromStock(); return; }
+
+      // A quick second tap on the same card sends it home if it can go.
+      const now = performance.now();
+      const tappedCard = cardAtHit(hit);
+      const doubled = tappedCard && tappedCard === lastTapCard && (now - lastTapAt) < 340;
+      lastTapCard = tappedCard;
+      lastTapAt = now;
+
+      if (hit.type === 'foundation') {
+        if (sel) { if (!tryMoveTo(hit)) { playNope(); } }
+        return;
+      }
+
+      if (hit.type === 'waste') {
+        if (sel && sel.pile === 'waste') {           // second tap on the pickup
+          if (!toFoundation(state.waste[state.waste.length - 1], function () { state.waste.pop(); })) playNope();
+          else afterMove();
+          sel = null;
+          return;
+        }
+        if (sel) { if (tryMoveTo(hit)) return; }      // (waste is never a target, falls through)
+        snapshotSelect('waste', 0, state.waste.length - 1);
+        return;
+      }
+
+      // tableau
+      const col = state.tableau[hit.i];
+      if (hit.idx === -1 || col.length === 0) {       // empty column, a drop target
+        if (sel) { if (!tryMoveTo({ type: 'tableau', i: hit.i })) playNope(); }
+        return;
+      }
+      const card = col[hit.idx];
+
+      if (sel) {
+        // Second tap on the very card we picked up: try foundation, else drop selection.
+        if (sel.pile === 'tableau' && sel.col === hit.i && sel.idx === hit.idx && doubled) {
+          if (grabbed().length === 1 &&
+              toFoundation(card, function () { col.pop(); flipExposed(hit.i); })) {
+            sel = null; afterMove(); return;
+          }
+        }
+        if (tryMoveTo({ type: 'tableau', i: hit.i })) return;
+        // Not a legal destination — treat the tap as picking a new card instead.
+        sel = null;
+      }
+
+      if (!card.up) { playNope(); return; }
+      const run = col.slice(hit.idx);
+      if (!isRun(run)) { playNope(); return; }
+      selectPick('tableau', hit.i, hit.idx);
+    }
+
+    function cardAtHit(hit) {
+      if (hit.type === 'waste') return state.waste[state.waste.length - 1] || null;
+      if (hit.type === 'tableau' && hit.idx >= 0) return state.tableau[hit.i][hit.idx] || null;
+      return null;
+    }
+
+    function selectPick(pile, col, idx) {
+      sel = { pile: pile, col: col, idx: idx };
+      playPick();
+      render();
+    }
+
+    // A pickup that also lets a following tap be a move; used for the waste.
+    function snapshotSelect(pile, col, idx) { selectPick(pile, col, idx); }
+
+    canvas.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      initAudio();
+      const rect = canvas.getBoundingClientRect();
+      onTap(e.clientX - rect.left, e.clientY - rect.top);
+    });
+
+    // -------------------------------------------------------- auto-finish ---
+    let autoTimer = null;
+    function autoFinish() {
+      if (!state || win) return;
+      autoBtn.classList.remove('show');
+      sel = null;
+      stepAuto();
+    }
+
+    function stepAuto() {
+      // Lowest-ranked available card that can go home, one every beat.
+      let moved = false;
+      const tops = [];
+      if (state.waste.length) tops.push({ card: state.waste[state.waste.length - 1], take: function () { state.waste.pop(); } });
+      for (let c = 0; c < 7; c++) {
+        const col = state.tableau[c];
+        if (col.length) {
+          const ci = c;
+          tops.push({ card: col[col.length - 1], take: function () { col.pop(); flipExposed(ci); } });
+        }
+      }
+      tops.sort(function (a, b) { return a.card.rank - b.card.rank; });
+      for (let t = 0; t < tops.length; t++) {
+        if (toFoundation(tops[t].card, tops[t].take)) { moved = true; break; }
+      }
+      updateHUD();
+      render();
+      if (isWon(state)) { startWin(); return; }
+      if (moved) autoTimer = setTimeout(stepAuto, 90);
+    }
+
+    // ---------------------------------------------------------- winning ---
+    let flyers = [];
+    function startWin() {
+      gameRunning = false;
+      timerRunning = false;
+      clearTimeout(autoTimer);
+      win = true;
+      flyers = [];
+      recordWin();
+      playWinSound();
+      // Launch the foundation cards bouncing, in the old-school way.
+      seedFlyers();
+    }
+
+    function seedFlyers() {
+      const rect = canvas.getBoundingClientRect();
+      let order = [];
+      for (let f = 0; f < 4; f++) {
+        state.foundations[f].forEach(function (card) { order.push({ card: card, f: f }); });
+      }
+      // From Kings down, so the pile empties top-first like the real thing.
+      order.sort(function (a, b) { return b.card.rank - a.card.rank; });
+      queued = order;
+      queueAt = 0;
+      winStarted = performance.now();
+    }
+
+    let queued = [], queueAt = 0, winStarted = 0;
+    function drawWin(rect) {
+      // Release a card from its foundation every so often.
+      const now = performance.now();
+      while (queueAt < queued.length && now - winStarted > queueAt * 90) {
+        const q = queued[queueAt++];
+        const slot = L.foundations[q.f];
+        flyers.push({
+          card: q.card, x: slot.x, y: slot.y,
+          vx: (Math.random() * 2 - 1) * 260,
+          vy: -Math.random() * 120 - 40
+        });
+      }
+      flyers.forEach(function (fl) {
+        drawCardFace(fl.x, fl.y, fl.card, false);
+      });
+    }
+
+    function stepFlyers(dt, rect) {
+      for (let i = 0; i < flyers.length; i++) {
+        const fl = flyers[i];
+        fl.vy += 900 * dt;
+        fl.x += fl.vx * dt;
+        fl.y += fl.vy * dt;
+        if (fl.y + L.cardH > rect.height) {
+          fl.y = rect.height - L.cardH;
+          fl.vy *= -0.72;
+          if (Math.abs(fl.vy) < 60) fl.vy = -Math.random() * 200 - 60;
+        }
+        if (fl.x < -L.cardW) fl.x = rect.width;
+        if (fl.x > rect.width) fl.x = -L.cardW;
+      }
+      // Keep the swarm bounded; the celebration doesn't need a thousand cards.
+      if (flyers.length > 90) flyers.splice(0, flyers.length - 90);
+    }
+
+    // ------------------------------------------------------------ loop ---
+    function gameLoop(timestamp) {
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min(timestamp - lastTime, 50) / 1000;
+      lastTime = timestamp;
+
+      if (timerRunning) {
+        elapsed = (performance.now() - startTime) / 1000;
+        timeEl.textContent = fmtTime(elapsed);
+      }
+
+      if (win) {
+        const rect = canvas.getBoundingClientRect();
+        stepFlyers(dt, rect);
+        render();
+        if (win === 'done') { animationId = requestAnimationFrame(gameLoop); return; }
+      }
+
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function recordWin() {
+      const secs = Math.floor(elapsed);
+      const wins = getWins() + 1;
+      setWins(wins);
+      const prevFast = getFastest();
+      const isFast = prevFast === 0 || secs < prevFast;
+      if (isFast) setFastest(secs);
+
+      document.getElementById('winTitle').textContent = '🏆 Solved!';
+      document.getElementById('finalBlurb').textContent = 'Every card home in ' + moveCount + ' moves.';
+      document.getElementById('finalTime').textContent = fmtTime(secs);
+      document.getElementById('finalMoves').textContent = moveCount;
+      document.getElementById('finalFastest').textContent = fmtTime(getFastest());
+      document.getElementById('finalWins').textContent = wins;
+      document.getElementById('newBestTag').style.display = isFast ? 'block' : 'none';
+      if (isFast) setTimeout(function () { Arcade.playBestJingle(); }, 400);
+      winsEl.textContent = wins;
+
+      // Let the cards bounce for a moment before the score card slides in.
+      setTimeout(function () {
+        win = 'done';
+        gameOverOverlay.classList.remove('hidden');
+      }, 2600);
+    }
+
+    // ---------------------------------------------------------- controls ---
+    function setDraw(n) {
+      drawCount = n;
+      document.querySelectorAll('#modeBar button').forEach(function (btn) {
+        btn.classList.toggle('active', +btn.dataset.draw === n);
+      });
+      drawNote.textContent = n === 1
+        ? 'Draw one — the gentler deal, most games are winnable.'
+        : 'Draw three — the classic challenge, only the third card is free.';
+    }
+
+    function showStartOverlay() {
+      gameRunning = false;
+      timerRunning = false;
+      win = null;
+      clearTimeout(autoTimer);
+      cancelAnimationFrame(animationId);
+      gameOverOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+    }
+
+    function startGame() {
+      initAudio();
+      clearTimeout(autoTimer);
+      cancelAnimationFrame(animationId);
+      state = deal(Math.random);
+      moveCount = 0;
+      history = [];
+      sel = null;
+      win = null;
+      flyers = [];
+      elapsed = 0;
+      startTime = performance.now();
+      timerRunning = true;
+      gameRunning = true;
+
+      startOverlay.classList.add('hidden');
+      gameOverOverlay.classList.add('hidden');
+      hintLine.textContent = 'Tap the stock to deal. Tap a card, then its new home.';
+
+      playDeal();
+      updateHUD();
+      resizeCanvas();
+      lastTime = 0;
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    Arcade.wireFullscreen(fullscreenBtn, resizeCanvas);
+
+    try {
+      setDraw(1);
+      winsEl.textContent = getWins();
+      // A shuffled board sits behind the start overlay so the page isn't blank.
+      state = deal(Math.random);
+      resizeCanvas();
+    } catch (err) {
+      console.error('Neon Solitaire init failed:', err);
+    }
+  </script>
+</body>
+</html>
