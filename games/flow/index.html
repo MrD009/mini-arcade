@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>🌈 Neon Flow | Mini Arcade</title>
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="../../favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="stylesheet" href="../../shared/arcade.css">
+  <style>
+    :root { --play-max: 560px; }
+
+    #gameCanvas {
+      background:
+        radial-gradient(ellipse at 50% 0%, #131b34 0%, #070713 60%, #050510 100%);
+    }
+
+    .mode-bar {
+      display: flex;
+      gap: 6px;
+      margin: 12px 0 2px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .mode-bar button {
+      padding: 8px 16px;
+      font-size: 0.78rem;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .mode-bar button.active {
+      background: rgba(0, 242, 255, 0.15);
+      border-color: var(--accent);
+      box-shadow: 0 0 10px rgba(0, 242, 255, 0.25);
+    }
+
+    .overlay .stats { max-width: 300px; }
+    .pct-good { color: var(--green) !important; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="play-border"></div>
+
+  <div class="ui-layer">
+    <div class="hud" id="hud">
+      <div class="hud-panel">
+        <span>Pipes</span>
+        <strong id="pipesEl">0/0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Filled</span>
+        <strong id="fillEl">0%</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Moves</span>
+        <strong id="movesEl">0</strong>
+      </div>
+      <div class="hud-panel">
+        <span>Solved</span>
+        <strong id="solvedEl">0</strong>
+      </div>
+    </div>
+
+    <div class="controls-bar" id="controlsBar">
+      <button onclick="resetBoard()">↺ Reset</button>
+      <button onclick="newPuzzle()">🎲 New</button>
+      <button id="fullscreenBtn" onclick="toggleFullscreen()">⛶ Full</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Home</button>
+      </a>
+    </div>
+
+    <div class="bottom-bar" id="bottomBar">
+      <div class="hint-line" id="hintLine">Drag between matching dots. Fill every square to win.</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Connected!</div>
+
+  <div class="overlay" id="startOverlay">
+    <h1>🌈 Neon Flow</h1>
+    <p id="modeBlurb">Join every pair of matching dots with a pipe — and fill every last square, with no pipe crossing another. A fresh, always-solvable board every time.</p>
+
+    <div class="mode-bar" id="modeBar">
+      <button data-size="small" onclick="setSize('small')">5×5</button>
+      <button data-size="medium" onclick="setSize('medium')">7×7</button>
+      <button data-size="large" onclick="setSize('large')">9×9</button>
+    </div>
+    <div class="diff-note" id="sizeNote"></div>
+
+    <div class="legend">
+      <span>🔗 Match the colours</span>
+      <span>▦ Fill every square</span>
+      <span>⛔ No crossing</span>
+    </div>
+
+    <button class="primary" onclick="startGame()">▶ Play</button>
+  </div>
+
+  <div class="overlay hidden" id="gameOverOverlay">
+    <h1 id="winTitle">🏆 Board Solved!</h1>
+    <p class="new-best" id="newBestTag">⚡ Perfect — no wasted moves!</p>
+    <p id="finalBlurb">Every square filled.</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="num" id="finalTime">0:00</div>
+        <div class="lbl">Time</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalMoves">0</div>
+        <div class="lbl">Moves</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalPipes">0</div>
+        <div class="lbl">Pipes</div>
+      </div>
+      <div class="stat">
+        <div class="num" id="finalSolved">0</div>
+        <div class="lbl">Total Solved</div>
+      </div>
+    </div>
+    <button class="primary" onclick="newPuzzle()">Next Board ▶</button>
+    <div class="secondary-row">
+      <button onclick="showStartOverlay()">Change Size</button>
+      <a href="../../index.html" style="text-decoration:none;">
+        <button type="button">🏠 Arcade Home</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="../../shared/arcade.js"></script>
+  <script>
+    // ======================================================= engine start ===
+    /*
+     * A Flow puzzle and its generator, kept free of the DOM.
+     *
+     * The trick to an always-solvable board: carve a single Hamiltonian path
+     * that visits every cell, then cut it into contiguous segments. Each
+     * segment's two ends become a coloured pair, and the segment itself proves
+     * a full-coverage solution exists — so no puzzle is ever a dead end.
+     */
+    function idxOf(N, r, c) { return r * N + c; }
+    function rowOf(N, i) { return (i / N) | 0; }
+    function colOf(N, i) { return i % N; }
+
+    function neighbours(N, i) {
+      const r = rowOf(N, i), c = colOf(N, i), out = [];
+      if (r > 0) out.push(i - N);
+      if (r < N - 1) out.push(i + N);
+      if (c > 0) out.push(i - 1);
+      if (c < N - 1) out.push(i + 1);
+      return out;
+    }
+
+    /**
+     * A random Hamiltonian path over the N×N grid via the "backbite" shuffle.
+     *
+     * Start from the trivial boustrophedon snake — which is already a
+     * Hamiltonian path — then repeatedly bite: from one end, add an edge to a
+     * random grid-neighbour and drop the edge that closes the loop it makes,
+     * which reverses a suffix of the path. Every bite leaves a valid
+     * Hamiltonian path, so this can never fail and never backtracks; a few
+     * passes over the board mix it thoroughly.
+     */
+    function hamiltonianPath(N, rng) {
+      const total = N * N;
+      const path = [];
+      for (let r = 0; r < N; r++) {
+        for (let c = 0; c < N; c++) path.push(idxOf(N, r, r % 2 ? N - 1 - c : c));
+      }
+      const pos = new Int32Array(total);
+      for (let i = 0; i < total; i++) pos[path[i]] = i;
+
+      function reverseSuffix(from) {
+        let lo = from, hi = total - 1;
+        while (lo < hi) {
+          const a = path[lo], b = path[hi];
+          path[lo] = b; path[hi] = a;
+          pos[b] = lo; pos[a] = hi;
+          lo++; hi--;
+        }
+      }
+
+      const bites = Math.max(200, total * 8);
+      for (let m = 0; m < bites; m++) {
+        // Work on whichever end is at the tail; flip the path now and then so
+        // both ends get stirred.
+        if (rng() < 0.5) { path.reverse(); for (let i = 0; i < total; i++) pos[path[i]] = i; }
+        const end = path[total - 1];
+        const ns = neighbours(N, end);
+        const nb = ns[(Math.floor(rng() * ns.length))];
+        const i = pos[nb];
+        if (i >= total - 2) continue;    // already the path-neighbour
+        reverseSuffix(i + 1);
+      }
+      return path;
+    }
+
+    /**
+     * Cut the Hamiltonian path into `colors` contiguous runs, each at least
+     * `minLen` cells long, and return the endpoint pair for each run.
+     */
+    function makePuzzle(N, colors, minLen, rng) {
+      const full = hamiltonianPath(N, rng);
+      if (!full) return null;
+      const len = full.length;
+
+      // Lengths that sum to `len`, each ≥ minLen: start at the floor, then
+      // hand out the remainder one cell at a time to random runs.
+      const lens = new Array(colors).fill(minLen);
+      let extra = len - minLen * colors;
+      while (extra > 0) { lens[Math.floor(rng() * colors)]++; extra--; }
+
+      const pairs = [];
+      let pos = 0;
+      for (let k = 0; k < colors; k++) {
+        const a = full[pos];
+        const b = full[pos + lens[k] - 1];
+        pairs.push([a, b]);
+        pos += lens[k];
+      }
+      return { N: N, pairs: pairs, solution: full, lens: lens };
+    }
+
+    function cellsAdjacent(N, a, b) {
+      const ra = rowOf(N, a), ca = colOf(N, a), rb = rowOf(N, b), cb = colOf(N, b);
+      return (ra === rb && Math.abs(ca - cb) === 1) || (ca === cb && Math.abs(ra - rb) === 1);
+    }
+    // ========================================================= engine end ===
+
+    // ------------------------------------------------------------ page ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const pipesEl = document.getElementById('pipesEl');
+    const fillEl = document.getElementById('fillEl');
+    const movesEl = document.getElementById('movesEl');
+    const solvedEl = document.getElementById('solvedEl');
+    const startOverlay = document.getElementById('startOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const sizeNote = document.getElementById('sizeNote');
+    const modeBlurb = document.getElementById('modeBlurb');
+    const toast = document.getElementById('toast');
+    const hintLine = document.getElementById('hintLine');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const controlsBar = document.getElementById('controlsBar');
+    const bottomBar = document.getElementById('bottomBar');
+
+    const SIZES = {
+      small:  { n: 5, colors: 5, minLen: 2, note: '🟢 A gentle 5×5 to warm up.' },
+      medium: { n: 7, colors: 7, minLen: 3, note: '🟡 A 7×7 with room to go wrong.' },
+      large:  { n: 9, colors: 8, minLen: 3, note: '🔴 A big 9×9 that fills the screen.' }
+    };
+
+    // Vivid, well-separated hues — the pipes are the whole show, so they get
+    // colours that stay distinct even glowing against the dark board.
+    const PALETTE = [
+      '#ff3b57', '#ff9f1c', '#ffe14d', '#31ff9b', '#25e6ff',
+      '#5b7cff', '#b46bff', '#ff5ce1', '#a6ff3d'
+    ];
+
+    function hexToRgb(hex) {
+      return { r: parseInt(hex.slice(1, 3), 16), g: parseInt(hex.slice(3, 5), 16), b: parseInt(hex.slice(5, 7), 16) };
+    }
+    function rgba(hex, a) { const c = hexToRgb(hex); return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')'; }
+    function lighten(hex, t) {
+      const c = hexToRgb(hex);
+      const m = function (v) { return Math.round(v + (255 - v) * t); };
+      return 'rgb(' + m(c.r) + ',' + m(c.g) + ',' + m(c.b) + ')';
+    }
+
+    let sizeKey = 'small';
+    let N = 5, colorCount = 5;
+    let puzzle = null;
+    let endpointColor = null;      // Int16Array: colour that owns a dot, or -1
+    let owner = null;              // Int16Array: colour whose pipe fills a cell, or -1
+    let paths = [];                // paths[k] = ordered cells of colour k's pipe
+    let completed = [];            // completed[k] = both endpoints joined
+
+    let active = -1;               // colour being drawn during a drag
+    let changedThisDrag = false;
+    let moveCount = 0;
+    let elapsed = 0, startTime = 0, timerRunning = false;
+    let gameRunning = false;
+    let solvedFlash = 0;           // 0..1 celebration wipe
+
+    let particles = [];
+    let flowPhase = 0;             // animates the light travelling down finished pipes
+    let animationId = null, lastTime = 0;
+
+    let cell = 40, boardX = 0, boardY = 0, boardPx = 0;
+
+    const initAudio = Arcade.initAudio;
+    function playTone(freq, type, duration, delay = 0, vol = 0.12) {
+      Arcade.playTone(freq, type, duration, delay, vol);
+    }
+    function playTouch()   { playTone(300, 'sine', 0.04, 0, 0.04); }
+    function playConnect(k) { const base = 440 + k * 40; playTone(base, 'triangle', 0.09, 0, 0.06); playTone(base * 1.5, 'sine', 0.08, 0.05, 0.04); }
+    function playBreak()   { playTone(180, 'sine', 0.05, 0, 0.04); }
+    function playWinSound() { [523.25, 659.25, 783.99, 1046.50, 1318.5].forEach((f, i) => playTone(f, 'sine', 0.3, i * 0.1)); }
+
+    function showToast(text, color) { Arcade.showToast(toast, text, color || '#ffd700', 900); }
+    function toggleFullscreen() { Arcade.toggleFullscreen(); }
+
+    // -------------------------------------------------------- best scores ---
+    function getSolved() { return Arcade.bestScore('flowBest'); }
+    function setSolved(v) { Arcade.setBestScore('flowBest', v); }
+
+    function fmtTime(sec) {
+      sec = Math.max(0, Math.floor(sec));
+      return Math.floor(sec / 60) + ':' + (sec % 60 < 10 ? '0' : '') + (sec % 60);
+    }
+
+    // -------------------------------------------------------------- setup ---
+    function loadPuzzle(p) {
+      puzzle = p;
+      N = p.N;
+      const total = N * N;
+      endpointColor = new Int16Array(total).fill(-1);
+      owner = new Int16Array(total).fill(-1);
+      paths = [];
+      completed = [];
+      for (let k = 0; k < p.pairs.length; k++) {
+        endpointColor[p.pairs[k][0]] = k;
+        endpointColor[p.pairs[k][1]] = k;
+        paths.push([]);
+        completed.push(false);
+      }
+      active = -1;
+      moveCount = 0;
+      solvedFlash = 0;
+      particles = [];
+    }
+
+    function generate() {
+      const cfg = SIZES[sizeKey];
+      colorCount = cfg.colors;
+      let p = null, tries = 0;
+      while (!p && tries++ < 30) p = makePuzzle(cfg.n, cfg.colors, cfg.minLen, Math.random);
+      // Fallback that can't fail: a straight snake of the same grid.
+      if (!p) p = snakeFallback(cfg.n, cfg.colors, cfg.minLen);
+      loadPuzzle(p);
+    }
+
+    function snakeFallback(n, colors, minLen) {
+      const path = [];
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) path.push(idxOf(n, r, r % 2 ? n - 1 - c : c));
+      }
+      const lens = new Array(colors).fill(minLen);
+      let extra = path.length - minLen * colors;
+      let k = 0;
+      while (extra > 0) { lens[k % colors]++; extra--; k++; }
+      const pairs = []; let pos = 0;
+      for (let i = 0; i < colors; i++) { pairs.push([path[pos], path[pos + lens[i] - 1]]); pos += lens[i]; }
+      return { N: n, pairs: pairs, solution: path, lens: lens };
+    }
+
+    // -------------------------------------------------------------- layout ---
+    function resizeCanvas() {
+      const rect = Arcade.fitCanvas(canvas, ctx);
+      const topOffset = Math.max(0, controlsBar.getBoundingClientRect().bottom - rect.top) + 12;
+      const bottomOffset = Math.max(0, rect.bottom - bottomBar.getBoundingClientRect().top) + 12;
+      const availW = rect.width * 0.95;
+      const availH = Math.max(120, rect.height - topOffset - bottomOffset);
+      boardPx = Math.min(availW, availH);
+      cell = boardPx / N;
+      boardX = (rect.width - boardPx) / 2;
+      boardY = topOffset + (availH - boardPx) / 2;
+      render();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function centre(i) {
+      return { x: boardX + colOf(N, i) * cell + cell / 2, y: boardY + rowOf(N, i) * cell + cell / 2 };
+    }
+    function cellAt(px, py) {
+      const c = Math.floor((px - boardX) / cell);
+      const r = Math.floor((py - boardY) / cell);
+      if (r < 0 || r >= N || c < 0 || c >= N) return -1;
+      return idxOf(N, r, c);
+    }
+
+    // ------------------------------------------------------------ render ---
+    function drawBoardFrame() {
+      const r = Math.max(8, cell * 0.18);
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(boardX - cell * 0.06, boardY - cell * 0.06, boardPx + cell * 0.12, boardPx + cell * 0.12, r);
+      ctx.fillStyle = 'rgba(10, 14, 30, 0.55)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(90, 124, 255, 0.35)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Faint cell lattice.
+      ctx.strokeStyle = 'rgba(120, 150, 255, 0.10)';
+      ctx.lineWidth = 1;
+      for (let i = 1; i < N; i++) {
+        ctx.beginPath();
+        ctx.moveTo(boardX + i * cell, boardY); ctx.lineTo(boardX + i * cell, boardY + boardPx);
+        ctx.moveTo(boardX, boardY + i * cell); ctx.lineTo(boardX + boardPx, boardY + i * cell);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function strokePipe(cells, style, width, dash, dashOffset, glow) {
+      if (cells.length < 2) return;
+      ctx.beginPath();
+      for (let i = 0; i < cells.length; i++) {
+        const p = centre(cells[i]);
+        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+      }
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = style;
+      if (glow) { ctx.shadowBlur = glow; ctx.shadowColor = style; }
+      if (dash) { ctx.setLineDash(dash); ctx.lineDashOffset = dashOffset; }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.setLineDash([]);
+    }
+
+    /** The short stub from an endpoint into its first pipe cell, so a pipe
+        appears to grow out of the dot rather than starting a cell away. */
+    function drawPipeCap(k) {
+      const p = paths[k];
+      if (p.length < 1) return;
+      const col = PALETTE[k];
+      const c0 = centre(p[0]);
+      ctx.save();
+      ctx.fillStyle = col;
+      ctx.shadowBlur = cell * 0.3;
+      ctx.shadowColor = col;
+      ctx.beginPath();
+      ctx.arc(c0.x, c0.y, cell * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawEndpoint(i, k, t) {
+      const p = centre(i);
+      const col = PALETTE[k];
+      const done = completed[k];
+      const pulse = done ? 0 : 0.5 + 0.5 * Math.sin(t * 3 + k);
+      // Outer halo.
+      const halo = ctx.createRadialGradient(p.x, p.y, cell * 0.05, p.x, p.y, cell * 0.5);
+      halo.addColorStop(0, rgba(col, 0.5));
+      halo.addColorStop(1, rgba(col, 0));
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, cell * (0.42 + 0.08 * pulse), 0, Math.PI * 2);
+      ctx.fill();
+      // Solid dot.
+      ctx.save();
+      ctx.shadowBlur = cell * 0.4;
+      ctx.shadowColor = col;
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, cell * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      // Glossy inner highlight.
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath();
+      ctx.arc(p.x - cell * 0.08, p.y - cell * 0.09, cell * 0.09, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function render() {
+      if (!puzzle) return;
+      const rect = canvas.getBoundingClientRect();
+      const t = performance.now() / 1000;
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      drawBoardFrame();
+
+      // Pipes, back to front: broad glow tube, glossy core, then the travelling
+      // light on the ones that are finished.
+      for (let k = 0; k < paths.length; k++) {
+        const p = paths[k];
+        if (p.length < 1) continue;
+        const col = PALETTE[k];
+        drawPipeCap(k);
+        if (p.length >= 2) {
+          strokePipe(p, rgba(col, 0.9), cell * 0.42, null, 0, cell * 0.55);
+          strokePipe(p, lighten(col, 0.45), cell * 0.16, null, 0, 0);
+          if (completed[k]) {
+            strokePipe(p, 'rgba(255,255,255,0.92)', cell * 0.07,
+                       [cell * 0.16, cell * 0.55], -flowPhase, cell * 0.25);
+          }
+        }
+      }
+
+      // The head of the pipe being drawn gets a little ring.
+      if (active >= 0 && paths[active].length) {
+        const head = centre(paths[active][paths[active].length - 1]);
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(head.x, head.y, cell * 0.32, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // Endpoints on top.
+      for (let i = 0; i < endpointColor.length; i++) {
+        if (endpointColor[i] >= 0) drawEndpoint(i, endpointColor[i], t);
+      }
+
+      // Particles from connections and the win.
+      for (let i = 0; i < particles.length; i++) {
+        const pt = particles[i];
+        ctx.globalAlpha = Math.max(0, pt.life);
+        ctx.fillStyle = pt.color;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      // Solve wipe: a bright ring sweeping out from the centre.
+      if (solvedFlash > 0) {
+        const cx = boardX + boardPx / 2, cy = boardY + boardPx / 2;
+        const rad = solvedFlash * boardPx * 0.9;
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, 0.5 * (1 - solvedFlash));
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = cell * 0.4;
+        ctx.shadowBlur = cell * 0.6;
+        ctx.shadowColor = '#7bdfff';
+        ctx.beginPath();
+        ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // ------------------------------------------------------------ pipes ---
+    function clearPath(k) {
+      const p = paths[k];
+      for (let i = 0; i < p.length; i++) owner[p[i]] = -1;
+      paths[k] = [];
+      completed[k] = false;
+    }
+
+    function truncateFrom(k, cellIdx) {
+      // Drop `cellIdx` and everything after it from colour k's pipe.
+      const p = paths[k];
+      const at = p.indexOf(cellIdx);
+      if (at === -1) return;
+      for (let i = p.length - 1; i >= at; i--) owner[p[i]] = -1;
+      p.length = at;
+      completed[k] = false;
+    }
+
+    function begin(c) {
+      const ec = endpointColor[c];
+      if (ec >= 0) {
+        active = ec;
+        clearPath(ec);
+        paths[ec] = [c];
+        owner[c] = ec;
+        completed[ec] = false;
+        changedThisDrag = true;
+        return true;
+      }
+      const own = owner[c];
+      if (own >= 0) {
+        active = own;
+        const p = paths[own];
+        const at = p.indexOf(c);
+        for (let i = p.length - 1; i > at; i--) owner[p[i]] = -1;
+        p.length = at + 1;
+        completed[own] = false;
+        changedThisDrag = true;
+        return true;
+      }
+      return false;
+    }
+
+    function stepTo(n) {
+      const k = active;
+      if (k < 0) return;
+      const p = paths[k];
+      const head = p[p.length - 1];
+      if (n === head || !cellsAdjacent(N, head, n)) return;
+
+      // Retract one cell.
+      if (p.length >= 2 && n === p[p.length - 2]) {
+        owner[p.pop()] = -1;
+        completed[k] = false;
+        changedThisDrag = true;
+        return;
+      }
+      // Growing past a finished endpoint isn't allowed.
+      const headIsFarEnd = endpointColor[head] === k && head !== p[0];
+      if (headIsFarEnd) return;
+
+      // Crossing our own pipe: snap back to that cell instead.
+      const self = p.indexOf(n);
+      if (self !== -1) {
+        for (let i = p.length - 1; i > self; i--) owner[p[i]] = -1;
+        p.length = self + 1;
+        completed[k] = false;
+        changedThisDrag = true;
+        return;
+      }
+
+      // Can't run through another colour's dot.
+      const ec = endpointColor[n];
+      if (ec !== -1 && ec !== k) return;
+
+      // Overwrite another colour's pipe where it sits.
+      const own = owner[n];
+      if (own >= 0 && own !== k) { truncateFrom(own, n); playBreak(); }
+
+      owner[n] = k;
+      p.push(n);
+      changedThisDrag = true;
+
+      if (ec === k && n !== p[0]) {          // reached the matching dot
+        completed[k] = true;
+        burst(n, PALETTE[k]);
+        playConnect(k);
+      }
+    }
+
+    /** Follow a fast drag: walk one cell at a time toward the pointer while it
+        stays on a straight line from the pipe's head. */
+    function moveToward(target) {
+      if (active < 0 || target < 0) return;
+      let guard = 0;
+      while (guard++ < 40) {
+        const head = paths[active][paths[active].length - 1];
+        if (head === target) break;
+        const hr = rowOf(N, head), hc = colOf(N, head);
+        const tr = rowOf(N, target), tc = colOf(N, target);
+        let n = -1;
+        if (hr === tr && hc !== tc) n = idxOf(N, hr, hc + (tc > hc ? 1 : -1));
+        else if (hc === tc && hr !== tr) n = idxOf(N, hr + (tr > hr ? 1 : -1), hc);
+        else break;
+        stepTo(n);
+        if (paths[active][paths[active].length - 1] === head) break;   // blocked
+      }
+    }
+
+    // ---------------------------------------------------------- input ---
+    function pointerPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+
+    canvas.addEventListener('pointerdown', function (e) {
+      if (!gameRunning) return;
+      e.preventDefault();
+      initAudio();
+      const pos = pointerPos(e);
+      const c = cellAt(pos.x, pos.y);
+      if (c < 0) return;
+      changedThisDrag = false;
+      if (begin(c)) {
+        try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+        playTouch();
+        updateHUD();
+        render();
+      }
+    });
+
+    canvas.addEventListener('pointermove', function (e) {
+      if (active < 0) return;
+      e.preventDefault();
+      const pos = pointerPos(e);
+      const c = cellAt(pos.x, pos.y);
+      if (c < 0) return;
+      moveToward(c);
+      updateHUD();
+      render();
+    });
+
+    function endDrag(e) {
+      if (active < 0) return;
+      try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+      active = -1;
+      if (changedThisDrag) { moveCount++; }
+      changedThisDrag = false;
+      updateHUD();
+      render();
+      checkSolved();
+    }
+    canvas.addEventListener('pointerup', endDrag);
+    canvas.addEventListener('pointercancel', endDrag);
+
+    // ---------------------------------------------------------- particles ---
+    function burst(cellIdx, color) {
+      const p = centre(cellIdx);
+      for (let i = 0; i < 14; i++) {
+        const a = (Math.PI * 2 * i) / 14 + Math.random();
+        const sp = cell * (0.04 + Math.random() * 0.06);
+        particles.push({ x: p.x, y: p.y, vx: Math.cos(a) * sp * 60, vy: Math.sin(a) * sp * 60,
+                         r: cell * (0.05 + Math.random() * 0.05), life: 1, color: color });
+      }
+    }
+
+    function stepParticles(dt) {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const pt = particles[i];
+        pt.x += pt.vx * dt; pt.y += pt.vy * dt;
+        pt.vx *= 0.9; pt.vy *= 0.9;
+        pt.life -= dt * 1.6;
+        if (pt.life <= 0) particles.splice(i, 1);
+      }
+    }
+
+    // ---------------------------------------------------------- state ---
+    function coverage() {
+      let filled = 0;
+      for (let i = 0; i < owner.length; i++) if (owner[i] >= 0) filled++;
+      return filled;
+    }
+
+    function pipesDone() {
+      let n = 0;
+      for (let k = 0; k < completed.length; k++) if (completed[k]) n++;
+      return n;
+    }
+
+    function updateHUD() {
+      pipesEl.textContent = pipesDone() + '/' + colorCount;
+      const total = N * N;
+      const pct = puzzle ? Math.round((coverage() / total) * 100) : 0;
+      fillEl.textContent = pct + '%';
+      fillEl.classList.toggle('pct-good', pct === 100);
+      movesEl.textContent = moveCount;
+      solvedEl.textContent = getSolved();
+    }
+
+    function checkSolved() {
+      if (!gameRunning) return;
+      if (pipesDone() !== colorCount) return;
+      if (coverage() !== N * N) return;
+      winGame();
+    }
+
+    function winGame() {
+      gameRunning = false;
+      timerRunning = false;
+      solvedFlash = 0.001;
+
+      const solved = getSolved() + 1;
+      setSolved(solved);
+      updateHUD();
+
+      // A "perfect" solve uses exactly one move per pipe — no redraws.
+      const perfect = moveCount <= colorCount;
+      document.getElementById('finalTime').textContent = fmtTime(elapsed);
+      document.getElementById('finalMoves').textContent = moveCount;
+      document.getElementById('finalPipes').textContent = colorCount;
+      document.getElementById('finalSolved').textContent = solved;
+      document.getElementById('newBestTag').style.display = perfect ? 'block' : 'none';
+      document.getElementById('finalBlurb').textContent =
+        'Every square filled with ' + colorCount + ' pipes.';
+
+      playWinSound();
+      if (perfect) setTimeout(function () { Arcade.playBestJingle(); }, 380);
+      // A burst from every endpoint.
+      for (let i = 0; i < endpointColor.length; i++) {
+        if (endpointColor[i] >= 0) burst(i, PALETTE[endpointColor[i]]);
+      }
+      showToast('Solved!', '#ffd700');
+
+      setTimeout(function () { gameOverOverlay.classList.remove('hidden'); }, 1500);
+    }
+
+    // ------------------------------------------------------------ loop ---
+    function gameLoop(timestamp) {
+      if (!lastTime) lastTime = timestamp;
+      const dt = Math.min(timestamp - lastTime, 50) / 1000;
+      lastTime = timestamp;
+
+      flowPhase += dt * cell * 2.2;
+      if (timerRunning) { elapsed = (performance.now() - startTime) / 1000; }
+      if (solvedFlash > 0 && solvedFlash < 1) { solvedFlash = Math.min(1, solvedFlash + dt * 0.9); }
+      stepParticles(dt);
+
+      render();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    // ---------------------------------------------------------- controls ---
+    function setSize(key) {
+      sizeKey = key;
+      document.querySelectorAll('#modeBar button').forEach(function (btn) {
+        btn.classList.toggle('active', btn.dataset.size === key);
+      });
+      sizeNote.textContent = SIZES[key].note;
+    }
+
+    function resetBoard() {
+      if (!puzzle) return;
+      for (let k = 0; k < paths.length; k++) clearPath(k);
+      active = -1;
+      moveCount = 0;
+      if (!gameRunning) { gameRunning = true; timerRunning = true; startTime = performance.now(); }
+      updateHUD();
+      render();
+    }
+
+    function newPuzzle() {
+      initAudio();
+      cancelAnimationFrame(animationId);
+      generate();
+      gameRunning = true;
+      elapsed = 0;
+      startTime = performance.now();
+      timerRunning = true;
+      startOverlay.classList.add('hidden');
+      gameOverOverlay.classList.add('hidden');
+      hintLine.textContent = 'Drag from a dot to its twin. Every square must fill.';
+      updateHUD();
+      resizeCanvas();
+      lastTime = 0;
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function startGame() { newPuzzle(); }
+
+    function showStartOverlay() {
+      gameRunning = false;
+      timerRunning = false;
+      cancelAnimationFrame(animationId);
+      gameOverOverlay.classList.add('hidden');
+      startOverlay.classList.remove('hidden');
+    }
+
+    Arcade.wireFullscreen(fullscreenBtn, resizeCanvas);
+
+    try {
+      setSize('small');
+      solvedEl.textContent = getSolved();
+      generate();              // a board sits behind the start overlay
+      resizeCanvas();
+      lastTime = 0;
+      animationId = requestAnimationFrame(gameLoop);
+    } catch (err) {
+      console.error('Neon Flow init failed:', err);
+    }
+  </script>
+</body>
+</html>
