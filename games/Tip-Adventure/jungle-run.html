@@ -130,6 +130,8 @@
     .mbar i { display: block; height: 100%; background: linear-gradient(90deg, #7bd36a, #ffd54a); }
     .modal.clear { background: rgba(6, 22, 10, 0.2); backdrop-filter: none; justify-content: flex-end; }
     .modal.clear .card { margin: auto 0 auto auto; }
+    #digCanvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 6; touch-action: none; }
+    #btnDigQuit { position: absolute; top: 12px; right: 14px; z-index: 8; }
     .shoplist { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .item { display: grid; grid-template-columns: 34px 1fr; gap: 0 8px; align-items: center; text-align: left; padding: 8px 10px; border-radius: 12px; border: 2px solid #7bc96f; background: rgba(63,174,76,.16); color: var(--cream); cursor: pointer; font-family: inherit; }
     .item .ico { font-size: 1.4rem; grid-row: span 2; text-align: center; }
@@ -162,6 +164,8 @@
   <div id="view"></div>
   <div class="vignette"></div>
   <div id="danger"></div>
+  <canvas id="digCanvas" class="hidden"></canvas>
+  <button id="btnDigQuit" class="btn ghost mini hidden">✕ QUIT</button>
 
   <!-- HUD -->
   <div id="hud" class="hidden">
@@ -267,6 +271,8 @@
       <h2>Jungle Trail</h2>
       <p id="levelStars"></p>
       <div class="levels" id="levelList"></div>
+      <div class="sec">BONUS GAMES</div>
+      <div class="levels" id="bonusList"></div>
       <div class="row-btn"><button class="btn ghost" id="btnLevelBack">BACK</button></div>
     </div>
   </div>
@@ -294,10 +300,10 @@
       <div class="objline" id="endCoins"></div>
       <div class="objline" id="endMissions" style="white-space:pre-line;"></div>
       <div class="stats">
-        <div><span>Distance</span><b id="endDist">0 m</b></div>
-        <div><span>Termites</span><b id="endTerm">0</b></div>
-        <div><span>Time</span><b id="endTime">0:00</b></div>
-        <div><span>Score</span><b id="endScore">0</b></div>
+        <div><span id="endLbl1">Distance</span><b id="endDist">0 m</b></div>
+        <div><span id="endLbl2">Termites</span><b id="endTerm">0</b></div>
+        <div><span id="endLbl3">Time</span><b id="endTime">0:00</b></div>
+        <div><span id="endLbl4">Score</span><b id="endScore">0</b></div>
         <div><span id="endBestLbl">Best</span><b id="endBest">0</b></div>
       </div>
       <div id="endNote"></div>
@@ -355,6 +361,7 @@
     const ENDLESS_PAL = [PAL.day, PAL.gold];
     const ALL_HAZARDS = ['log', 'boulder', 'vines', 'mound', 'mud', 'snake', 'river', 'monkey'];
     const W2_STARS_NEEDED = 10;
+    const BONUS_TIME = 20, BONUS_SPEED = 24;
     const RIVER_HD = 3.0, COCONUT_T = 0.75;
     const CHASE_START = 40, CHASE_MAX = 50, CHASE_CATCH = 3, CHASE_VISIBLE = 7.5, CHASE_HIT = 8;
 
@@ -424,7 +431,7 @@
        ====================================================================== */
     const KEY = 'tipJungleRun';
     const save = Object.assign({
-      endlessBest: 0, levels: {}, coins: 0, owned: {}, skin: 'classic', acc: {}, missions: [], daily: {}, streak: { last: '', count: 0 }
+      endlessBest: 0, levels: {}, coins: 0, owned: {}, skin: 'classic', acc: {}, missions: [], daily: {}, streak: { last: '', count: 0 }, bonus: { treetop: 0, dig: 0 }
     }, (() => {
       try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; }
     })());
@@ -1303,9 +1310,23 @@
     ];
     const patIndex = id => PATTERNS.findIndex(p => p.id === id);
     const hazardOK = h => mode !== 'goal' || LEVEL.hazards.includes(h);
+    // Treetop Dash: no hazards, only termite formations; high arcs need a jump.
+    function spawnTreetopRow(z) {
+      let len;
+      switch (Math.floor(Math.random() * 5)) {
+        case 0: line(randLane(), z, 8, 2.4); len = 20; break;
+        case 1: for (let i = 0; i < 10; i++) spawnTermite(Math.sin(i * 0.7) * LANE_W, 0.9, z - i * 2.2); len = 22; break;
+        case 2: for (const l of [-1, 0, 1]) line(l, z, 5, 2.4); len = 12; break;
+        case 3: { const L = randLane(); arc(L, z - 8, arcStep(), 5, 2.4); line(otherLane(L), z - 1, 6, 2.4); len = 16; break; }
+        default: [-1, 0, 1, 0, -1].forEach((l, i) => line(l, z - i * 5, 3, 1.6)); len = 25;
+      }
+      nextRowIn = len + 3;
+    }
+
     let lastPattern = -1, introQueue = [];
     function spawnRow(first) {
       const z = -SPAWN_Z;
+      if (mode === 'treetop') return spawnTreetopRow(z);
       let idx, hint = null;
       if (first) idx = patIndex('trail');
       else if (introQueue.length) { const it = introQueue.shift(); idx = patIndex(it.id); hint = it.hint; }
@@ -1336,7 +1357,7 @@
     let distance = 0, bonus = 0, termites = 0, comboCount = 0, lives = MAX_LIVES, hitsTaken = 0, elapsed = 0;
     let speed = 15, speedMul = 1, diff = 0, nextRowIn = 0, endTimer = 0, finishSpawned = false, firstRow = true;
     let invuln = 0, magnetT = 0, dashT = 0, slowT = 0, stamina = 100, shake = 0, nextToast = 500, zoneShown = 0;
-    let termMissed = 0, smashedMounds = 0, maxMult = 1, hintEnt = null;
+    let termMissed = 0, smashedMounds = 0, maxMult = 1, hintEnt = null, bonusT = BONUS_TIME;
     let chaseOn = false, chaseGap = CHASE_START, rumbleT = 0, deathCause = '', startHintT = 0, startHintOn = false;
     let time = 0, runPhase = 0, squash = 0, fov = 58;
     const player = { x: 0, y: 0, vy: 0, lane: 0, rolling: false, rollT: 0, rollPending: false, onGround: true, vx: 0 };
@@ -1350,7 +1371,8 @@
     function resetGame() {
       clearEntities();
       distance = 0; bonus = 0; termites = 0; comboCount = 0; lives = MAX_LIVES; hitsTaken = 0; elapsed = 0;
-      speed = mode === 'goal' ? LEVEL.speed[0] : 15; speedMul = 1; diff = 0; nextRowIn = 40; endTimer = 0; finishSpawned = false; firstRow = true; totalTermites = 0;
+      speed = mode === 'goal' ? LEVEL.speed[0] : mode === 'treetop' ? BONUS_SPEED : 15; speedMul = 1; diff = 0; nextRowIn = 40; endTimer = 0; finishSpawned = false; firstRow = true; totalTermites = 0;
+      bonusT = BONUS_TIME;
       termMissed = 0; smashedMounds = 0; maxMult = 1; hintEnt = null; lastPattern = -1;
       introQueue = mode === 'goal' && !save.levels[LEVEL.id] ? LEVEL.intro.slice() : [];
       hideHint();
@@ -1389,7 +1411,7 @@
     function updateHUD() {
       setText('score', hud.score, score().toLocaleString());
       setText('dist', hud.dist, Math.floor(distance));
-      setText('best', hud.best, mode === 'goal' ? levelBest() : Math.max(mode === 'daily' ? dailyBest() : save.endlessBest, score()));
+      setText('best', hud.best, mode === 'goal' ? levelBest() : mode === 'treetop' ? save.bonus.treetop : Math.max(mode === 'daily' ? dailyBest() : save.endlessBest, score()));
       setText('combo', hud.combo, 'x' + multiplier());
       setText('termites', hud.termites, termites);
       setText('hearts', hud.hearts, '❤️'.repeat(lives) + '🖤'.repeat(MAX_LIVES - lives));
@@ -1401,6 +1423,11 @@
         const ob = objective();
         setText('obj', hud.obj, (ob.met ? '✔ ' : '★ ') + ob.text);
         if (chaseOn) hud.chaseFill.style.width = clamp(1 - (chaseGap - CHASE_CATCH) / (CHASE_MAX - CHASE_CATCH), 0, 1) * 100 + '%';
+      } else if (mode === 'treetop') {
+        const p = clamp(1 - bonusT / BONUS_TIME, 0, 1) * 100;
+        hud.pFill.style.width = p + '%';
+        hud.pTip.style.left = p + '%';
+        setText('obj', hud.obj, '🐜 ' + termites + '  ·  ' + Math.max(0, Math.ceil(bonusT)) + 's');
       }
       $('danger').style.opacity = chaseOn && state === 'playing' ? Math.pow(clamp((28 - chaseGap) / 24, 0, 1), 1.3) * 0.9 : 0;
       const pw = (magnetT > 0 ? `<span class="chip">🧲 ${magnetT.toFixed(1)}s</span>` : '') + (dashT > 0 ? `<span class="chip">⚡ DASH ${dashT.toFixed(1)}s</span>` : '');
@@ -1427,6 +1454,11 @@
 
     window.addEventListener('keydown', e => {
       if (e.repeat) return;
+      if (state === 'dig') {
+        const col = DIG_KEYS.includes(e.code) ? DIG_KEYS.indexOf(e.code) : DIG_ARROWS.indexOf(e.code);
+        if (col >= 0) { digTap(col); e.preventDefault(); } else if (e.code === 'Escape') quitDig();
+        return;
+      }
       switch (e.code) {
         case 'ArrowLeft': case 'KeyA': moveLane(-1); e.preventDefault(); break;
         case 'ArrowRight': case 'KeyD': moveLane(1); e.preventDefault(); break;
@@ -1535,6 +1567,18 @@
         list.appendChild(b);
       });
       $('levelStars').textContent = '★ ' + totalStars() + ' / ' + LEVELS.length * 3 + ' stars  ·  World 2 needs ' + W2_STARS_NEEDED;
+
+      const bl = $('bonusList');
+      bl.innerHTML = '';
+      [['treetop', '🌳', 'Treetop Dash', '1-2', 'Grab as many termites as you can in 20 seconds'],
+        ['dig', '⛏️', 'Mound Dig', '1-4', 'Tap the beat to dig termites out of the mounds']].forEach(([kind, icon, name, req, desc]) => {
+        const open = bonusUnlocked(kind);
+        const b = document.createElement('button');
+        b.className = 'mode level' + (open ? '' : ' locked');
+        b.innerHTML = `<span class="ico">${icon}</span><b>${name}</b><span class="meta">${open ? '🏆 ' + save.bonus[kind].toLocaleString() : '🔒'}</span><small>${open ? desc : 'Clear level ' + req + ' to unlock'}</small>`;
+        if (open) b.addEventListener('click', () => (kind === 'dig' ? startDig() : startGame('treetop')));
+        bl.appendChild(b);
+      });
     }
 
     function startGame(m, li) {
@@ -1542,19 +1586,21 @@
       curMod = m === 'daily' ? dailyMod() : null;
       rnd = m === 'daily' ? mulberry32(hashStr(dayKey())) : Math.random;
       if (m === 'goal') { if (li !== undefined) levelIdx = li; LEVEL = LEVELS[levelIdx]; }
-      activePal = m === 'goal' ? LEVEL.palette : (curMod && curMod.pal) || ENDLESS_PAL;
+      activePal = m === 'goal' ? LEVEL.palette : m === 'treetop' ? [PAL.afternoon, PAL.gold] : (curMod && curMod.pal) || ENDLESS_PAL;
       sfx.init(); sfx.resume(); sfx.click();
       resetGame();
       show(modals.start, false); show(modals.levels, false); show(modals.end, false); show(modals.pause, false); show($('hud'), true);
-      hud.pPanel.classList.toggle('hidden', m !== 'goal');
+      hud.pPanel.classList.toggle('hidden', m !== 'goal' && m !== 'treetop');
       hud.chaseRow.classList.toggle('hidden', !chaseOn);
       if (m === 'goal') hud.pLabel.textContent = LEVEL.id + ' · ' + LEVEL.name;
+      if (m === 'treetop') hud.pLabel.textContent = 'Bonus · Treetop Dash';
       state = 'playing';
       sfx.startMusic();
-      toast(m === 'goal' ? LEVEL.name.toUpperCase() : m === 'daily' ? 'DAILY · ' + curMod.name.toUpperCase() : 'ENDLESS RUN');
+      toast(m === 'goal' ? LEVEL.name.toUpperCase() : m === 'daily' ? 'DAILY · ' + curMod.name.toUpperCase() : m === 'treetop' ? 'TREETOP DASH!' : 'ENDLESS RUN');
     }
     function goMenu() {
       state = 'menu'; sfx.stopMusic(); sfx.click();
+      dig.on = false; show(digCanvas, false); show($('btnDigQuit'), false);
       activePal = ENDLESS_PAL; curMod = null; rnd = Math.random;
       resetGame();
       show($('hud'), false); show(modals.pause, false); show(modals.end, false); show(modals.levels, false); show(modals.shop, false); show(modals.start, false);
@@ -1575,6 +1621,7 @@
     }
     function showEnd(won) {
       const sc = score();
+      ['Distance', 'Termites', 'Time', 'Score'].forEach((t, i) => { $('endLbl' + (i + 1)).textContent = t; });
       show($('hud'), false); show(modals.end, true);
       $('danger').style.opacity = 0;
       const seen = termites + termMissed;
@@ -1737,7 +1784,7 @@
     }
 
     function animateTip(dt, scroll) {
-      const moving = state === 'playing' || state === 'menu' || state === 'finishing' || state === 'dying';
+      const moving = state === 'playing' || state === 'menu' || state === 'dig' || state === 'finishing' || state === 'dying';
       runPhase += dt * (6 + scroll * 0.42);
       const s = Math.sin(runPhase), c = Math.cos(runPhase);
       const up = tip.upright;
@@ -1820,6 +1867,9 @@
         const p = clamp(distance / goal(), 0, 1);
         diff = lerp(LEVEL.diff[0], LEVEL.diff[1], p);
         speed = lerp(LEVEL.speed[0], LEVEL.speed[1], p);
+      } else if (mode === 'treetop') {
+        diff = 0.3;
+        speed = BONUS_SPEED;
       } else {
         diff = 1 - Math.exp(-distance / 1800);
         speed = 15 + 20 * (1 - Math.exp(-distance / 2200));
@@ -1850,7 +1900,12 @@
         if (zoneShown < 1 && p > 0.5) { zoneShown = 1; toast('HALFWAY!'); }
         else if (zoneShown < 2 && p > 0.9) { zoneShown = 2; toast('FINAL STRETCH!'); }
         if (distance >= goal()) { state = 'finishing'; endTimer = 0; invuln = 0; sfx.stopMusic(); sfx.win(); burstConfetti(); }
-      } else if (distance >= nextToast) { toast(nextToast + ' M!'); nextToast += 500; }
+      } else if (mode !== 'treetop' && distance >= nextToast) { toast(nextToast + ' M!'); nextToast += 500; }
+
+      if (mode === 'treetop') {
+        bonusT -= dt;
+        if (bonusT <= 0) { bonusT = 0; state = 'finishing'; endTimer = 0; invuln = 0; sfx.stopMusic(); sfx.win(); burstConfetti(); return; }
+      }
 
       if (startHintT > 0) {
         startHintT -= dt;
@@ -1891,11 +1946,12 @@
       let scroll = 0;
       switch (state) {
         case 'menu': scroll = 7; speed = 7; break;
+        case 'dig': scroll = 7; speed = 7; updateDig(dt); break;
         case 'playing': playingStep(dt); scroll = speed; break;
         case 'finishing':
           endTimer += dt; speed *= Math.max(0, 1 - dt * 1.4); scroll = speed;
           if (Math.random() < dt * 20) burstConfetti();
-          if (endTimer > 2.4) { state = 'won'; showEnd(true); }
+          if (endTimer > 2.4) { state = 'won'; if (mode === 'treetop') finishTreetop(); else showEnd(true); }
           break;
         case 'dying':
           endTimer += dt; speed *= Math.max(0, 1 - dt * 4); scroll = speed;
@@ -1922,6 +1978,186 @@
       }
     }
 
+    /* ======================================================================
+       BONUS GAMES: results screen, Treetop Dash end, Mound Dig (tap the beat)
+       ====================================================================== */
+    function bonusUnlocked(kind) {
+      const r = save.levels[kind === 'treetop' ? '1-2' : '1-4'];
+      return !!(r && r.stars > 0);
+    }
+    function fillBonusEnd(o) {
+      show($('hud'), false); show(modals.end, true);
+      $('danger').style.opacity = 0;
+      $('endTag').textContent = o.tag; $('endTitle').textContent = o.title;
+      $('endStars').textContent = o.big || '';
+      [['endLbl1', 'endDist'], ['endLbl2', 'endTerm'], ['endLbl3', 'endTime'], ['endLbl4', 'endScore'], ['endBestLbl', 'endBest']].forEach(([l, v], i) => {
+        $(l).textContent = o.rows[i][0]; $(v).textContent = o.rows[i][1];
+      });
+      show($('endNew'), !!o.isNew); show($('endObj'), false);
+      $('endNote').textContent = o.note || '';
+      const gained = o.coins + missionCoins;
+      save.coins += gained;
+      $('endCoins').textContent = '🪙 +' + gained + (missionCoins ? '  (bonus +' + o.coins + ' · missions +' + missionCoins + ')' : '') + '  ·  total ' + save.coins;
+      $('endMissions').textContent = missionLog.join('\n');
+      persist();
+      show($('btnNext'), false); show($('btnLevels'), true);
+      $('btnRetry').textContent = 'PLAY AGAIN';
+    }
+    function finishTreetop() {
+      const isNew = termites > save.bonus.treetop;
+      if (isNew) save.bonus.treetop = termites;
+      fillBonusEnd({
+        tag: 'BONUS · TREETOP DASH', title: 'Dash complete!',
+        rows: [['Termites', termites], ['Best combo', 'x' + maxMult], ['Time', fmtTime(BONUS_TIME)], ['Score', score().toLocaleString()], ['Best termites', save.bonus.treetop]],
+        coins: Math.floor(termites * 0.6) + 15, isNew
+      });
+    }
+
+    const DIG_BPM = 112, DIG_FALL = 1.6, DIG_STEP = 60 / DIG_BPM / 2, DIG_START = 0.1 + 8 * DIG_STEP, DIG_LEN = 32;
+    const DIG_KEYS = ['KeyD', 'KeyF', 'KeyJ', 'KeyK'], DIG_ARROWS = ['ArrowLeft', 'ArrowDown', 'ArrowUp', 'ArrowRight'], DIG_LABELS = ['D', 'F', 'J', 'K'];
+    const digCanvas = $('digCanvas'), digCtx = digCanvas.getContext('2d');
+    const dig = { on: false, done: false, t: 0, t0: 0, end: 0, total: 0, notes: [], score: 0, combo: 0, maxCombo: 0, perfect: 0, good: 0, miss: 0, fx: [], press: [0, 0, 0, 0], judge: '', judgeT: 0 };
+
+    function buildDigChart() {
+      const notes = [];
+      let lastCol = -1, rep = 0;
+      for (let i = 0; DIG_START + i * DIG_STEP < DIG_LEN; i++) {
+        const t = DIG_START + i * DIG_STEP;
+        if (Math.random() > (i < 8 ? 0.45 : i % 2 === 0 ? 0.8 : 0.4)) continue;
+        let col = Math.floor(Math.random() * 4);
+        if (col === lastCol) { if (++rep >= 2) { col = (col + 1 + Math.floor(Math.random() * 3)) % 4; rep = 0; } } else rep = 0;
+        lastCol = col;
+        notes.push({ t, col, done: false });
+        if (i >= 8 && Math.random() < 0.1) notes.push({ t, col: (col + 2) % 4, done: false });
+      }
+      return notes;
+    }
+    function digLayout() {
+      const W = window.innerWidth, H = window.innerHeight, fw = Math.min(W * 0.94, 460);
+      return { W, H, fw, x0: (W - fw) / 2, colW: fw / 4, hitY: H * 0.8, topY: H * 0.1 };
+    }
+    function digResize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      digCanvas.width = Math.round(window.innerWidth * dpr); digCanvas.height = Math.round(window.innerHeight * dpr);
+    }
+    window.addEventListener('resize', () => { if (dig.on) digResize(); });
+
+    function startDig() {
+      mode = 'dig'; curMod = null; rnd = Math.random;
+      activePal = [PAL.afternoon, PAL.afternoon];
+      sfx.init(); sfx.resume(); sfx.click();
+      resetGame(); applyAtmosphere(0);
+      show(modals.start, false); show(modals.levels, false); show(modals.end, false); show(modals.pause, false); show($('hud'), false);
+      const notes = buildDigChart();
+      Object.assign(dig, { on: true, done: false, t: 0, notes, total: notes.length, end: notes[notes.length - 1].t + 1.2, score: 0, combo: 0, maxCombo: 0, perfect: 0, good: 0, miss: 0, fx: [], press: [0, 0, 0, 0], judge: '', judgeT: 0 });
+      dig.t0 = sfx.ctx ? sfx.ctx.currentTime : 0;
+      digResize(); show(digCanvas, true); show($('btnDigQuit'), true);
+      state = 'dig';
+      sfx.startMusic(); sfx.tempo = DIG_BPM;
+    }
+    function quitDig() { openLevels(); }
+
+    function digTap(col) {
+      if (!dig.on || dig.done) return;
+      dig.press[col] = 0.12;
+      let best = null;
+      for (const n of dig.notes) {
+        if (n.done || n.col !== col || Math.abs(n.t - dig.t) >= 0.16) continue;
+        if (!best || Math.abs(n.t - dig.t) < Math.abs(best.t - dig.t)) best = n;
+      }
+      if (!best) { dig.combo = 0; dig.score = Math.max(0, dig.score - 5); sfx.tone(120, 0.06, 'sine', 0.06); return; }
+      best.done = true;
+      const perfect = Math.abs(best.t - dig.t) < 0.07;
+      if (perfect) dig.perfect++; else dig.good++;
+      dig.combo++; dig.maxCombo = Math.max(dig.maxCombo, dig.combo);
+      dig.score += (perfect ? 300 : 100) + Math.min(dig.combo, 30) * 5;
+      dig.judge = perfect ? 'PERFECT!' : 'GOOD'; dig.judgeT = 0.5;
+      dig.fx.push({ col, life: 0.4, max: 0.4 });
+      sfx.tone([523, 587, 659, 784][col], 0.18, 'triangle', 0.13);
+      if (perfect) sfx.tone([1047, 1175, 1319, 1568][col], 0.1, 'sine', 0.06);
+    }
+
+    function updateDig(dt) {
+      if (!dig.on) return;
+      dig.t = sfx.ctx ? sfx.ctx.currentTime - dig.t0 : dig.t + dt;
+      for (const n of dig.notes) {
+        if (!n.done && dig.t - n.t > 0.16) { n.done = true; dig.miss++; dig.combo = 0; dig.judge = 'MISS'; dig.judgeT = 0.5; }
+      }
+      dig.fx = dig.fx.filter(f => (f.life -= dt) > 0);
+      dig.judgeT = Math.max(0, dig.judgeT - dt);
+      for (let c = 0; c < 4; c++) dig.press[c] = Math.max(0, dig.press[c] - dt);
+      drawDig();
+      if (dig.t > dig.end && !dig.done) finishDig();
+    }
+
+    function drawDig() {
+      const L = digLayout(), g = digCtx;
+      g.setTransform(digCanvas.width / L.W, 0, 0, digCanvas.width / L.W, 0, 0);
+      g.clearRect(0, 0, L.W, L.H);
+      g.fillStyle = 'rgba(15,42,23,0.8)'; g.fillRect(L.x0 - 6, 0, L.fw + 12, L.H);
+      g.strokeStyle = 'rgba(123,201,111,0.45)'; g.lineWidth = 2;
+      for (let c = 0; c <= 4; c++) { g.beginPath(); g.moveTo(L.x0 + c * L.colW, 0); g.lineTo(L.x0 + c * L.colW, L.H); g.stroke(); }
+      g.strokeStyle = 'rgba(255,213,74,0.5)';
+      g.beginPath(); g.moveTo(L.x0, L.hitY); g.lineTo(L.x0 + L.fw, L.hitY); g.stroke();
+
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      const r = L.colW * 0.3;
+      for (const n of dig.notes) {
+        if (n.done) continue;
+        const y = L.hitY - (n.t - dig.t) / DIG_FALL * (L.hitY - L.topY);
+        if (y < -r || y > L.H + r) continue;
+        const x = L.x0 + (n.col + 0.5) * L.colW;
+        g.fillStyle = '#ffd54a'; g.beginPath(); g.arc(x, y, r, 0, 6.283); g.fill();
+        g.font = Math.round(r * 1.1) + 'px sans-serif'; g.fillText('🐜', x, y + 1);
+      }
+      for (let c = 0; c < 4; c++) {
+        const x = L.x0 + (c + 0.5) * L.colW, p = dig.press[c] > 0;
+        g.fillStyle = p ? '#e8c28a' : '#c79a62';
+        g.beginPath(); g.ellipse(x, L.hitY + 14, L.colW * 0.4, L.colW * 0.26 * (p ? 1.15 : 1), 0, 0, 6.283); g.fill();
+        g.fillStyle = '#3b2414';
+        g.beginPath(); g.ellipse(x, L.hitY + 10, L.colW * 0.16, L.colW * 0.07, 0, 0, 6.283); g.fill();
+        g.fillStyle = '#cfe8c4'; g.font = 'bold 18px sans-serif'; g.fillText(DIG_LABELS[c], x, L.hitY + L.colW * 0.5 + 22);
+      }
+      for (const f of dig.fx) {
+        const k = 1 - f.life / f.max, x = L.x0 + (f.col + 0.5) * L.colW;
+        g.strokeStyle = 'rgba(255,213,74,' + (1 - k).toFixed(2) + ')'; g.lineWidth = 4;
+        g.beginPath(); g.arc(x, L.hitY, L.colW * 0.3 + k * L.colW * 0.4, 0, 6.283); g.stroke();
+      }
+      if (dig.judgeT > 0) {
+        g.globalAlpha = Math.min(1, dig.judgeT * 3);
+        g.fillStyle = dig.judge === 'MISS' ? '#ff7a59' : '#ffd54a'; g.font = '900 28px Trebuchet MS, sans-serif';
+        g.fillText(dig.judge, L.W / 2, L.hitY - 70);
+        g.globalAlpha = 1;
+      }
+      g.font = '900 26px Trebuchet MS, sans-serif'; g.textAlign = 'left'; g.fillStyle = '#ffd54a';
+      g.fillText(dig.score.toLocaleString(), L.x0 + 10, 30);
+      g.textAlign = 'right'; g.fillStyle = '#ff7a59';
+      g.fillText(dig.combo > 1 ? 'x' + dig.combo : '', L.x0 + L.fw - 10, 30);
+      g.fillStyle = 'rgba(0,0,0,0.4)'; g.fillRect(L.x0 + 10, 50, L.fw - 20, 6);
+      g.fillStyle = '#7bd36a'; g.fillRect(L.x0 + 10, 50, (L.fw - 20) * clamp(dig.t / dig.end, 0, 1), 6);
+    }
+
+    function finishDig() {
+      dig.done = true; dig.on = false; state = 'over';
+      sfx.stopMusic(); sfx.win();
+      show(digCanvas, false); show($('btnDigQuit'), false);
+      const acc = dig.total ? (dig.perfect + dig.good * 0.5) / dig.total : 0;
+      const rank = acc >= 0.92 ? 'S' : acc >= 0.8 ? 'A' : acc >= 0.6 ? 'B' : 'C';
+      const coins = Math.floor(dig.perfect * 0.5 + dig.good * 0.25) + { S: 30, A: 20, B: 10, C: 5 }[rank] + 10;
+      const isNew = dig.score > save.bonus.dig;
+      if (isNew) save.bonus.dig = dig.score;
+      fillBonusEnd({
+        tag: 'BONUS · MOUND DIG', title: 'Rank ' + rank + '!', big: Math.round(acc * 100) + '% accuracy',
+        rows: [['Perfect', dig.perfect], ['Good', dig.good], ['Missed', dig.miss], ['Score', dig.score.toLocaleString()], ['Best score', save.bonus.dig.toLocaleString()]],
+        coins, isNew, note: 'Best combo x' + dig.maxCombo
+      });
+    }
+    digCanvas.addEventListener('pointerdown', e => {
+      const L = digLayout(), col = Math.floor((e.clientX - L.x0) / L.colW);
+      if (col >= 0 && col < 4) digTap(col);
+      e.preventDefault();
+    });
+
     const clock = new THREE.Clock();
     function frame() {
       requestAnimationFrame(frame);
@@ -1946,7 +2182,8 @@
     $('btnPause').addEventListener('click', togglePause);
     $('btnPauseMenu').addEventListener('click', toMenu);
     $('btnEndMenu').addEventListener('click', toMenu);
-    $('btnRetry').addEventListener('click', () => startGame(mode));
+    $('btnRetry').addEventListener('click', () => (mode === 'dig' ? startDig() : startGame(mode)));
+    $('btnDigQuit').addEventListener('click', quitDig);
     $('btnAudio').addEventListener('click', () => {
       sfx.init(); sfx.setMuted(!sfx.muted);
       $('btnAudio').textContent = sfx.muted ? '🔇' : '🔊';
