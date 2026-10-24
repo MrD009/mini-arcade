@@ -120,6 +120,22 @@
     .levels { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
     .level .ico { font-size: 1.2rem; font-weight: 900; color: var(--gold); }
     .objline { font-size: .85rem; margin: 6px 0 2px; color: var(--gold); }
+    .wallet { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; margin: 6px 0 4px; font-weight: bold; color: var(--gold); }
+    .wallet span { background: rgba(0,0,0,.3); padding: 4px 12px; border-radius: 20px; font-size: .85rem; }
+    .btn.mini { flex: none; min-width: 0; padding: 6px 14px; font-size: .8rem; }
+    .sec { font-size: .68rem; letter-spacing: 2px; color: #a9d9a0; font-weight: bold; margin: 10px 0 4px; text-align: left; }
+    .mission { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 6px 10px; background: rgba(0,0,0,.25); border-radius: 10px; margin-bottom: 6px; font-size: .82rem; color: #cfe8c4; text-align: left; }
+    .mission b { color: var(--gold); }
+    .mbar { grid-column: 1 / -1; height: 6px; border-radius: 4px; background: rgba(0,0,0,.4); overflow: hidden; }
+    .mbar i { display: block; height: 100%; background: linear-gradient(90deg, #7bd36a, #ffd54a); }
+    .modal.clear { background: rgba(6, 22, 10, 0.2); backdrop-filter: none; justify-content: flex-end; }
+    .modal.clear .card { margin: auto 0 auto auto; }
+    .shoplist { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .item { display: grid; grid-template-columns: 34px 1fr; gap: 0 8px; align-items: center; text-align: left; padding: 8px 10px; border-radius: 12px; border: 2px solid #7bc96f; background: rgba(63,174,76,.16); color: var(--cream); cursor: pointer; font-family: inherit; }
+    .item .ico { font-size: 1.4rem; grid-row: span 2; text-align: center; }
+    .item small { color: #b9d9ae; font-size: .72rem; }
+    .item.on { border-color: var(--gold); background: rgba(255,213,74,.18); }
+    .item.poor { opacity: .55; }
     #endNote { font-size: .8rem; color: #b9d9ae; margin-top: 6px; }
     .keys { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; text-align: left; font-size: .74rem; color: #b9d9ae; margin-top: 6px; }
     .keys b { color: var(--gold); }
@@ -192,11 +208,21 @@
       <div class="tag">3D JUNGLE RUNNER</div>
       <h1>Tip's Jungle Run</h1>
       <p>Tip the little pangolin is dashing through the jungle! Jump logs, curl into a ball to roll under vines and smash termite mounds, and gobble every termite.</p>
+      <div class="wallet">
+        <span>🪙 <b id="coinCount">0</b></span>
+        <span id="streakChip"></span>
+        <button class="btn alt mini" id="btnShop">🛍 WARDROBE</button>
+      </div>
       <div class="modes">
         <button class="mode" id="btnGoal">
           <span class="ico">🌴</span><b>World 1 &middot; Jungle Trail</b>
           <span class="meta" id="goalMeta"></span>
           <small>5 levels &mdash; reach each finish arch, earn stars</small>
+        </button>
+        <button class="mode" id="btnDaily">
+          <span class="ico">📅</span><b>Daily Run</b>
+          <span class="meta" id="dailyMeta"></span>
+          <small id="dailySmall"></small>
         </button>
         <button class="mode" id="btnEndless">
           <span class="ico">♾️</span><b>Endless Run</b>
@@ -209,6 +235,8 @@
           <small>Coming soon</small>
         </div>
       </div>
+      <div class="sec">MISSIONS</div>
+      <div id="missionList"></div>
       <div class="keys">
         <div><b>A / D &middot; &larr; / &rarr;</b> change lane</div>
         <div><b>W / &uarr; / Space</b> jump</div>
@@ -216,6 +244,19 @@
         <div><b>P / Esc</b> pause &middot; touch: swipe</div>
       </div>
       <a class="home" href="../../index.html">&larr; Arcade Home</a>
+    </div>
+  </div>
+
+  <!-- Wardrobe -->
+  <div id="shopModal" class="modal clear hidden">
+    <div class="card" style="max-width:420px;">
+      <h2>Tip's Wardrobe</h2>
+      <p>🪙 <b id="shopCoins">0</b> coins &mdash; earn more from termites, level clears, missions and the daily run</p>
+      <div class="sec">SCALES</div>
+      <div class="shoplist" id="skinList"></div>
+      <div class="sec">ACCESSORIES</div>
+      <div class="shoplist" id="accList"></div>
+      <div class="row-btn"><button class="btn ghost" id="btnShopBack">BACK</button></div>
     </div>
   </div>
 
@@ -250,6 +291,8 @@
       <div class="stars" id="endStars"></div>
       <div class="newbest hidden" id="endNew">NEW BEST!</div>
       <div class="objline hidden" id="endObj"></div>
+      <div class="objline" id="endCoins"></div>
+      <div class="objline" id="endMissions" style="white-space:pre-line;"></div>
       <div class="stats">
         <div><span>Distance</span><b id="endDist">0 m</b></div>
         <div><span>Termites</span><b id="endTerm">0</b></div>
@@ -278,6 +321,17 @@
     const pick = arr => arr[Math.floor(Math.random() * arr.length)];
     const V = (x, y, z) => new THREE.Vector3(x, y, z);
     const col = h => new THREE.Color(h);
+    function mulberry32(a) {
+      return () => {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    const hashStr = s => { let h = 2166136261; for (const ch of s) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+    // Gameplay layout draws from rnd so the daily run is identical for everyone that day.
+    let rnd = Math.random;
 
     /* ======================================================================
        CONFIG
@@ -326,17 +380,85 @@
     let levelIdx = 0, LEVEL = LEVELS[0];
     let activePal = ENDLESS_PAL;
 
+    const DAILY_MODS = [
+      { name: 'Sunny Sprint', desc: 'a classic run' },
+      { name: 'Turbo Trail', desc: 'everything is 12% faster', speedMul: 1.12 },
+      { name: 'Termite Frenzy', desc: 'termites score double', termMult: 2 },
+      { name: 'Misty Swamp', desc: 'thick swamp fog', pal: [PAL.swamp, PAL.swamp] },
+      { name: 'Golden Hour', desc: 'a sunset run', pal: [PAL.gold, PAL.dusk] }
+    ];
+    const dayKey = (offset = 0) => {
+      const d = new Date();
+      d.setDate(d.getDate() + offset);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    };
+    const dailyMod = () => DAILY_MODS[hashStr('mod' + dayKey()) % DAILY_MODS.length];
+    let curMod = null;
+
+    const SKINS = {
+      classic: { name: 'Classic', price: 0, c: [0xb9763f, 0xc98a52, 0x7a4524] },
+      mint: { name: 'Mint', price: 80, c: [0x6cbf9a, 0x8fd8b6, 0x3f8f6e] },
+      berry: { name: 'Berry', price: 120, c: [0xb25a9c, 0xd079b8, 0x7a3a6e] },
+      gold: { name: 'Golden', price: 250, c: [0xe8b83a, 0xffd86b, 0xb58a1e] }
+    };
+    const ACCS = {
+      hat: { name: 'Explorer Hat', price: 60, icon: '🤠' },
+      scarf: { name: 'Red Scarf', price: 60, icon: '🧣' },
+      glasses: { name: 'Shades', price: 100, icon: '🕶️' }
+    };
+
+    const MISSION_DEFS = {
+      termites: { text: n => `Collect ${n} termites`, targets: [40, 90, 150], rewards: [15, 30, 50] },
+      smash: { text: n => `Smash ${n} obstacles`, targets: [6, 12, 20], rewards: [15, 30, 50] },
+      dist: { text: n => `Run ${n} m`, targets: [1000, 2500, 4000], rewards: [15, 35, 60] },
+      jump: { text: n => `Jump ${n} times`, targets: [30, 60, 100], rewards: [10, 25, 40] },
+      roll: { text: n => `Roll ${n} times`, targets: [20, 40, 70], rewards: [10, 25, 40] },
+      dash: { text: n => `Grab ${n} golden ants`, targets: [2, 4, 6], rewards: [20, 35, 55] },
+      magnet: { text: n => `Grab ${n} magnets`, targets: [2, 4, 6], rewards: [20, 35, 55] },
+      river: { text: n => `Cross ${n} rivers`, targets: [2, 4, 8], rewards: [20, 35, 60] },
+      clear: { text: n => `Clear ${n} levels`, targets: [1, 2, 3], rewards: [25, 45, 70] }
+    };
+
     /* ======================================================================
        STORAGE
        ====================================================================== */
     const KEY = 'tipJungleRun';
-    const save = Object.assign({ endlessBest: 0, levels: {} }, (() => {
+    const save = Object.assign({
+      endlessBest: 0, levels: {}, coins: 0, owned: {}, skin: 'classic', acc: {}, missions: [], daily: {}, streak: { last: '', count: 0 }
+    }, (() => {
       try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; }
     })());
     const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* storage unavailable */ } };
     const isUnlocked = i => i === 0 || !!(save.levels[LEVELS[i - 1].id] && save.levels[LEVELS[i - 1].id].stars > 0);
     const totalStars = () => LEVELS.reduce((s, l) => s + (save.levels[l.id] ? save.levels[l.id].stars : 0), 0);
     const levelBest = () => (save.levels[LEVEL.id] ? save.levels[LEVEL.id].best : 0);
+
+    function newMission(excludeType) {
+      const used = save.missions.map(m => m.type).concat(excludeType || []);
+      const type = pick(Object.keys(MISSION_DEFS).filter(t => !used.includes(t)));
+      const tier = Math.floor(Math.random() * 3), d = MISSION_DEFS[type];
+      return { type, target: d.targets[tier], reward: d.rewards[tier], progress: 0 };
+    }
+    save.missions = save.missions.filter(m => MISSION_DEFS[m.type]).slice(0, 3);
+    while (save.missions.length < 3) save.missions.push(newMission());
+
+    let missionCoins = 0, missionLog = [];
+    // Missions accumulate across runs; a finished one pays out at the end of the run and is replaced.
+    function stat(type, n = 1) {
+      for (let i = 0; i < save.missions.length; i++) {
+        const m = save.missions[i];
+        if (m.type !== type) continue;
+        m.progress += n;
+        if (m.progress < m.target) continue;
+        missionCoins += m.reward;
+        missionLog.push('✔ ' + MISSION_DEFS[type].text(m.target) + '  +' + m.reward + ' 🪙');
+        toast('MISSION COMPLETE  +' + m.reward + ' 🪙');
+        sfx.heart();
+        save.missions.splice(i, 1, newMission(type));
+      }
+    }
+    const owned = key => key === 'skin:classic' || !!save.owned[key];
+    const activeStreak = () => (save.streak.last === dayKey() || save.streak.last === dayKey(-1) ? save.streak.count : 0);
 
     /* ======================================================================
        AUDIO (procedural)
@@ -598,15 +720,17 @@
       const upright = new THREE.Group();
       root.add(upright);
       const palette = [C.caramel, C.caramel, 0xc98a52, C.dark];
+      const scales = [], acc = {};
+      const addScales = (parent, ...args) => { const s = makeScales(...args); scales.push(s); parent.add(s); };
 
       upright.add(mk(G.unit, C.dark, 0, 0.55, 0, 0.48, 0.5, 0.44));
       upright.add(mk(G.unit, C.cream, 0, 0.5, 0.2, 0.32, 0.38, 0.3));
-      upright.add(makeScales(V(0, 0.55, 0), V(0.5, 0.52, 0.46), 320, 0.15, n => n.z < 0.3 && n.y > -0.55, palette));
+      addScales(upright, V(0, 0.55, 0), V(0.5, 0.52, 0.46), 320, 0.15, n => n.z < 0.3 && n.y > -0.55, palette);
 
       const head = new THREE.Group();
       head.position.set(0, 0.98, 0.34);
       head.add(mk(G.unit, C.cream, 0, 0, 0, 0.38, 0.35, 0.38));
-      head.add(makeScales(V(0, 0, 0), V(0.4, 0.37, 0.4), 150, 0.1, n => n.y > 0.1 && n.z < 0.55, palette));
+      addScales(head, V(0, 0, 0), V(0.4, 0.37, 0.4), 150, 0.1, n => n.y > 0.1 && n.z < 0.55, palette);
       head.add(mk(G.unit, C.cream, 0, -0.08, 0.36, 0.12, 0.1, 0.15));
       head.add(mk(G.unit, C.black, 0, -0.04, 0.5, 0.05, 0.04, 0.045));
       for (const s of [-1, 1]) {
@@ -614,7 +738,23 @@
         head.add(mk(G.unit, 0xffffff, s * 0.145, 0.075, 0.365, 0.026, 0.026, 0.02));
         head.add(mk(G.unit, C.blush, s * 0.25, -0.1, 0.27, 0.075, 0.05, 0.04));
       }
+      acc.hat = new THREE.Group();
+      acc.hat.add(mk(G.cyl, 0xc8a96a, 0, 0.3, 0, 0.52, 0.05, 0.52));
+      acc.hat.add(mk(G.cyl, 0xc8a96a, 0, 0.42, 0, 0.28, 0.22, 0.28));
+      acc.hat.add(mk(G.cyl, 0x7a4524, 0, 0.36, 0, 0.29, 0.05, 0.29));
+      acc.glasses = new THREE.Group();
+      for (const s of [-1, 1]) acc.glasses.add(mk(G.unit, 0x111111, s * 0.16, 0.05, 0.37, 0.1, 0.075, 0.03));
+      acc.glasses.add(mk(G.box, 0x111111, 0, 0.06, 0.38, 0.12, 0.02, 0.02));
+      head.add(acc.hat, acc.glasses);
       upright.add(head);
+
+      acc.scarf = new THREE.Group();
+      const scarfRing = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.08, 8, 16), std(0xd64545));
+      scarfRing.rotation.x = Math.PI / 2;
+      scarfRing.position.set(0, 0.82, 0.26);
+      acc.scarf.add(scarfRing, mk(G.box, 0xd64545, 0.18, 0.68, -0.08, 0.1, 0.3, 0.05));
+      upright.add(acc.scarf);
+      for (const k of Object.keys(acc)) acc[k].visible = false;
 
       const hands = [], feet = [];
       for (const s of [-1, 1]) {
@@ -629,7 +769,8 @@
 
       const tail = new THREE.Group();
       tail.position.set(0, 0.3, -0.4);
-      const cone = mk(new THREE.ConeGeometry(0.28, 1.0, 7), new THREE.MeshStandardMaterial({ color: C.caramel, roughness: 0.85, flatShading: true }), 0, 0, -0.5);
+      const tailMat = new THREE.MeshStandardMaterial({ color: C.caramel, roughness: 0.85, flatShading: true });
+      const cone = mk(new THREE.ConeGeometry(0.28, 1.0, 7), tailMat, 0, 0, -0.5);
       cone.rotation.x = -Math.PI / 2;
       tail.add(cone);
       for (let i = 0; i < 4; i++) tail.add(mk(G.low, i % 2 ? C.dark : 0xc98a52, 0, 0.2 - i * 0.03, -0.15 - i * 0.2, 0.2 - i * 0.03, 0.07, 0.17));
@@ -638,14 +779,26 @@
       const ball = new THREE.Group();
       ball.position.y = 0.52;
       ball.add(mk(G.unit, C.dark, 0, 0, 0, 0.5, 0.5, 0.5));
-      ball.add(makeScales(V(0, 0, 0), V(0.52, 0.52, 0.52), 230, 0.16, () => true, palette));
+      addScales(ball, V(0, 0, 0), V(0.52, 0.52, 0.52), 230, 0.16, () => true, palette);
       ball.visible = false;
       root.add(ball);
 
-      return { root, upright, ball, head, hands, feet, tail };
+      return { root, upright, ball, head, hands, feet, tail, scales, tailMat, acc };
     }
 
     const tip = buildTip();
+    function applySkin(id) {
+      const [caramel, light, dark] = (SKINS[id] || SKINS.classic).c;
+      std(C.caramel).color.set(caramel); std(0xc98a52).color.set(light); std(C.dark).color.set(dark);
+      tip.tailMat.color.set(caramel);
+      const pal = [caramel, caramel, light, dark], c = new THREE.Color();
+      tip.scales.forEach(inst => {
+        for (let i = 0; i < inst.count; i++) inst.setColorAt(i, c.set(pick(pal)));
+        inst.instanceColor.needsUpdate = true;
+      });
+    }
+    function applyAcc() { for (const k of Object.keys(tip.acc)) tip.acc[k].visible = !!save.acc[k]; }
+    applySkin(save.skin); applyAcc();
     const playerGroup = new THREE.Group();
     playerGroup.scale.setScalar(1.25);
     playerGroup.add(tip.root);
@@ -1049,7 +1202,7 @@
       return e;
     }
     const laneX = l => l * LANE_W;
-    const randLane = () => Math.floor(Math.random() * 3) - 1;
+    const randLane = () => Math.floor(rnd() * 3) - 1;
     const otherLane = l => { let o; do { o = randLane(); } while (o === l); return o; };
 
     function spawnTermite(x, y, z) { totalTermites++; addEntity(makeTermite(), { kind: 'pickup', type: 'termite', x, y, z, r: 1.15 }); }
@@ -1067,7 +1220,7 @@
         case 'mud': return addEntity(makeMud(), { type, kind: 'mud', x, z, hw: 1.2, hd: 2 });
         case 'snake': {
           const s = makeSnake();
-          const e = addEntity(s.g, { type, x, z, hw: 0.7, hd: 1.4, top: 0.75, base: x, phase: Math.random() * 6 });
+          const e = addEntity(s.g, { type, x, z, hw: 0.7, hd: 1.4, top: 0.75, base: x, phase: rnd() * 6 });
           e.update = (en, dt) => {
             en.phase += dt;
             en.x = clamp(en.base + Math.sin(en.phase * 1.3) * LANE_W * 0.9, -LANE_W, LANE_W);
@@ -1103,7 +1256,7 @@
     }
     // The monkey sits beside the trail, glows a lane red, then lobs a coconut onto it.
     function spawnMonkeyThrow(lane, z) {
-      const side = lane < 0 ? -1 : lane > 0 ? 1 : (Math.random() < 0.5 ? -1 : 1);
+      const side = lane < 0 ? -1 : lane > 0 ? 1 : (rnd() < 0.5 ? -1 : 1);
       const m = makeMonkey(side);
       const me = addEntity(m.g, { type: 'monkey', kind: 'deco', x: side * 7.6, z });
       const marker = new THREE.Mesh(new THREE.CircleGeometry(0.95, 20).rotateX(-Math.PI / 2), M.marker);
@@ -1159,7 +1312,7 @@
       else {
         const pool = PATTERNS.map((p, i) => ({ p, i })).filter(o => o.p.min <= diff && o.i !== lastPattern && o.p.h.every(hazardOK));
         const total = pool.reduce((s, o) => s + o.p.w, 0);
-        let r = Math.random() * total;
+        let r = rnd() * total;
         idx = pool[pool.length - 1].i;
         for (const o of pool) { r -= o.p.w; if (r <= 0) { idx = o.i; break; } }
       }
@@ -1167,7 +1320,7 @@
       const before = entities.length;
       const len = PATTERNS[idx].fn(z);
       if (hint) { const t = entities.slice(before).find(e => e.kind !== 'pickup'); if (t) t.hint = hint; }
-      const roll = Math.random();
+      const roll = rnd();
       if (!first) {
         if (roll < (lives < MAX_LIVES ? 0.16 : 0)) spawnPower('heart', randLane(), z - len - 4);
         else if (roll < 0.22) spawnPower('magnet', randLane(), z - len - 4);
@@ -1201,6 +1354,7 @@
       termMissed = 0; smashedMounds = 0; maxMult = 1; hintEnt = null; lastPattern = -1;
       introQueue = mode === 'goal' && !save.levels[LEVEL.id] ? LEVEL.intro.slice() : [];
       hideHint();
+      missionCoins = 0; missionLog = [];
       chaseOn = mode === 'goal' && !!LEVEL.chase; chaseGap = CHASE_START; rumbleT = 0; deathCause = '';
       chaseMesh.g.visible = false;
       $('danger').style.opacity = 0;
@@ -1235,7 +1389,7 @@
     function updateHUD() {
       setText('score', hud.score, score().toLocaleString());
       setText('dist', hud.dist, Math.floor(distance));
-      setText('best', hud.best, mode === 'goal' ? levelBest() : Math.max(save.endlessBest, score()));
+      setText('best', hud.best, mode === 'goal' ? levelBest() : Math.max(mode === 'daily' ? dailyBest() : save.endlessBest, score()));
       setText('combo', hud.combo, 'x' + multiplier());
       setText('termites', hud.termites, termites);
       setText('hearts', hud.hearts, '❤️'.repeat(lives) + '🖤'.repeat(MAX_LIVES - lives));
@@ -1261,7 +1415,7 @@
     function moveLane(d) { if (state === 'playing') { const n = clamp(player.lane + d, -1, 1); if (n !== player.lane) { player.lane = n; sfx.tone(420, 0.05, 'sine', 0.05); } } }
     function doJump() {
       if (state !== 'playing') return;
-      if (player.onGround) { player.vy = JUMP_V; player.onGround = false; squash = -0.25; sfx.jump(); burst(player.x, 0.1, 0.3, 6, [0xc29560, 0xb98a55], 2.2, 0.28, 0.5); }
+      if (player.onGround) { player.vy = JUMP_V; player.onGround = false; squash = -0.25; sfx.jump(); stat('jump'); burst(player.x, 0.1, 0.3, 6, [0xc29560, 0xb98a55], 2.2, 0.28, 0.5); }
     }
     function doRoll() {
       if (state !== 'playing' || player.rolling || stamina < ROLL_COST) return;
@@ -1269,7 +1423,7 @@
       if (player.onGround) startRoll();
       else { player.vy = Math.min(player.vy, -22); player.rollPending = true; }
     }
-    function startRoll() { player.rolling = true; player.rollT = ROLL_TIME; player.rollPending = false; sfx.roll(); }
+    function startRoll() { player.rolling = true; player.rollT = ROLL_TIME; player.rollPending = false; sfx.roll(); stat('roll'); }
 
     window.addEventListener('keydown', e => {
       if (e.repeat) return;
@@ -1297,13 +1451,75 @@
     /* ======================================================================
        FLOW
        ====================================================================== */
-    const modals = { start: $('startModal'), levels: $('levelModal'), pause: $('pauseModal'), end: $('endModal') };
+    const modals = { start: $('startModal'), levels: $('levelModal'), shop: $('shopModal'), pause: $('pauseModal'), end: $('endModal') };
     const show = (el, v) => el.classList.toggle('hidden', !v);
+    const dailyBest = () => (save.daily[dayKey()] ? save.daily[dayKey()].best : 0);
+
+    function recordDaily(sc) {
+      const key = dayKey();
+      const rec = save.daily[key] || { best: 0, plays: 0 };
+      let bonus = 0;
+      if (rec.plays === 0) {
+        save.streak.count = save.streak.last === dayKey(-1) ? save.streak.count + 1 : 1;
+        save.streak.last = key;
+        bonus = 25 + Math.min(save.streak.count, 7) * 5;
+      }
+      rec.plays++;
+      const isNew = sc > rec.best;
+      if (isNew) rec.best = sc;
+      save.daily[key] = rec;
+      return { bonus, isNew };
+    }
+
+    function renderMissions() {
+      const el = $('missionList');
+      el.innerHTML = '';
+      save.missions.forEach(m => {
+        const p = Math.min(1, m.progress / m.target);
+        const div = document.createElement('div');
+        div.className = 'mission';
+        div.innerHTML = `<span>${MISSION_DEFS[m.type].text(m.target)} &middot; ${Math.min(Math.floor(m.progress), m.target)}/${m.target}</span><b>🪙 ${m.reward}</b><div class="mbar"><i style="width:${(p * 100).toFixed(0)}%"></i></div>`;
+        el.appendChild(div);
+      });
+    }
 
     function refreshMenu() {
       $('goalMeta').textContent = '★ ' + totalStars() + '/' + LEVELS.length * 3;
       $('endlessMeta').textContent = save.endlessBest ? 'BEST ' + save.endlessBest.toLocaleString() : '';
       $('w2Meta').textContent = totalStars() >= W2_STARS_NEEDED ? 'UNLOCKED' : '🔒 ' + totalStars() + '/' + W2_STARS_NEEDED + ' ★';
+      const mod = dailyMod();
+      $('dailyMeta').textContent = save.daily[dayKey()] ? 'TODAY ' + save.daily[dayKey()].best.toLocaleString() : 'NEW';
+      $('dailySmall').textContent = mod.name + ' · ' + mod.desc;
+      $('coinCount').textContent = save.coins;
+      $('streakChip').textContent = '🔥 streak ' + activeStreak();
+      renderMissions();
+    }
+
+    function renderShop() {
+      $('shopCoins').textContent = save.coins;
+      const skinList = $('skinList'), accList = $('accList');
+      skinList.innerHTML = ''; accList.innerHTML = '';
+      const add = (list, iconHtml, name, key, price, equipped, act) => {
+        const own = owned(key);
+        const b = document.createElement('button');
+        b.className = 'item' + (equipped ? ' on' : '') + (!own && save.coins < price ? ' poor' : '');
+        b.innerHTML = `<span class="ico">${iconHtml}</span><b>${name}</b><small>${equipped ? '✔ Equipped' : own ? 'Owned' : '🪙 ' + price}</small>`;
+        b.addEventListener('click', () => {
+          if (!own) {
+            if (save.coins < price) { sfx.tone(180, 0.15, 'square', 0.08); return; }
+            save.coins -= price; save.owned[key] = true; sfx.heart();
+          } else sfx.click();
+          act(); persist(); renderShop();
+        });
+        list.appendChild(b);
+      };
+      Object.entries(SKINS).forEach(([id, s]) => {
+        const dot = `<span style="color:#${s.c[0].toString(16).padStart(6, '0')}">●</span>`;
+        add(skinList, dot, s.name, 'skin:' + id, s.price, save.skin === id, () => { save.skin = id; applySkin(id); });
+      });
+      Object.entries(ACCS).forEach(([id, a]) => {
+        add(accList, a.icon, a.name, 'acc:' + id, a.price, !!save.acc[id], () => { save.acc[id] = !save.acc[id]; applyAcc(); });
+      });
     }
 
     function renderLevels() {
@@ -1323,8 +1539,10 @@
 
     function startGame(m, li) {
       mode = m;
+      curMod = m === 'daily' ? dailyMod() : null;
+      rnd = m === 'daily' ? mulberry32(hashStr(dayKey())) : Math.random;
       if (m === 'goal') { if (li !== undefined) levelIdx = li; LEVEL = LEVELS[levelIdx]; }
-      activePal = m === 'goal' ? LEVEL.palette : ENDLESS_PAL;
+      activePal = m === 'goal' ? LEVEL.palette : (curMod && curMod.pal) || ENDLESS_PAL;
       sfx.init(); sfx.resume(); sfx.click();
       resetGame();
       show(modals.start, false); show(modals.levels, false); show(modals.end, false); show(modals.pause, false); show($('hud'), true);
@@ -1333,18 +1551,19 @@
       if (m === 'goal') hud.pLabel.textContent = LEVEL.id + ' · ' + LEVEL.name;
       state = 'playing';
       sfx.startMusic();
-      toast(m === 'goal' ? LEVEL.name.toUpperCase() : 'ENDLESS RUN');
+      toast(m === 'goal' ? LEVEL.name.toUpperCase() : m === 'daily' ? 'DAILY · ' + curMod.name.toUpperCase() : 'ENDLESS RUN');
     }
     function goMenu() {
       state = 'menu'; sfx.stopMusic(); sfx.click();
-      activePal = ENDLESS_PAL;
+      activePal = ENDLESS_PAL; curMod = null; rnd = Math.random;
       resetGame();
-      show($('hud'), false); show(modals.pause, false); show(modals.end, false); show(modals.levels, false); show(modals.start, false);
+      show($('hud'), false); show(modals.pause, false); show(modals.end, false); show(modals.levels, false); show(modals.shop, false); show(modals.start, false);
     }
     function toMenu() { goMenu(); show(modals.start, true); refreshMenu(); }
     function openLevels() { goMenu(); renderLevels(); show(modals.levels, true); }
+    function openShop() { sfx.init(); sfx.resume(); goMenu(); renderShop(); show(modals.shop, true); }
     function togglePause() {
-      if (state === 'playing') { state = 'paused'; sfx.stopMusic(); show(modals.pause, true); }
+      if (state === 'playing') { state = 'paused'; sfx.stopMusic(); persist(); show(modals.pause, true); }
       else if (state === 'paused') { state = 'playing'; sfx.startMusic(); show(modals.pause, false); }
     }
     document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'playing') togglePause(); });
@@ -1359,19 +1578,24 @@
       show($('hud'), false); show(modals.end, true);
       $('danger').style.opacity = 0;
       const seen = termites + termMissed;
-      $('endTag').textContent = won ? 'LEVEL ' + LEVEL.id + ' CLEARED' : (mode === 'goal' ? 'RUN OVER' : 'ENDLESS RUN');
+      $('endTag').textContent = won ? 'LEVEL ' + LEVEL.id + ' CLEARED' : (mode === 'goal' ? 'RUN OVER' : mode === 'daily' ? 'DAILY RUN' : 'ENDLESS RUN');
       $('endTitle').textContent = won ? LEVEL.name + ' cleared!' : (deathCause === 'boulder' ? 'Flattened by the boulder!' : 'Tip is tuckered out');
       $('endDist').textContent = Math.floor(distance) + (mode === 'goal' ? ' / ' + goal() : '') + ' m';
       $('endTerm').textContent = termites + (mode === 'goal' ? ' / ' + seen : '');
       $('endTime').textContent = fmtTime(elapsed);
       $('endScore').textContent = sc.toLocaleString();
-      let isNew = false, stars = 0;
+      let isNew = false, stars = 0, dailyBonus = 0;
       const hasNext = mode === 'goal' && levelIdx < LEVELS.length - 1;
       $('endNote').textContent = '';
       show($('endObj'), false);
       if (mode === 'endless') {
         if (sc > save.endlessBest) { save.endlessBest = sc; isNew = true; }
         $('endBestLbl').textContent = 'Endless best'; $('endBest').textContent = save.endlessBest.toLocaleString();
+      } else if (mode === 'daily') {
+        const r = recordDaily(sc);
+        dailyBonus = r.bonus; isNew = r.isNew;
+        $('endBestLbl').textContent = "Today's best"; $('endBest').textContent = dailyBest().toLocaleString();
+        $('endNote').textContent = curMod.name + (dailyBonus ? '  ·  streak ' + save.streak.count + ' 🔥' : '');
       } else {
         if (won) {
           const ob = objective();
@@ -1387,6 +1611,16 @@
         }
         $('endBestLbl').textContent = 'Level best'; $('endBest').textContent = levelBest().toLocaleString();
       }
+      if (won && mode === 'goal') stat('clear');
+      const runCoins = Math.floor(termites / 4) + (won ? 15 + stars * 10 : 0);
+      const gained = runCoins + dailyBonus + missionCoins;
+      save.coins += gained;
+      const parts = [];
+      if (runCoins) parts.push('run +' + runCoins);
+      if (dailyBonus) parts.push('daily +' + dailyBonus);
+      if (missionCoins) parts.push('missions +' + missionCoins);
+      $('endCoins').textContent = '🪙 +' + gained + (parts.length ? '  (' + parts.join(' · ') + ')' : '') + '  ·  total ' + save.coins;
+      $('endMissions').textContent = missionLog.join('\n');
       persist();
       $('endStars').textContent = won ? '★'.repeat(stars) + '☆'.repeat(3 - stars) : '';
       show($('endNew'), isNew);
@@ -1421,6 +1655,7 @@
     function smash(e, pts) {
       e.done = true; bonus += pts * multiplier();
       if (e.type === 'mound') smashedMounds++;
+      stat('smash');
       const colors = e.type === 'mound' ? [0xc79a62, 0xa87a46, 0xe0b878] : e.type === 'coconut' ? [0x5b3a1e, 0xe8d8b0] : e.type === 'log' ? [0x7b4b27, 0xd9b07a] : e.type === 'vines' ? [0x2f7a35, 0x57b947] : [0x8d9488, 0x5fae4a];
       burst(e.x, 1, e.z, 22, colors, 5, 0.4, 0.8);
       scene.remove(e.mesh);
@@ -1434,14 +1669,15 @@
           termites++; comboCount++;
           if (chaseOn) chaseGap = Math.min(CHASE_MAX, chaseGap + 0.35);
           maxMult = Math.max(maxMult, multiplier());
-          bonus += 10 * multiplier();
+          bonus += 10 * multiplier() * ((curMod && curMod.termMult) || 1);
+          stat('termites');
           sfx.termite(comboCount);
           burst(e.x, e.y, e.z, 4, [0xffe08a, 0xffffff], 2.2, 0.16, 0.4, 2);
           if (comboCount > 0 && comboCount % 10 === 0) toast('COMBO x' + multiplier() + '!');
           break;
-        case 'ant': dashT = 5; sfx.dash(); toast('TURBO DASH!'); break;
+        case 'ant': dashT = 5; sfx.dash(); toast('TURBO DASH!'); stat('dash'); break;
         case 'heart': lives = Math.min(MAX_LIVES, lives + 1); sfx.heart(); toast('+1 HEART'); break;
-        case 'magnet': magnetT = 8; sfx.magnet(); toast('TERMITE MAGNET!'); break;
+        case 'magnet': magnetT = 8; sfx.magnet(); toast('TERMITE MAGNET!'); stat('magnet'); break;
       }
     }
 
@@ -1461,6 +1697,7 @@
           e.mesh.rotation.y += dt * 3;
           e.mesh.position.set(e.x, e.y + Math.sin(time * 4 + e.x) * 0.12, e.z);
         } else e.mesh.position.set(e.x, e.y, e.z);
+        if (e.kind === 'river' && !e.counted && e.z > e.hd + 0.5) { e.counted = true; if (!e.hit && collide) stat('river'); }
         if (e.z > 14) { if (e.type === 'termite') termMissed++; scene.remove(e.mesh); entities.splice(i, 1); continue; }
         if (!collide || e.hit || e.kind === 'deco') continue;
 
@@ -1586,6 +1823,7 @@
       } else {
         diff = 1 - Math.exp(-distance / 1800);
         speed = 15 + 20 * (1 - Math.exp(-distance / 2200));
+        if (curMod && curMod.speedMul) speed *= curMod.speedMul;
       }
       const target = (slowT > 0 ? 0.65 : 1) * (dashT > 0 ? 1.55 : 1);
       speedMul += (target - speedMul) * Math.min(1, dt * 3);
@@ -1593,6 +1831,7 @@
       sfx.setTempo(speed / speedMul);
 
       distance += speed * dt;
+      stat('dist', speed * dt);
 
       // spawn
       nextRowIn -= speed * dt;
@@ -1699,6 +1938,10 @@
     $('btnLevels').addEventListener('click', openLevels);
     $('btnNext').addEventListener('click', () => startGame('goal', levelIdx + 1));
     $('btnEndless').addEventListener('click', () => startGame('endless'));
+    $('btnDaily').addEventListener('click', () => startGame('daily'));
+    $('btnShop').addEventListener('click', openShop);
+    $('btnShopBack').addEventListener('click', toMenu);
+    window.addEventListener('pagehide', persist);
     $('btnResume').addEventListener('click', togglePause);
     $('btnPause').addEventListener('click', togglePause);
     $('btnPauseMenu').addEventListener('click', toMenu);
