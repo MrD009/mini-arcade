@@ -25,6 +25,7 @@
     #view { position: absolute; inset: 0; z-index: 0; touch-action: none; }
     #view canvas { display: block; width: 100%; height: 100%; }
     .vignette { position: absolute; inset: 0; z-index: 1; pointer-events: none; box-shadow: inset 0 0 120px rgba(5, 20, 8, 0.55); }
+    #danger { position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; box-shadow: inset 0 0 170px rgba(255, 40, 20, 0.95); }
     .hidden { display: none !important; }
 
     /* ---------- HUD ---------- */
@@ -46,6 +47,9 @@
     .flag { position: absolute; right: -14px; top: -10px; font-size: 1.1rem; }
     #progressLabel { text-align: center; font-size: 0.7rem; letter-spacing: 1px; color: #cfe8c4; }
     #objLabel { text-align: center; font-size: 0.68rem; margin-top: 3px; color: var(--gold); }
+    #chaseRow { display: flex; align-items: center; gap: 8px; margin-top: 5px; font-size: .65rem; letter-spacing: 1px; color: #ffb199; }
+    #chaseRow .bar { flex: 1; width: auto; margin: 0; }
+    #chaseFill { height: 100%; width: 0%; background: linear-gradient(90deg, #ffd54a, #ff4d3b); }
     #hint {
       position: absolute; left: 50%; top: 34%; transform: translateX(-50%); max-width: 84%; text-align: center;
       padding: 10px 20px; border-radius: 14px; background: rgba(15, 42, 23, 0.82); border: 2px solid var(--gold);
@@ -141,6 +145,7 @@
 <body>
   <div id="view"></div>
   <div class="vignette"></div>
+  <div id="danger"></div>
 
   <!-- HUD -->
   <div id="hud" class="hidden">
@@ -155,6 +160,7 @@
           <div class="progress-track"><div id="progressFill"></div><div id="progressTip">🐾</div><div class="flag">🏁</div></div>
           <div id="progressLabel"></div>
           <div id="objLabel"></div>
+          <div id="chaseRow" class="hidden"><span>🪨 BOULDER</span><div class="bar"><div id="chaseFill"></div></div></div>
         </div>
         <div class="panel combo" id="comboBadge">COMBO<b id="combo">x1</b></div>
         <div id="toast"></div>
@@ -293,8 +299,10 @@
       dusk: pal(0x3b3f86, 0xf08a5a, 0xe89a6a, 0xffc8a0, 0x7a6048, 0xff8a50, 0xffc070, 0x7a5060)
     };
     const ENDLESS_PAL = [PAL.day, PAL.gold];
-    const ALL_HAZARDS = ['log', 'boulder', 'vines', 'mound', 'mud', 'snake'];
+    const ALL_HAZARDS = ['log', 'boulder', 'vines', 'mound', 'mud', 'snake', 'river', 'monkey'];
     const W2_STARS_NEEDED = 10;
+    const RIVER_HD = 3.0, COCONUT_T = 0.75;
+    const CHASE_START = 40, CHASE_MAX = 50, CHASE_CATCH = 3, CHASE_VISIBLE = 7.5, CHASE_HIT = 8;
 
     // World 1 levels. `intro` hints show only until the level is first cleared.
     // Objective types: termites {pct}, smash {count}, combo {mult}, time {sec}.
@@ -309,9 +317,11 @@
         hazards: ['log', 'boulder', 'vines', 'mound', 'mud', 'snake'], objective: { type: 'combo', mult: 3, label: 'Reach combo x3' },
         intro: [{ id: 'mud', hint: 'MUD slows you down  ·  jump it or go around' }, { id: 'snake', hint: 'SNAKES slither across lanes  ·  jump over!' }] },
       { id: '1-4', name: 'River Crossing', goal: 1800, speed: [17, 26], diff: [0.3, 0.85], palette: [PAL.afternoon, PAL.gold],
-        hazards: ALL_HAZARDS, objective: { type: 'time', sec: 85, label: 'Finish under 1:25' }, intro: [] },
+        hazards: ALL_HAZARDS, objective: { type: 'time', sec: 85, label: 'Finish under 1:25' },
+        intro: [{ id: 'river', hint: 'RIVER! Jump across it or run over the log bridge' }, { id: 'coconuts', hint: 'MONKEYS throw coconuts at the glowing lane  ·  dodge, jump or roll!' }] },
       { id: '1-5', name: 'Temple Chase', goal: 2500, speed: [18, 28], diff: [0.4, 1], palette: [PAL.gold, PAL.dusk],
-        hazards: ALL_HAZARDS, objective: { type: 'termites', pct: 0.7, label: 'Collect 70% of the termites' }, intro: [] }
+        hazards: ALL_HAZARDS, objective: { type: 'termites', pct: 0.7, label: 'Collect 70% of the termites' }, intro: [],
+        chase: true, finish: 'temple' }
     ];
     let levelIdx = 0, LEVEL = LEVELS[0];
     let activePal = ENDLESS_PAL;
@@ -391,6 +401,10 @@
       win() { [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => this.tone(f, 0.28, 'triangle', 0.16, this.now() + i * 0.13)); }
       lose() { [440, 392, 330, 262].forEach((f, i) => this.tone(f, 0.3, 'triangle', 0.15, this.now() + i * 0.16)); }
       click() { this.tone(520, 0.07, 'square', 0.07); }
+      splash() { this.noise(0.45, 0.28, 2500, 400); this.tone(200, 0.3, 'sine', 0.12, null, 80); }
+      monkey() { for (let i = 0; i < 3; i++) this.tone(rand(900, 1300), 0.07, 'square', 0.05, this.now() + i * 0.09, rand(1400, 1800)); }
+      thud() { this.tone(110, 0.14, 'sine', 0.2, null, 50); this.noise(0.1, 0.12, 500, 150, 'lowpass'); }
+      rumble(v) { this.noise(0.3, v, 160, 60, 'lowpass'); }
       // --- music
       newPhrase() {
         const scale = [220, 261.63, 293.66, 329.63, 392, 440, 523.25, 587.33];
@@ -513,7 +527,8 @@
       low: new THREE.SphereGeometry(1, 8, 6),
       cyl: new THREE.CylinderGeometry(1, 1, 1, 10),
       dodec: new THREE.DodecahedronGeometry(1, 0),
-      ico: new THREE.IcosahedronGeometry(1, 0)
+      ico: new THREE.IcosahedronGeometry(1, 0),
+      box: new THREE.BoxGeometry(1, 1, 1)
     };
     function mk(geo, material, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1) {
       const m = new THREE.Mesh(geo, typeof material === 'number' ? std(material) : material);
@@ -809,7 +824,12 @@
       heart: new THREE.MeshStandardMaterial({ color: 0xff4d6d, emissive: 0x661122, emissiveIntensity: 0.7, roughness: 0.35 }),
       magRed: new THREE.MeshStandardMaterial({ color: 0xe53935, emissive: 0x550a0a, roughness: 0.4 }),
       magTip: new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.7, roughness: 0.3 }),
-      pole: std(0xf6e3c8), poleRed: std(0xff7a59)
+      pole: std(0xf6e3c8), poleRed: std(0xff7a59),
+      water: new THREE.MeshBasicMaterial({ color: 0x3fa9e0 }),
+      ripple: new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 }),
+      bank: std(0x8a6a3a), plank: std(0xa8743a), coconut: std(0x5b3a1e), fur: std(0x8b5a2b), face: std(0xe8c9a0),
+      marker: new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.45, depthWrite: false }),
+      gold: std(0xffd54a), templeStone: std(0x9aa393)
     };
 
     function makeLog() {
@@ -923,17 +943,25 @@
       wrap.add(mk(G.low, M.halo, 0, 0, 0, 0.9, 0.9, 0.9));
       return wrap;
     }
-    function makeFinish() {
+    function makeFinish(temple) {
       const g = new THREE.Group();
-      for (const s of [-1, 1]) {
-        for (let i = 0; i < 7; i++) g.add(mk(G.cyl, i % 2 ? M.poleRed : M.pole, s * 5.6, 0.5 + i, 0, 0.55, 1, 0.55));
+      if (temple) {
+        for (const s of [-1, 1]) {
+          g.add(mk(G.box, M.templeStone, s * 5.6, 3.5, 0, 1.5, 7, 1.5));
+          g.add(mk(G.box, M.gold, s * 5.6, 7.2, 0, 2, 0.5, 2));
+        }
+        g.add(mk(G.box, M.templeStone, 0, 9.2, 0, 13, 0.9, 1.4));
+      } else {
+        for (const s of [-1, 1]) {
+          for (let i = 0; i < 7; i++) g.add(mk(G.cyl, i % 2 ? M.poleRed : M.pole, s * 5.6, 0.5 + i, 0, 0.55, 1, 0.55));
+        }
       }
       const cv = document.createElement('canvas'); cv.width = 512; cv.height = 128;
       const x = cv.getContext('2d');
-      x.fillStyle = '#5b3a1e'; x.fillRect(0, 0, 512, 128);
+      x.fillStyle = temple ? '#3b4a3a' : '#5b3a1e'; x.fillRect(0, 0, 512, 128);
       x.strokeStyle = '#ffd54a'; x.lineWidth = 8; x.strokeRect(6, 6, 500, 116);
-      x.fillStyle = '#ffd54a'; x.font = 'bold 70px Trebuchet MS, Arial'; x.textAlign = 'center'; x.textBaseline = 'middle';
-      x.fillText('FINISH!', 256, 68);
+      x.fillStyle = '#ffd54a'; x.font = (temple ? 'bold 56px' : 'bold 70px') + ' Trebuchet MS, Arial'; x.textAlign = 'center'; x.textBaseline = 'middle';
+      x.fillText(temple ? 'TEMPLE GATE' : 'FINISH!', 256, 68);
       const banner = new THREE.Mesh(new THREE.PlaneGeometry(11.2, 2.8), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), side: THREE.DoubleSide }));
       banner.position.set(0, 7.6, 0);
       g.add(banner);
@@ -945,6 +973,71 @@
       g.add(line);
       return g;
     }
+
+    function makeRiver(bridges) {
+      const g = new THREE.Group();
+      const len = RIVER_HD * 2;
+      const water = new THREE.Mesh(new THREE.PlaneGeometry(90, len).rotateX(-Math.PI / 2), M.water);
+      water.position.y = 0.06;
+      g.add(water);
+      const ripples = [];
+      for (let i = 0; i < 12; i++) {
+        const r = new THREE.Mesh(new THREE.PlaneGeometry(rand(1.2, 2.6), 0.12).rotateX(-Math.PI / 2), M.ripple);
+        r.position.set(rand(-8, 8), 0.075, rand(-RIVER_HD + 0.4, RIVER_HD - 0.4));
+        g.add(r); ripples.push(r);
+      }
+      for (const s of [-1, 1]) g.add(mk(G.box, M.bank, 0, 0.1, s * (RIVER_HD + 0.25), 90, 0.25, 0.5));
+      for (const b of bridges) {
+        const bx = laneX(b);
+        for (let z = -RIVER_HD - 0.6; z <= RIVER_HD + 0.6; z += 0.62) g.add(mk(G.box, M.plank, bx, 0.07, z, 2.3, 0.07, 0.5));
+        for (const s of [-1, 1]) { const rail = mk(G.cyl, M.bark, bx + s * 1.2, 0.2, 0, 0.17, len + 1.4, 0.17); rail.rotation.x = Math.PI / 2; g.add(rail); }
+      }
+      return { g, ripples };
+    }
+    function makeMonkey(side) {
+      const g = new THREE.Group();
+      g.add(mk(G.cyl, M.bark, 0, 3.8, 0, 0.55, 7.6, 0.55));
+      const branch = mk(G.cyl, M.bark, -side * 1.2, 4.7, 0, 0.18, 2.6, 0.18);
+      branch.rotation.z = Math.PI / 2;
+      g.add(branch);
+      g.add(mk(G.ico, M.leaf, 0, 7.8, 0, 2.4, 1.2, 2.4));
+      const body = new THREE.Group();
+      body.position.set(-side * 1.6, 5.1, 0);
+      body.add(mk(G.unit, M.fur, 0, 0.35, 0, 0.38, 0.45, 0.35));
+      body.add(mk(G.unit, M.fur, 0, 0.95, 0.05, 0.3, 0.28, 0.3));
+      body.add(mk(G.unit, M.face, 0, 0.9, 0.26, 0.2, 0.18, 0.12));
+      for (const s of [-1, 1]) {
+        body.add(mk(G.unit, M.face, s * 0.3, 0.98, 0, 0.1, 0.1, 0.06));
+        body.add(mk(G.low, M.snakeEye, s * 0.09, 0.97, 0.36, 0.04, 0.04, 0.03));
+      }
+      const tail = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.05, 6, 10, Math.PI * 1.2), M.fur);
+      tail.position.set(0, 0.3, -0.35); tail.rotation.y = Math.PI / 2;
+      body.add(tail);
+      const arm = new THREE.Group();
+      arm.position.set(side * 0.3, 0.6, 0.1);
+      arm.add(mk(G.cyl, M.fur, 0, 0.3, 0, 0.08, 0.6, 0.08));
+      arm.add(mk(G.unit, M.coconut, 0, 0.65, 0, 0.14, 0.14, 0.14));
+      body.add(arm);
+      g.add(body);
+      return { g, body, arm };
+    }
+    function makeCoconut() {
+      const g = new THREE.Group();
+      g.add(mk(G.unit, M.coconut, 0, 0, 0, 0.42, 0.42, 0.42));
+      for (const [x, y, z] of [[0.18, 0.3, 0.24], [-0.2, 0.28, 0.22], [0, 0.1, 0.4]]) g.add(mk(G.low, M.face, x, y, z, 0.07, 0.07, 0.05));
+      return g;
+    }
+    const chaseMesh = (() => {
+      const g = new THREE.Group();
+      const rock = mk(G.dodec, M.stone, 0, 0, 0, 2, 2, 2);
+      rock.add(mk(G.ico, M.moss, 0.3, 0.8, 0.2, 0.45, 0.2, 0.45));
+      rock.add(mk(G.ico, M.moss, -0.6, 0.2, 0.7, 0.3, 0.2, 0.3));
+      rock.add(mk(G.ico, M.moss, 0.1, -0.7, -0.6, 0.35, 0.2, 0.35));
+      g.add(rock);
+      g.visible = false;
+      scene.add(g);
+      return { g, rock };
+    })();
 
     const entities = [];
     let totalTermites = 0;
@@ -984,7 +1077,52 @@
         }
       }
     }
-    function spawnFinish(z) { addEntity(makeFinish(), { kind: 'deco', type: 'finish', x: 0, z }); }
+    function spawnFinish(z) { addEntity(makeFinish(mode === 'goal' && LEVEL.finish === 'temple'), { kind: 'deco', type: 'finish', x: 0, z }); }
+
+    function spawnRiver(z, bridges) {
+      const r = makeRiver(bridges);
+      const e = addEntity(r.g, { type: 'river', kind: 'river', x: 0, z, hd: RIVER_HD, bridges: bridges.map(laneX) });
+      e.update = (en, dt) => r.ripples.forEach(p => { p.position.z += dt * 1.2; if (p.position.z > RIVER_HD - 0.4) p.position.z = -RIVER_HD + 0.4; });
+      return e;
+    }
+    function spawnCoconut(x0, y0, z, tx) {
+      const grav = 2 * (y0 - 0.45) / (COCONUT_T * COCONUT_T);
+      const e = addEntity(makeCoconut(), { type: 'coconut', x: x0, y: y0, z, hw: 0.5, hd: 0.5, top: y0 + 0.45, bottom: y0 - 0.45, smash: true, t: 0, x0, y0, tx, landed: false });
+      e.update = (en, dt) => {
+        if (!en.landed) {
+          en.t += dt;
+          const k = Math.min(1, en.t / COCONUT_T);
+          en.x = en.x0 + (en.tx - en.x0) * k;
+          en.y = en.y0 - 0.5 * grav * Math.min(en.t, COCONUT_T) ** 2;
+          if (en.t >= COCONUT_T) { en.landed = true; en.y = 0.45; sfx.thud(); burst(en.x, 0.5, en.z, 6, [0x5b3a1e, 0xe8d8b0], 2.5, 0.25, 0.5); }
+        }
+        en.top = en.y + 0.45; en.bottom = Math.max(0, en.y - 0.45);
+        en.mesh.rotation.x -= dt * 6;
+      };
+      return e;
+    }
+    // The monkey sits beside the trail, glows a lane red, then lobs a coconut onto it.
+    function spawnMonkeyThrow(lane, z) {
+      const side = lane < 0 ? -1 : lane > 0 ? 1 : (Math.random() < 0.5 ? -1 : 1);
+      const m = makeMonkey(side);
+      const me = addEntity(m.g, { type: 'monkey', kind: 'deco', x: side * 7.6, z });
+      const marker = new THREE.Mesh(new THREE.CircleGeometry(0.95, 20).rotateX(-Math.PI / 2), M.marker);
+      marker.visible = false;
+      addEntity(marker, { type: 'marker', kind: 'deco', x: laneX(lane), y: 0.08, z });
+      let thrown = false, coconut = null, t = rand(0, 6);
+      me.update = (en, dt) => {
+        t += dt;
+        m.body.position.y = 5.1 + Math.sin(t * 5) * 0.04;
+        const warn = en.z > -62 && !(coconut && coconut.landed);
+        marker.visible = warn;
+        if (warn && !thrown) m.arm.rotation.z = side * (1.6 + Math.sin(t * 16) * 0.35);
+        if (!thrown && en.z > -26) {
+          thrown = true; m.arm.rotation.z = 0; sfx.monkey();
+          coconut = spawnCoconut(en.x - side * 1.9, 5.5, en.z, laneX(lane));
+        }
+      };
+      return me;
+    }
 
     // --- spawn patterns. `z` is the nearest edge; larger offsets are further away.
     const line = (lane, z, count, step, y = 0.9) => { for (let i = 0; i < count; i++) spawnTermite(laneX(lane), y, z - i * step); };
@@ -1005,6 +1143,9 @@
       { id: 'mud', h: ['mud'], w: 2, min: 0, fn(z) { const L = randLane(); spawnHazard('mud', L, z - 6); line(otherLane(L), z - 1, 5, 2.4); return 10; } },
       { id: 'mudBoulder', h: ['mud', 'boulder'], w: 2, min: 0.2, fn(z) { const a = randLane(), b = otherLane(a); let c = 0; for (const l of [-1, 0, 1]) if (l !== a && l !== b) c = l; spawnHazard('mud', a, z - 6); spawnHazard('boulder', b, z - 8); line(c, z - 1, 6, 2.2); return 12; } },
       { id: 'snake', h: ['snake'], w: 1.5, min: 0.1, fn(z) { spawnHazard('snake', randLane(), z - 7); line(0, z - 1, 4, 2.2); return 12; } },
+      { id: 'river', h: ['river'], w: 2.5, min: 0.1, fn(z) { const b = randLane(); spawnRiver(z - 8, [b]); line(b, z - 1, 4, 2.4); arc(otherLane(b), z - 8, arcStep(), 5, 2.4); return 16; } },
+      { id: 'riverWide', h: ['river'], w: 1.5, min: 0.4, fn(z) { spawnRiver(z - 8, []); arc(0, z - 8, arcStep(), 5, 2.5); return 16; } },
+      { id: 'coconuts', h: ['monkey'], w: 2.5, min: 0.2, fn(z) { const free = randLane(); let n = 0; for (const l of [-1, 0, 1]) if (l !== free) spawnMonkeyThrow(l, z - 8 - (n++) * 1.5); line(free, z - 2, 6, 2.2); return 14; } },
       { id: 'trail', h: [], w: 2.5, min: 0, fn(z) { for (let i = 0; i < 8; i++) spawnTermite(Math.sin(i * 0.85) * LANE_W, 0.9, z - i * 2.2); return 18; } }
     ];
     const patIndex = id => PATTERNS.findIndex(p => p.id === id);
@@ -1043,6 +1184,7 @@
     let speed = 15, speedMul = 1, diff = 0, nextRowIn = 0, endTimer = 0, finishSpawned = false, firstRow = true;
     let invuln = 0, magnetT = 0, dashT = 0, slowT = 0, stamina = 100, shake = 0, nextToast = 500, zoneShown = 0;
     let termMissed = 0, smashedMounds = 0, maxMult = 1, hintEnt = null;
+    let chaseOn = false, chaseGap = CHASE_START, rumbleT = 0, deathCause = '', startHintT = 0, startHintOn = false;
     let time = 0, runPhase = 0, squash = 0, fov = 58;
     const player = { x: 0, y: 0, vy: 0, lane: 0, rolling: false, rollT: 0, rollPending: false, onGround: true, vx: 0 };
 
@@ -1059,6 +1201,10 @@
       termMissed = 0; smashedMounds = 0; maxMult = 1; hintEnt = null; lastPattern = -1;
       introQueue = mode === 'goal' && !save.levels[LEVEL.id] ? LEVEL.intro.slice() : [];
       hideHint();
+      chaseOn = mode === 'goal' && !!LEVEL.chase; chaseGap = CHASE_START; rumbleT = 0; deathCause = '';
+      chaseMesh.g.visible = false;
+      $('danger').style.opacity = 0;
+      startHintT = chaseOn && !save.levels[LEVEL.id] ? 4.5 : 0; startHintOn = false;
       invuln = 0; magnetT = 0; dashT = 0; slowT = 0; stamina = 100; shake = 0; nextToast = 500; zoneShown = 0;
       Object.assign(player, { x: 0, y: 0, vy: 0, lane: 0, rolling: false, rollT: 0, rollPending: false, onGround: true, vx: 0 });
       tip.root.visible = true;
@@ -1069,7 +1215,8 @@
        ====================================================================== */
     const hud = {
       score: $('score'), dist: $('dist'), best: $('best'), combo: $('combo'), comboBadge: $('comboBadge'), hearts: $('hearts'), termites: $('termites'),
-      stam: $('stamFill'), power: $('powerups'), toast: $('toast'), pFill: $('progressFill'), pTip: $('progressTip'), pPanel: $('progressPanel'), pLabel: $('progressLabel'), obj: $('objLabel'), hint: $('hint')
+      stam: $('stamFill'), power: $('powerups'), toast: $('toast'), pFill: $('progressFill'), pTip: $('progressTip'), pPanel: $('progressPanel'), pLabel: $('progressLabel'), obj: $('objLabel'), hint: $('hint'),
+      chaseRow: $('chaseRow'), chaseFill: $('chaseFill')
     };
     const last = {};
     function setText(key, el, v) { if (last[key] !== v) { last[key] = v; el.textContent = v; } }
@@ -1099,7 +1246,9 @@
         hud.pTip.style.left = p + '%';
         const ob = objective();
         setText('obj', hud.obj, (ob.met ? '✔ ' : '★ ') + ob.text);
+        if (chaseOn) hud.chaseFill.style.width = clamp(1 - (chaseGap - CHASE_CATCH) / (CHASE_MAX - CHASE_CATCH), 0, 1) * 100 + '%';
       }
+      $('danger').style.opacity = chaseOn && state === 'playing' ? Math.pow(clamp((28 - chaseGap) / 24, 0, 1), 1.3) * 0.9 : 0;
       const pw = (magnetT > 0 ? `<span class="chip">🧲 ${magnetT.toFixed(1)}s</span>` : '') + (dashT > 0 ? `<span class="chip">⚡ DASH ${dashT.toFixed(1)}s</span>` : '');
       if (last.pw !== pw) { last.pw = pw; hud.power.innerHTML = pw; }
     }
@@ -1180,6 +1329,7 @@
       resetGame();
       show(modals.start, false); show(modals.levels, false); show(modals.end, false); show(modals.pause, false); show($('hud'), true);
       hud.pPanel.classList.toggle('hidden', m !== 'goal');
+      hud.chaseRow.classList.toggle('hidden', !chaseOn);
       if (m === 'goal') hud.pLabel.textContent = LEVEL.id + ' · ' + LEVEL.name;
       state = 'playing';
       sfx.startMusic();
@@ -1202,13 +1352,15 @@
     function beginDying() {
       state = 'dying'; endTimer = 0; sfx.stopMusic(); sfx.hit();
       player.rolling = true; player.rollT = 99; tip.root.visible = true; hideHint();
+      if (deathCause === 'boulder') { tip.root.visible = false; burst(player.x, 0.8, 0, 26, [0xc29560, 0xf6e3c8, 0xb9763f], 6, 0.4, 0.9); }
     }
     function showEnd(won) {
       const sc = score();
       show($('hud'), false); show(modals.end, true);
+      $('danger').style.opacity = 0;
       const seen = termites + termMissed;
       $('endTag').textContent = won ? 'LEVEL ' + LEVEL.id + ' CLEARED' : (mode === 'goal' ? 'RUN OVER' : 'ENDLESS RUN');
-      $('endTitle').textContent = won ? LEVEL.name + ' cleared!' : 'Tip is tuckered out';
+      $('endTitle').textContent = won ? LEVEL.name + ' cleared!' : (deathCause === 'boulder' ? 'Flattened by the boulder!' : 'Tip is tuckered out');
       $('endDist').textContent = Math.floor(distance) + (mode === 'goal' ? ' / ' + goal() : '') + ' m';
       $('endTerm').textContent = termites + (mode === 'goal' ? ' / ' + seen : '');
       $('endTime').textContent = fmtTime(elapsed);
@@ -1253,13 +1405,23 @@
       if (player.rolling && e.smash) return smash(e, 25);
       e.hit = true;
       lives--; hitsTaken++; comboCount = 0; invuln = 1.8; shake = 0.55; speedMul = 0.55;
+      if (chaseOn) chaseGap -= CHASE_HIT;
       burst(player.x, 1, 0, 14, [0xffffff, 0xffd54a, 0xff7a59], 4, 0.3, 0.6);
       if (lives <= 0) beginDying(); else sfx.hit();
+    }
+    // Falling into a river gap; the whole gap is safe once Tip is invulnerable or dashing.
+    function fall(e) {
+      e.hit = true;
+      if (invuln > 0 || dashT > 0) return;
+      lives--; hitsTaken++; comboCount = 0; invuln = 1.8; shake = 0.4; slowT = 1.4; speedMul = 0.6;
+      if (chaseOn) chaseGap -= CHASE_HIT;
+      burst(player.x, 0.4, 0, 22, [0x9be3ff, 0xffffff, 0x3fa9e0], 5, 0.35, 0.8);
+      if (lives <= 0) beginDying(); else sfx.splash();
     }
     function smash(e, pts) {
       e.done = true; bonus += pts * multiplier();
       if (e.type === 'mound') smashedMounds++;
-      const colors = e.type === 'mound' ? [0xc79a62, 0xa87a46, 0xe0b878] : e.type === 'log' ? [0x7b4b27, 0xd9b07a] : e.type === 'vines' ? [0x2f7a35, 0x57b947] : [0x8d9488, 0x5fae4a];
+      const colors = e.type === 'mound' ? [0xc79a62, 0xa87a46, 0xe0b878] : e.type === 'coconut' ? [0x5b3a1e, 0xe8d8b0] : e.type === 'log' ? [0x7b4b27, 0xd9b07a] : e.type === 'vines' ? [0x2f7a35, 0x57b947] : [0x8d9488, 0x5fae4a];
       burst(e.x, 1, e.z, 22, colors, 5, 0.4, 0.8);
       scene.remove(e.mesh);
       sfx.smash();
@@ -1270,6 +1432,7 @@
       switch (e.type) {
         case 'termite':
           termites++; comboCount++;
+          if (chaseOn) chaseGap = Math.min(CHASE_MAX, chaseGap + 0.35);
           maxMult = Math.max(maxMult, multiplier());
           bonus += 10 * multiplier();
           sfx.termite(comboCount);
@@ -1305,6 +1468,8 @@
         if (e.kind === 'pickup') {
           const dx = e.x - px, dy = e.y - pcy, dz = e.z, r = e.r + m;
           if (dx * dx + dy * dy + dz * dz < r * r) collect(e);
+        } else if (e.kind === 'river') {
+          if (Math.abs(e.z) < e.hd - 0.2 && player.y < 0.45 && !e.bridges.some(b => Math.abs(px - b) < 1.15)) fall(e);
         } else if (Math.abs(e.z) < e.hd + 0.4 + m && Math.abs(e.x - px) < e.hw + 0.38) {
           if (e.kind === 'mud') { if (player.y < 0.3) { slowT = 0.9; if (Math.random() < 0.3) burst(px, 0.2, 0.3, 1, [0x5a3a22, 0x7a5233], 2, 0.25, 0.4); } }
           else if (player.y < e.top && player.y + ph > e.bottom) hurt(e);
@@ -1384,7 +1549,7 @@
       const kx = Math.min(1, dt * 6);
       camera.position.x += (player.x * 0.6 - camera.position.x) * kx;
       camera.position.y += (5.1 + player.y * 0.3 - camera.position.y) * kx;
-      camera.position.z = 9.4;
+      camera.position.z += ((chaseOn && state !== 'menu' ? 11.4 : 9.4) - camera.position.z) * kx;
       let ox = 0, oy = 0;
       if (shake > 0) { shake = Math.max(0, shake - dt * 1.6); ox = rand(-1, 1) * shake * 0.35; oy = rand(-1, 1) * shake * 0.35; }
       camera.position.x += ox; camera.position.y += oy;
@@ -1447,6 +1612,35 @@
         else if (zoneShown < 2 && p > 0.9) { zoneShown = 2; toast('FINAL STRETCH!'); }
         if (distance >= goal()) { state = 'finishing'; endTimer = 0; invuln = 0; sfx.stopMusic(); sfx.win(); burstConfetti(); }
       } else if (distance >= nextToast) { toast(nextToast + ' M!'); nextToast += 500; }
+
+      if (startHintT > 0) {
+        startHintT -= dt;
+        if (!startHintOn && elapsed > 0.8) { startHintOn = true; showHint('A GIANT BOULDER IS CHASING YOU!  ·  hits and mud let it catch up'); }
+        if (startHintT <= 0 && startHintOn) hideHint();
+      }
+      if (chaseOn && state === 'playing') updateChase(dt);
+    }
+
+    function updateChase(dt) {
+      chaseGap = Math.min(CHASE_MAX, chaseGap + (speed - (speed / speedMul) * 0.94) * dt);
+      if (chaseGap <= CHASE_CATCH) { deathCause = 'boulder'; beginDying(); return; }
+      if (chaseGap < 28) {
+        const k = 1 - chaseGap / 28;
+        shake = Math.max(shake, k * 0.25);
+        rumbleT -= dt;
+        if (rumbleT <= 0) { rumbleT = 0.28; sfx.rumble(0.05 + 0.2 * k); }
+      }
+    }
+    function updateChaseVisual(dt, scroll) {
+      const show = chaseOn && (state === 'playing' || state === 'dying' || state === 'over') && chaseGap < CHASE_VISIBLE;
+      chaseMesh.g.visible = show;
+      if (!show) return;
+      const zb = 1.6 + Math.max(0, chaseGap - CHASE_CATCH) * (8 / (CHASE_VISIBLE - CHASE_CATCH));
+      const g = chaseMesh.g;
+      g.position.x += (player.x - g.position.x) * Math.min(1, dt * 2);
+      g.position.set(g.position.x, 1.1, zb);
+      chaseMesh.rock.rotation.x -= (state === 'playing' ? 20 : 0) * dt / 2;
+      if (state === 'playing' && Math.random() < dt * 30) emit(g.position.x + rand(-2, 2), 0.2, zb + 1.5, rand(-1, 1), rand(1, 2.5), rand(-1, 0), 0.6, 0.35, 0xc29560, 2);
     }
 
     function burstConfetti() {
@@ -1474,6 +1668,7 @@
         moveWorld(scroll, dt);
         updatePlayer(dt, scroll);
         updateEntities(dt, scroll, state === 'playing');
+        updateChaseVisual(dt, scroll);
         updateParticles(dt, scroll);
         animateTip(dt, scroll);
         if (state === 'playing' || state === 'menu') {
