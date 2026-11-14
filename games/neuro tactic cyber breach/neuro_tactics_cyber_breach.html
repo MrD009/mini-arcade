@@ -137,6 +137,21 @@
             transform: scale(0.96);
         }
 
+        button:focus-visible, select:focus-visible, input:focus-visible {
+            outline: 3px solid #fff;
+            outline-offset: 2px;
+            z-index: 40;
+        }
+        #manualModal { z-index: 80; }
+        #manualModal > div { max-height: 90dvh; overflow-y: auto; }
+        body.high-contrast .tile-core { background: #004a66; border: 3px solid #fff; }
+        body.high-contrast .tile-trap { background: #640024; border: 3px double #fff; }
+        body.high-contrast .tile-decoy { background: #674400; border: 3px dashed #fff; }
+        body.high-contrast .tile-safe { background: #123d2e; border: 2px solid #fff; }
+        body.high-contrast .tile-cloaked { background: #090d18; border: 2px solid #aebed4; }
+        .contrast-symbol { display: none; color: white; font: bold 10px monospace; line-height: 1; }
+        body.high-contrast .contrast-symbol { display: block; }
+
         .tile-cloaked {
             background: linear-gradient(145deg, #0d1527, #17233b);
             border: 1px solid rgba(56, 189, 248, 0.28);
@@ -502,9 +517,8 @@
             #arenaBanner > div:last-child { display: none; }
             #liveBannerMsg {
                 font-size: 10px;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
+                white-space: normal;
+                overflow: visible;
             }
 
             #mobileOptionsModal {
@@ -629,26 +643,26 @@
                 </div>
 
                 <!-- Smart Pause Button [P] -->
-                <button id="btnPauseHeader" onclick="Game.togglePause()" class="h-8 px-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/50 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition" title="Jeda Permainan [Kekunci P / Esc]">
+                <button id="btnPauseHeader" onclick="Game.togglePause()" aria-label="Jeda atau sambung permainan" class="h-8 px-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/50 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition" title="Jeda Permainan [Kekunci P / Esc]">
                     <i id="pauseIcon" class="fa-solid fa-pause"></i>
                     <span class="hidden sm:inline" data-i18n="btnPause">Jeda [P]</span>
                 </button>
 
-                <button onclick="UI.toggleModal('manualModal', true)" class="h-8 px-2.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-600/60 text-cyan-300 text-xs font-semibold flex items-center gap-1.5 transition" title="Manual Operasi">
+                <button id="btnManualHeader" onclick="UI.toggleModal('manualModal', true)" aria-label="Manual, latihan dan tetapan" class="h-8 px-2.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-600/60 text-cyan-300 text-xs font-semibold flex items-center gap-1.5 transition" title="Manual, latihan dan tetapan">
                     <i class="fa-solid fa-circle-question"></i>
                     <span class="hidden lg:inline" data-i18n="btnManual">Cara Main</span>
                 </button>
 
-                <button onclick="I18N.toggle()" class="h-8 px-2.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-mono text-xs font-bold transition flex items-center gap-1" title="Tukar Bahasa">
+                <button id="btnLanguage" onclick="I18N.toggle()" aria-label="Tukar bahasa" class="h-8 px-2.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-mono text-xs font-bold transition flex items-center gap-1" title="Tukar Bahasa">
                     <i class="fa-solid fa-globe text-[11px]"></i>
                     <span id="langBadge">BM</span>
                 </button>
 
-                <button onclick="SoundFX.toggle()" class="w-8 h-8 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-600/60 text-slate-300 flex items-center justify-center transition" title="Bunyi">
+                <button id="btnSound" onclick="SoundFX.toggle()" aria-label="Matikan bunyi" class="w-8 h-8 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-600/60 text-slate-300 flex items-center justify-center transition" title="Bunyi">
                     <i id="soundIcon" class="fa-solid fa-volume-high text-cyan-400 text-xs"></i>
                 </button>
 
-                <button onclick="UI.toggleFullscreen()" class="h-8 px-2.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition" title="Skrin Penuh (Fullscreen)">
+                <button id="btnFullscreenHeader" onclick="UI.toggleFullscreen()" aria-label="Tukar skrin penuh" class="h-8 px-2.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition" title="Skrin Penuh (Fullscreen)">
                     <i id="fullscreenIcon" class="fa-solid fa-expand"></i>
                     <span class="hidden xl:inline" data-i18n="btnFullscreen">Skrin Penuh</span>
                 </button>
@@ -855,6 +869,7 @@
 
                         <!-- Pause Action Buttons -->
                         <div class="space-y-2">
+                            <button onclick="UI.toggleModal('manualModal', true)" class="w-full py-2 px-4 rounded-xl bg-slate-800 border border-cyan-500 text-cyan-200 text-xs font-bold" data-i18n="pauseManual">Manual, latihan & tetapan</button>
                             <button onclick="Game.togglePause(false)" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-cyan-400 hover:from-amber-300 hover:to-cyan-300 text-slate-950 font-orbitron font-extrabold text-xs uppercase tracking-wider shadow-[0_0_15px_rgba(255,184,0,0.4)] transition flex items-center justify-center gap-2">
                                 <i class="fa-solid fa-play"></i>
                                 <span data-i18n="btnResumeNow">SAMBUNG SEMULA (P)</span>
@@ -883,6 +898,8 @@
                             Hafal kedudukan nod sebelum matriks dikunci!
                         </span>
                     </div>
+                    <button id="logicHintButton" type="button" onclick="Game.showLogicHint()" class="rounded border border-cyan-400 px-2 py-1 text-cyan-200 text-xs" data-i18n="logicHint">Petunjuk logik</button>
+                    <button id="actionHelpButton" type="button" onclick="UI.toggleModal('manualModal', true)" class="rounded border border-slate-400 px-2 py-1 text-white text-xs" aria-label="Kos dan risiko tindakan" title="Kos dan risiko tindakan">?</button>
                     <div class="hidden sm:flex items-center gap-3 font-mono text-[11px] text-slate-400 shrink-0">
                         <span><i class="fa-solid fa-gem text-cyan-400 mr-1"></i>= Teras Baris/Lajur</span>
                         <span><i class="fa-solid fa-skull-crossbones text-rose-400 mr-1"></i>= Firewall Baris/Lajur</span>
@@ -898,7 +915,7 @@
 
                 <!-- Bottom Live Tactical Toast & Sensor Guide -->
                 <div id="arenaBanner" class="w-full flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-slate-950/90 border border-slate-800 text-xs">
-                    <div id="liveBannerMsg" class="font-mono text-cyan-300 truncate">
+                    <div id="liveBannerMsg" role="status" aria-live="polite" class="font-mono text-cyan-300 truncate">
                         [SISTEM] Sedia untuk memulakan protokol imbasan...
                     </div>
                     <div class="text-[10px] font-mono text-slate-400 shrink-0">
@@ -1110,23 +1127,46 @@
     </div>
 
     <!-- ================= HOW TO PLAY MANUAL MODAL ================= -->
-    <div id="manualModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+    <div id="manualModal" role="dialog" aria-modal="true" aria-labelledby="manualHeading" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
         <div class="cyber-panel rounded-2xl max-w-xl w-full p-5 border border-cyan-400/50">
             <div class="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-3">
                 <div class="flex items-center gap-2">
                     <i class="fa-solid fa-graduation-cap text-cyan-400 text-lg"></i>
-                    <h2 class="font-orbitron font-bold text-base text-white" data-i18n="manualTitle">
+                    <h2 id="manualHeading" class="font-orbitron font-bold text-base text-white" data-i18n="manualTitle">
                         MANUAL TAKTIKAL: NEURO-TACTICS
                     </h2>
                 </div>
-                <button onclick="UI.toggleModal('manualModal', false)" class="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center">
+                <button id="manualClose" onclick="UI.toggleModal('manualModal', false)" aria-label="Tutup manual" class="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
 
             <div class="space-y-2.5 text-xs text-slate-300 leading-relaxed">
+                <div class="p-2.5 rounded-lg bg-slate-950 border border-slate-600 space-y-2">
+                    <label for="scanDuration" class="block font-bold text-white" data-i18n="scanSetting">Tempoh imbasan sektor seterusnya</label>
+                    <select id="scanDuration" onchange="Preferences.setScan(this.value)" class="w-full p-2 rounded bg-slate-800 text-white border border-slate-500">
+                        <option value="0" data-i18n="scanDefault">Asal (3.2–3.5 saat)</option>
+                        <option value="6">6 saat / seconds</option>
+                        <option value="10">10 saat / seconds</option>
+                    </select>
+                    <p data-i18n="scanNote">Tempoh tambahan memudahkan permainan; skor dan rekod tidak diasingkan.</p>
+                    <label class="flex items-center gap-2"><input id="contrastSetting" type="checkbox" onchange="Preferences.setContrast(this.checked)"> <span data-i18n="contrastSetting">Kontras tinggi dan simbol huruf</span></label>
+                </div>
+                <div class="p-2.5 rounded-lg bg-slate-950 border border-cyan-500/50 space-y-2">
+                    <button id="trainingStart" type="button" onclick="Training.start()" class="w-full p-2 rounded border border-cyan-400 text-cyan-200 font-bold" data-i18n="trainingStart">Mula latihan berpandu (tanpa risiko)</button>
+                    <div id="trainingPanel" class="hidden space-y-2">
+                        <p id="trainingProgress" class="font-bold text-cyan-300"></p>
+                        <p id="trainingQuestion" class="text-white"></p>
+                        <div id="trainingAnswers" class="grid gap-1"></div>
+                        <p id="trainingFeedback" role="status" class="text-amber-200"></p>
+                        <button id="trainingNext" type="button" onclick="Training.next()" class="hidden p-2 rounded bg-cyan-500 text-slate-950 font-bold" data-i18n="trainingNext">Seterusnya</button>
+                    </div>
+                </div>
+                <div class="p-2.5 rounded-lg bg-slate-950 border border-slate-600" data-i18n="actionHelp">
+                    Ekstrak: 1 AP (teras memulangkan 1 AP; firewall merosakkan perisai; umpan menyedut 1 AP tambahan). Radar: 2 AP untuk jumlah teras dan firewall dalam 2×2, bukan kedudukan. Bendera: 0 AP, hanya tanda andaian. Imbas semula: 1 AP untuk melihat nod yang kelihatan selama 1 saat; AP terakhir akan menamatkan sektor. Kontras tinggi: C = teras, F = firewall, D = umpan.
+                </div>
                 <div class="p-2.5 rounded-lg bg-cyan-950/30 border border-cyan-500/30">
-                    <div class="font-orbitron font-bold text-cyan-300 mb-0.5" data-i18n="manualPhase1Title">1. FASA 1: IMBASAN MEMORI VISUAL (3.5 SAAT)</div>
+                    <div class="font-orbitron font-bold text-cyan-300 mb-0.5" data-i18n="manualPhase1Title">1. FASA 1: IMBASAN MEMORI VISUAL</div>
                     <span data-i18n="manualPhase1Body">Pada awal setiap pusingan, kedudukan Data Teras (Biru), Firewall Bahaya (Merah), dan Nod Umpan (Kuning) akan dipancarkan seketika. Hafal koordinat Data Teras! Pada sektor tinggi, sesetengah nod disembunyikan semasa imbasan untuk menguji logik anda.</span>
                 </div>
 
@@ -1206,6 +1246,7 @@
                     pauseTitle: "SISTEM DIJEDA SEMENTARA",
                     pauseDesc: "Pemasa dihentikan pada ketepatan milisaat. Paparan matriks, petunjuk baris/lajur & lencana radar dikaburkan secara automatik untuk menghalang analisis semasa jeda.",
                     btnResumeNow: "SAMBUNG SEMULA (P)",
+                    pauseManual: "Manual, latihan & tetapan",
                     btnRetrySector: "Ulang Sektor",
                     btnSaveMenu: "Simpan & Menu",
                     manualTitle: "MANUAL TAKTIKAL: NEURO-TACTICS",
@@ -1213,13 +1254,21 @@
                     phaseDeduction: "FASA 2: DEDUKSI",
                     memoryInstruction: "Hafal kedudukan Data Teras (Biru), Firewall (Merah) & Umpan (Kuning)!",
                     deductionInstruction: "Gunakan petunjuk Baris/Lajur & Sensor Jiran untuk ekstrak semua Data Teras!",
-                    manualPhase1Title: "1. FASA 1: IMBASAN MEMORI VISUAL (3.5 SAAT)",
+                    manualPhase1Title: "1. FASA 1: IMBASAN MEMORI VISUAL",
                     manualPhase1Body: "Pada awal setiap pusingan, kedudukan Data Teras (Biru), Firewall Bahaya (Merah), dan Nod Umpan (Kuning) akan dipancarkan seketika. Hafal koordinat Data Teras! Pada sektor tinggi, sesetengah nod disembunyikan semasa imbasan untuk menguji logik anda.",
                     manualPhase2Title: "2. FASA 2: DEDUKSI MATRIKS & SENSOR JIRAN",
                     manualPhase2Body: "Setiap petunjuk baris dan lajur menunjukkan jumlah tepat Teras dan Firewall. Petak yang dibuka menunjukkan jumlah Firewall dalam lapan petak bersebelahan (0–8). Mengekstrak Teras memulangkan 1 AP; Nod Umpan menyedut 1 AP dan mengaburkan satu petunjuk baris.",
                     manualToolsTitle: "3. RADAR 2x2 & PERTARUHAN OVERCLOCK",
                     manualToolsBody: "Radar 2x2 (2 AP) mengimbas blok 2x2 dan menunjukkan jumlah Teras dan Firewall. Overclock mengurangkan AP maksimum sebanyak 1 dan menggandakan skor Teras jika sektor diselesaikan tanpa kesilapan dalam masa kurang daripada 25 saat. Pada telefon, buka butang … untuk mengakses pilihan; permainan dijeda sehingga menu ditutup.",
                     manualContinue: "FAHAM & TERUSKAN",
+                    logicHint: "Petunjuk logik",
+                    scanSetting: "Tempoh imbasan sektor seterusnya",
+                    scanDefault: "Asal (3.2–3.5 saat)",
+                    scanNote: "Tempoh tambahan memudahkan permainan; skor dan rekod tidak diasingkan.",
+                    contrastSetting: "Kontras tinggi dan simbol huruf",
+                    trainingStart: "Mula latihan berpandu (tanpa risiko)",
+                    trainingNext: "Seterusnya",
+                    actionHelp: "Ekstrak: 1 AP (teras memulangkan 1 AP; firewall merosakkan perisai; umpan menyedut 1 AP tambahan). Radar: 2 AP untuk jumlah teras dan firewall dalam 2×2, bukan kedudukan. Bendera: 0 AP, hanya tanda andaian. Imbas semula: 1 AP untuk melihat nod yang kelihatan selama 1 saat; AP terakhir akan menamatkan sektor. Kontras tinggi: C = teras, F = firewall, D = umpan.",
                     resumeMemory: "FASA 1: IMBASAN MEMORI",
                     resumeDeduction: "FASA 2: DEDUKSI TAKTIKAL",
                     confirmReset: "Mulakan semula kempen dan padam kemajuan yang disimpan?"
@@ -1271,6 +1320,7 @@
                     pauseTitle: "SYSTEM PAUSED",
                     pauseDesc: "All timers are frozen with millisecond precision. The matrix board, row/column clues & radar badges are blurred to prevent inspection while paused.",
                     btnResumeNow: "RESUME GAME (P)",
+                    pauseManual: "Manual, practice & settings",
                     btnRetrySector: "Retry Sector",
                     btnSaveMenu: "Save & Menu",
                     manualTitle: "TACTICAL MANUAL: NEURO-TACTICS",
@@ -1278,13 +1328,21 @@
                     phaseDeduction: "PHASE 2: DEDUCTION",
                     memoryInstruction: "Memorize the Data Cores (blue), Firewalls (red), and Decoys (yellow)!",
                     deductionInstruction: "Use the row/column clues and neighbor sensors to extract every Data Core!",
-                    manualPhase1Title: "1. PHASE 1: VISUAL MEMORY SCAN (3.5 SECONDS)",
+                    manualPhase1Title: "1. PHASE 1: VISUAL MEMORY SCAN",
                     manualPhase1Body: "At the start of each round, the positions of Data Cores (blue), Firewalls (red), and Decoy Nodes (yellow) are briefly revealed. Memorize the Data Core coordinates! Higher sectors hide some nodes during the scan to test your logic.",
                     manualPhase2Title: "2. PHASE 2: MATRIX DEDUCTION & NEIGHBOR SENSORS",
                     manualPhase2Body: "Each row and column clue shows the exact number of Cores and Firewalls. Revealed tiles show how many Firewalls are in the eight neighboring tiles (0–8). Extracting a Core refunds 1 AP; a Decoy drains 1 AP and scrambles one row clue.",
                     manualToolsTitle: "3. 2x2 RADAR & OVERCLOCK WAGER",
                     manualToolsBody: "The 2x2 Radar (2 AP) scans a 2x2 block and shows its Core and Firewall counts. Overclock reduces maximum AP by 1 and doubles Core score if you clear the sector with no mistakes in under 25 seconds. On mobile, open the … button for options; the game pauses until the menu closes.",
                     manualContinue: "GOT IT — CONTINUE",
+                    logicHint: "Logic hint",
+                    scanSetting: "Scan duration for the next sector",
+                    scanDefault: "Original (3.2–3.5 seconds)",
+                    scanNote: "Extra time makes play easier; scores and records are not separated.",
+                    contrastSetting: "High contrast and letter symbols",
+                    trainingStart: "Start guided practice (risk-free)",
+                    trainingNext: "Next",
+                    actionHelp: "Extract: 1 AP (a core refunds 1 AP; firewalls damage shields; decoys drain 1 extra AP). Radar: 2 AP for core and firewall totals in a 2×2 area, not positions. Flag: 0 AP, marks a guess only. Re-flash: 1 AP to show visible scan nodes for 1 second; spending your last AP ends the sector. High contrast: C = core, F = firewall, D = decoy.",
                     resumeMemory: "PHASE 1: MEMORY SCAN",
                     resumeDeduction: "PHASE 2: TACTICAL DEDUCTION",
                     confirmReset: "Restart the campaign and erase saved progress?"
@@ -1300,8 +1358,32 @@
                 });
                 this.updatePhaseCopy();
                 UI.renderMatrix(Game.phase === 'MEMORIZE');
+                this.updateAccessibleControls();
+                if (!document.getElementById('trainingPanel').classList.contains('hidden')) Training.render();
                 SoundFX.click();
                 UI.drawRadarChart();
+            },
+            updateAccessibleControls() {
+                const en = this.lang === 'en';
+                const labels = {
+                    btnPauseHeader: en ? 'Pause or resume game' : 'Jeda atau sambung permainan',
+                    btnManualHeader: en ? 'Manual, practice and settings' : 'Manual, latihan dan tetapan',
+                    btnLanguage: en ? 'Change language' : 'Tukar bahasa',
+                    btnSound: SoundFX.muted ? (en ? 'Turn sound on' : 'Hidupkan bunyi') : (en ? 'Turn sound off' : 'Matikan bunyi'),
+                    btnFullscreenHeader: en ? 'Toggle fullscreen' : 'Tukar skrin penuh',
+                    actionHelpButton: en ? 'Action costs and risks' : 'Kos dan risiko tindakan',
+                    manualClose: en ? 'Close manual' : 'Tutup manual',
+                    btnModeExtract: en ? 'Extract: costs 1 AP. A core refunds 1 AP; firewalls damage shields and decoys drain another AP.' : 'Ekstrak: kos 1 AP. Teras memulangkan 1 AP; firewall merosakkan perisai dan umpan menyedut 1 AP lagi.',
+                    btnModeRadar: en ? 'Radar: costs 2 AP to count cores and firewalls in a 2 by 2 area; does not reveal their positions.' : 'Radar: kos 2 AP untuk mengira teras dan firewall dalam kawasan 2 kali 2; kedudukan tidak didedahkan.',
+                    btnModeFlag: en ? 'Flag: free. Mark or unmark a suspected hazard; a flag does not confirm its contents.' : 'Bendera: percuma. Tanda atau buang tanda bahaya yang disyaki; bendera tidak mengesahkan kandungan.',
+                    btnMemoryHint: en ? 'Memory re-flash: costs 1 AP, shows visible scan nodes for 1 second. Spending your last AP ends the sector.' : 'Imbas semula: kos 1 AP, memaparkan nod imbasan yang kelihatan selama 1 saat. Menggunakan AP terakhir menamatkan sektor.',
+                    mobileHintButton: en ? 'Memory re-flash: costs 1 AP, shows visible scan nodes for 1 second. Spending your last AP ends the sector.' : 'Imbas semula: kos 1 AP, memaparkan nod imbasan yang kelihatan selama 1 saat. Menggunakan AP terakhir menamatkan sektor.'
+                };
+                Object.entries(labels).forEach(([id, label]) => {
+                    const el = document.getElementById(id);
+                    el.setAttribute('aria-label', label);
+                    el.title = label;
+                });
             },
             updatePhaseCopy() {
                 if (!['MEMORIZE', 'PLAYING'].includes(Game.phase)) return;
@@ -1338,6 +1420,111 @@
             }
         };
 
+        const Preferences = {
+            scan: 0,
+            contrast: false,
+            load() {
+                try {
+                    const saved = JSON.parse(localStorage.getItem('neuro_tactics_preferences_v1') || '{}');
+                    this.scan = [0, 6, 10].includes(saved.scan) ? saved.scan : 0;
+                    this.contrast = saved.contrast === true;
+                } catch (e) {
+                    console.error('Tetapan permainan tidak dapat dibaca.', e);
+                }
+                this.apply();
+            },
+            apply() {
+                document.getElementById('scanDuration').value = String(this.scan);
+                document.getElementById('contrastSetting').checked = this.contrast;
+                document.body.classList.toggle('high-contrast', this.contrast);
+            },
+            save() {
+                try {
+                    localStorage.setItem('neuro_tactics_preferences_v1', JSON.stringify({ scan: this.scan, contrast: this.contrast }));
+                } catch (e) {
+                    console.error('Tetapan permainan tidak dapat disimpan.', e);
+                    UI.setBanner(I18N.lang === 'en' ? 'Settings could not be saved.' : 'Tetapan tidak dapat disimpan.', 'rose');
+                }
+            },
+            setScan(value) {
+                const scan = Number(value);
+                if (![0, 6, 10].includes(scan)) return;
+                this.scan = scan;
+                this.save();
+            },
+            setContrast(value) {
+                this.contrast = value;
+                this.apply();
+                this.save();
+            }
+        };
+
+        const Training = {
+            step: 0,
+            answered: false,
+            start() {
+                this.step = 0;
+                this.answered = false;
+                document.getElementById('trainingPanel').classList.remove('hidden');
+                this.render();
+            },
+            lessons() {
+                return I18N.lang === 'en' ? [
+                    { q: 'A row contains 1 core. All but one tile are revealed and none is a core. What is the remaining tile?', a: ['A core', 'Definitely a firewall'], correct: 0, explanation: 'The row total is exact. The only unopened tile must contain the remaining core.' },
+                    { q: 'A revealed tile shows sensor 0. What does that tell you about its eight neighbors?', a: ['None is a firewall', 'All are cores'], correct: 0, explanation: 'The sensor counts firewalls only. Neighbors can still be cores, decoys or empty.' },
+                    { q: 'What does the 2 AP radar reveal about a 2×2 area?', a: ['Exact positions of every node', 'Core and firewall totals'], correct: 1, explanation: 'Radar counts nodes, not their positions; decoys are not counted.' },
+                    { q: 'What does a free flag do?', a: ['Marks a suspicion and blocks extraction', 'Proves a tile is a firewall'], correct: 0, explanation: 'Flags are reminders, not evidence. Remove one before extracting that tile.' }
+                ] : [
+                    { q: 'Satu baris mengandungi 1 teras. Semua petak kecuali satu telah dibuka dan tiada teras. Apakah petak yang tinggal?', a: ['Data teras', 'Pasti firewall'], correct: 0, explanation: 'Jumlah baris tepat. Satu-satunya petak belum dibuka mesti mengandungi teras itu.' },
+                    { q: 'Sensor pada petak terbuka menunjukkan 0. Apakah maksudnya untuk lapan petak jiran?', a: ['Tiada firewall', 'Semuanya teras'], correct: 0, explanation: 'Sensor hanya mengira firewall. Jiran masih boleh berupa teras, umpan atau kosong.' },
+                    { q: 'Apakah yang didedahkan radar 2 AP dalam kawasan 2×2?', a: ['Kedudukan tepat setiap nod', 'Jumlah teras dan firewall'], correct: 1, explanation: 'Radar mengira nod, bukan kedudukannya; umpan tidak dikira.' },
+                    { q: 'Apakah fungsi bendera percuma?', a: ['Menanda syak wasangka dan menghalang ekstraksi', 'Membuktikan petak itu firewall'], correct: 0, explanation: 'Bendera ialah peringatan, bukan bukti. Buang tanda sebelum mengekstrak petak itu.' }
+                ];
+            },
+            render() {
+                const lesson = this.lessons()[this.step];
+                const en = I18N.lang === 'en';
+                document.getElementById('trainingProgress').textContent = `${en ? 'PRACTICE' : 'LATIHAN'} ${this.step + 1} / 4`;
+                document.getElementById('trainingQuestion').textContent = lesson.q;
+                const answers = document.getElementById('trainingAnswers');
+                answers.replaceChildren();
+                lesson.a.forEach((text, index) => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'p-2 text-left rounded bg-slate-800 border border-slate-500 text-white';
+                    button.textContent = text;
+                    button.disabled = this.answered;
+                    button.onclick = () => this.answer(index);
+                    answers.appendChild(button);
+                });
+                document.getElementById('trainingFeedback').textContent = this.answered ? lesson.explanation : '';
+                const next = document.getElementById('trainingNext');
+                next.classList.toggle('hidden', !this.answered);
+                next.textContent = this.step === 3 ? (en ? 'Finish practice' : 'Tamatkan latihan') : I18N.dict[I18N.lang].trainingNext;
+            },
+            answer(index) {
+                const lesson = this.lessons()[this.step];
+                if (index !== lesson.correct) {
+                    document.getElementById('trainingFeedback').textContent = I18N.lang === 'en' ? 'Not quite. Try again; there is no penalty.' : 'Belum tepat. Cuba lagi; tiada penalti.';
+                    return;
+                }
+                this.answered = true;
+                this.render();
+                document.getElementById('trainingNext').focus();
+            },
+            next() {
+                if (this.step === 3) {
+                    document.getElementById('trainingPanel').classList.add('hidden');
+                    document.getElementById('trainingStart').focus();
+                    return;
+                }
+                this.step++;
+                this.answered = false;
+                this.render();
+                document.querySelector('#trainingAnswers button').focus();
+            }
+        };
+
         /**
          * ============================================================================
          * 2. WEB AUDIO SYNTHESIZER (CRISP SCI-FI AUDIO)
@@ -1358,6 +1545,7 @@
                 document.getElementById('soundIcon').className = this.muted
                     ? 'fa-solid fa-volume-xmark text-slate-500 text-xs'
                     : 'fa-solid fa-volume-high text-cyan-400 text-xs';
+                I18N.updateAccessibleControls();
                 if (!this.muted) this.click();
             },
             tone(freq, type = 'sine', dur = 0.1, vol = 0.1, slide = null) {
@@ -1514,6 +1702,8 @@
             },
 
             init() {
+                Preferences.load();
+                I18N.updateAccessibleControls();
                 this.loadProfile();
                 Particles.init();
                 this.bindKeys();
@@ -1844,12 +2034,12 @@
                 for (let i = 0; i < cfg.cores; i++, idx++) {
                     const [r, c] = coords[idx];
                     this.grid[r][c].type = 'CORE';
-                    if (cfg.partialFlash && i % 3 === 2) this.grid[r][c].flashVisible = false;
+                    if (cfg.partialFlash && (this.sector === 2 ? i === 2 : i % 3 === 2)) this.grid[r][c].flashVisible = false;
                 }
                 for (let i = 0; i < cfg.traps; i++, idx++) {
                     const [r, c] = coords[idx];
                     this.grid[r][c].type = 'TRAP';
-                    if (cfg.partialFlash && i % 3 === 2) this.grid[r][c].flashVisible = false;
+                    if (cfg.partialFlash && (this.sector === 2 ? i === 2 : i % 3 === 2)) this.grid[r][c].flashVisible = false;
                 }
                 for (let i = 0; i < cfg.decoys; i++, idx++) {
                     const [r, c] = coords[idx];
@@ -1875,8 +2065,9 @@
 
                 UI.updateToolButtons();
                 UI.updateHUD();
-                UI.log(`Sektor #0${this.sector} (${this.gridSize}x${this.gridSize}) dimulakan. Fasa 1 Imbasan Memori (${cfg.flashSec}s).`, 'cyan');
-                this.runMemorizePhase(cfg.flashSec, cfg.flashSec);
+                const scanSeconds = Preferences.scan || cfg.flashSec;
+                UI.log(`Sektor #0${this.sector} (${this.gridSize}x${this.gridSize}) dimulakan. Fasa 1 Imbasan Memori (${scanSeconds}s).`, 'cyan');
+                this.runMemorizePhase(scanSeconds, scanSeconds);
             },
 
             runMemorizePhase(remainingSeconds, totalSeconds = remainingSeconds) {
@@ -1954,7 +2145,37 @@
                 SoundFX.click();
                 UI.updateToolButtons();
                 UI.renderMatrix(false);
+                const id = { EXTRACT: 'btnModeExtract', RADAR: 'btnModeRadar', FLAG: 'btnModeFlag' }[t];
+                UI.setBanner(document.getElementById(id).getAttribute('aria-label'), 'cyan');
                 this.saveState(false);
+            },
+
+            showLogicHint() {
+                const en = I18N.lang === 'en';
+                if (this.phase !== 'PLAYING' || this.isPaused) {
+                    UI.setBanner(en ? 'Logic hints are available during deduction.' : 'Petunjuk logik tersedia semasa deduksi.', 'amber');
+                    return;
+                }
+                for (const axis of ['row', 'column']) {
+                    for (let i = 0; i < this.gridSize; i++) {
+                        if (axis === 'row' && this.scrambledRow === i) continue;
+                        const cells = axis === 'row' ? this.grid[i] : this.grid.map(row => row[i]);
+                        const total = cells.filter(cell => cell.type === 'CORE').length;
+                        const revealed = cells.filter(cell => cell.revealed && cell.type === 'CORE').length;
+                        const unknown = cells.filter(cell => !cell.revealed);
+                        const target = unknown.find(cell => !cell.flagged);
+                        if (target && unknown.length > 0 && total - revealed === unknown.length) {
+                            const line = en ? `${axis} ${i + 1}` : `${axis === 'row' ? 'baris' : 'lajur'} ${i + 1}`;
+                            UI.setBanner(en
+                                ? `${line}: all ${unknown.length} unopened tiles must be cores. Try row ${target.r + 1}, column ${target.c + 1}.`
+                                : `${line}: semua ${unknown.length} petak belum dibuka mesti teras. Cuba baris ${target.r + 1}, lajur ${target.c + 1}.`, 'cyan');
+                            return;
+                        }
+                    }
+                }
+                UI.setBanner(en
+                    ? 'No certain core found from a single row or column. Flags are guesses; use sensors or radar too.'
+                    : 'Tiada teras pasti ditemui daripada satu baris atau lajur. Bendera ialah andaian; gunakan sensor atau radar juga.', 'amber');
             },
 
             toggleOverclockWager() {
@@ -2269,6 +2490,21 @@
 
             bindKeys() {
                 window.addEventListener('keydown', (e) => {
+                    if (e.key === 'Tab' && !document.getElementById('manualModal').classList.contains('hidden')) {
+                        const focusable = Array.from(document.querySelectorAll('#manualModal button, #manualModal select, #manualModal input'))
+                            .filter(el => !el.disabled && el.getClientRects().length);
+                        if (focusable.length) {
+                            const first = focusable[0], last = focusable[focusable.length - 1];
+                            if (e.shiftKey && (document.activeElement === first || !focusable.includes(document.activeElement))) {
+                                e.preventDefault();
+                                last.focus();
+                            } else if (!e.shiftKey && (document.activeElement === last || !focusable.includes(document.activeElement))) {
+                                e.preventDefault();
+                                first.focus();
+                            }
+                        }
+                        return;
+                    }
                     // Smart Pause shortcuts: P or Escape
                     if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
                         if (!document.getElementById('mobileOptionsModal').classList.contains('hidden')) {
@@ -2286,6 +2522,7 @@
                         return;
                     }
 
+                    if ((e.target instanceof Element && e.target.closest('input, select, textarea')) || !document.getElementById('manualModal').classList.contains('hidden')) return;
                     if (this.phase !== 'PLAYING' || this.isPaused) return;
                     if (e.key === '1') this.setTool('EXTRACT');
                     if (e.key === '2') this.setTool('RADAR');
@@ -2323,6 +2560,7 @@
             mobileLogIndex: 0,
             mobileOptionsPausedGame: false,
             manualPausedGame: false,
+            manualFocusReturn: null,
 
             toggleMobileOptions(show, resumeGame = true) {
                 const modal = document.getElementById('mobileOptionsModal');
@@ -2505,6 +2743,7 @@
                 ];
                 configs.forEach(c => {
                     const el = document.getElementById(c.id);
+                    el.setAttribute('aria-pressed', String(Game.tool === c.tool));
                     if (Game.tool === c.tool) {
                         el.className = `w-full p-2 rounded-lg border text-left transition flex items-center justify-between ${c.active}`;
                     } else {
@@ -2516,6 +2755,9 @@
             renderMatrix(isFlashPhase = false) {
                 const board = document.getElementById('matrixBoard');
                 const N = Game.gridSize;
+                const focused = board.contains(document.activeElement) ? document.activeElement : null;
+                const focusR = focused && focused.dataset.r;
+                const focusC = focused && focused.dataset.c;
 
                 // Compute exact Row & Column counts of Data Cores (Blue) and Firewalls (Red)
                 const rowClues = [];
@@ -2544,7 +2786,7 @@
                 // Top Column Clue Headers
                 for (let c = 0; c < N; c++) {
                     html += `
-                        <div class="tactical-tile rounded-lg bg-slate-900/95 border border-slate-700/80 flex flex-col items-center justify-center font-mono leading-tight">
+                        <div role="img" aria-label="${Game.isPaused ? (I18N.lang === 'en' ? 'Column clue hidden while paused' : 'Petunjuk lajur disembunyikan semasa jeda') : (I18N.lang === 'en' ? `Column ${c + 1}: ${colClues[c].cores} cores, ${colClues[c].traps} firewalls` : `Lajur ${c + 1}: ${colClues[c].cores} teras, ${colClues[c].traps} firewall`)}" class="tactical-tile rounded-lg bg-slate-900/95 border border-slate-700/80 flex flex-col items-center justify-center font-mono leading-tight">
                             <span class="text-[11px] font-bold text-cyan-300 flex items-center gap-0.5">
                                 <i class="fa-solid fa-gem text-[8px]"></i>${colClues[c].cores}
                             </span>
@@ -2559,7 +2801,7 @@
                 for (let r = 0; r < N; r++) {
                     const isScrambled = Game.scrambledRow === r && Game.phase === 'PLAYING';
                     html += `
-                        <div class="tactical-tile rounded-lg bg-slate-900/95 border ${isScrambled ? 'border-amber-400 animate-pulse' : 'border-slate-700/80'} flex flex-col items-center justify-center font-mono leading-tight">
+                        <div role="img" aria-label="${Game.isPaused || isScrambled ? (I18N.lang === 'en' ? `Row ${r + 1}: clue unavailable` : `Baris ${r + 1}: petunjuk tidak tersedia`) : (I18N.lang === 'en' ? `Row ${r + 1}: ${rowClues[r].cores} cores, ${rowClues[r].traps} firewalls` : `Baris ${r + 1}: ${rowClues[r].cores} teras, ${rowClues[r].traps} firewall`)}" class="tactical-tile rounded-lg bg-slate-900/95 border ${isScrambled ? 'border-amber-400 animate-pulse' : 'border-slate-700/80'} flex flex-col items-center justify-center font-mono leading-tight">
                             <span class="text-[11px] font-bold text-cyan-300 flex items-center gap-0.5">
                                 <i class="fa-solid fa-gem text-[8px]"></i>${isScrambled ? '?' : rowClues[r].cores}
                             </span>
@@ -2610,7 +2852,8 @@
 
                         // Check if a 2x2 Radar Scan badge belongs on the bottom-right corner of (r, c)
                         const scanBadge = Game.radarScans.find(s => s.r === r && s.c === c);
-                        const tileLabel = I18N.tileAriaLabel(cell, r, c, isFlashPhase);
+                        if (showNode && cell.type !== 'EMPTY') content += `<span class="contrast-symbol">${{ CORE: 'C', TRAP: 'F', DECOY: 'D' }[cell.type]}</span>`;
+                        const tileLabel = I18N.tileAriaLabel(cell, r, c, isFlashPhase) + (scanBadge && !Game.isPaused ? (I18N.lang === 'en' ? `; radar area from here: ${scanBadge.cores} cores, ${scanBadge.traps} firewalls` : `; kawasan radar dari sini: ${scanBadge.cores} teras, ${scanBadge.traps} firewall`) : '');
                         const badgeHTML = scanBadge ? `
                             <div class="absolute -bottom-2 -right-2 z-30 px-1 py-0.5 rounded bg-purple-950 border border-purple-400 shadow-[0_0_8px_rgba(184,41,255,0.8)] font-mono text-[9px] leading-none flex items-center gap-1 pointer-events-none">
                                 <span class="text-cyan-300 font-bold">${scanBadge.cores}C</span>
@@ -2635,6 +2878,10 @@
                 }
 
                 board.innerHTML = html;
+                if (focusR !== null && focusR !== undefined && focusC !== undefined) {
+                    const replacement = board.querySelector(`button[data-r="${focusR}"][data-c="${focusC}"]`);
+                    if (replacement) replacement.focus({ preventScroll: true });
+                }
             },
 
             highlightRadarBlock(sr, sc) {
@@ -2824,6 +3071,7 @@
                 if (show) {
                     this.toggleMobileOptions(false, false);
                     if (id === 'manualModal') {
+                        this.manualFocusReturn = document.activeElement;
                         this.manualPausedGame = false;
                         if (!Game.isPaused && (Game.phase === 'MEMORIZE' || Game.phase === 'PLAYING')) {
                             Game.togglePause(true);
@@ -2835,10 +3083,14 @@
                 if (!el) return;
                 el.classList.toggle('hidden', !show);
                 el.classList.toggle('flex', show);
+                if (show && id === 'manualModal') document.getElementById('manualClose').focus();
                 if (!show && id === 'manualModal') {
                     const shouldResume = this.manualPausedGame && !document.hidden;
                     this.manualPausedGame = false;
                     if (shouldResume) Game.togglePause(false);
+                    if (this.manualFocusReturn instanceof HTMLElement && this.manualFocusReturn.isConnected) this.manualFocusReturn.focus();
+                    else document.getElementById('btnManualHeader').focus();
+                    this.manualFocusReturn = null;
                 }
             },
 
