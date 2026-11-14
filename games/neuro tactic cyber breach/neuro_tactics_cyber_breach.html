@@ -74,14 +74,15 @@
             max-height: 100vh;
             width: 100vw;
             overflow: hidden;
-            display: grid;
-            grid-template-rows: 48px 1fr;
+            display: flex;
+            flex-direction: column;
             gap: 10px;
             padding: 10px 16px;
         }
 
         /* Main 3-Column Workspace */
         #workspace {
+            flex: 1;
             min-height: 0;
             height: 100%;
             display: grid;
@@ -197,6 +198,14 @@
             animation: shakeScreen 0.38s ease-in-out;
         }
 
+        /* Anti-Cheat Blur Effect when Paused */
+        .anti-cheat-blur {
+            filter: blur(22px) brightness(0.35);
+            pointer-events: none;
+            user-select: none;
+            transition: filter 0.2s ease;
+        }
+
         /* Internal Log Scrollbar */
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: rgba(5, 8, 17, 0.6); }
@@ -254,11 +263,23 @@
                 </div>
             </div>
 
-            <!-- Right Utility Controls (Manual, Language, Audio, Fullscreen) -->
+            <!-- Right Utility Controls (Auto-Save Badge, Pause, Manual, Language, Audio, Fullscreen) -->
             <div class="flex items-center gap-1.5">
+                <!-- Auto-Save Indicator Badge -->
+                <div id="autoSaveBadge" class="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 font-mono text-[10px] font-bold transition-all duration-300" title="Status Simpanan Automatik (localStorage)">
+                    <span id="autoSaveDot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span id="autoSaveText" data-i18n="lblSaved">TERSIMPAN</span>
+                </div>
+
+                <!-- Smart Pause Button [P] -->
+                <button id="btnPauseHeader" onclick="Game.togglePause()" class="h-8 px-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/50 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition" title="Jeda Permainan [Kekunci P / Esc]">
+                    <i id="pauseIcon" class="fa-solid fa-pause"></i>
+                    <span class="hidden sm:inline" data-i18n="btnPause">Jeda [P]</span>
+                </button>
+
                 <button onclick="UI.toggleModal('manualModal', true)" class="h-8 px-2.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-600/60 text-cyan-300 text-xs font-semibold flex items-center gap-1.5 transition" title="Manual Operasi">
                     <i class="fa-solid fa-circle-question"></i>
-                    <span class="hidden sm:inline" data-i18n="btnManual">Cara Main</span>
+                    <span class="hidden lg:inline" data-i18n="btnManual">Cara Main</span>
                 </button>
 
                 <button onclick="I18N.toggle()" class="h-8 px-2.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-mono text-xs font-bold transition flex items-center gap-1" title="Tukar Bahasa">
@@ -344,7 +365,7 @@
                     <div class="space-y-1.5">
                         <div class="text-[10px] font-orbitron uppercase tracking-wider text-slate-400 px-0.5 flex justify-between">
                             <span data-i18n="lblActionMode">MOD TINDAKAN TAKTIKAL</span>
-                            <span class="font-mono text-slate-500">[1 / 2 / 3]</span>
+                            <span class="font-mono text-slate-500">[1 / 2 / 3 / 4]</span>
                         </div>
 
                         <!-- Mode 1: Ekstrak (1 AP) -->
@@ -434,6 +455,58 @@
             <section id="arenaContainer" class="cyber-panel rounded-xl p-3 flex flex-col items-center justify-between min-h-0 min-w-0 overflow-hidden relative">
                 <!-- Radar Sweep Effect (Active during Phase 1 Memorize) -->
                 <div id="radarSweepOverlay" class="radar-sweep hidden"></div>
+
+                <!-- SMART ANTI-CHEAT PAUSE OVERLAY (Blocks & Blurs Matrix When Paused) -->
+                <div id="pauseOverlay" class="absolute inset-0 z-40 bg-slate-950/85 backdrop-blur-xl hidden flex-col items-center justify-center p-5 text-center select-none">
+                    <div class="cyber-panel rounded-2xl max-w-md w-full p-5 border-2 border-amber-400/70 shadow-[0_0_45px_rgba(255,184,0,0.25)]">
+                        <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-400 flex items-center justify-center mx-auto mb-3 shadow-[0_0_15px_rgba(255,184,0,0.4)]">
+                            <i class="fa-solid fa-shield-lock text-amber-300 text-xl"></i>
+                        </div>
+                        <span class="px-2.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/50 text-amber-300 font-mono text-[10px] font-bold uppercase tracking-widest" data-i18n="pauseBadge">
+                            PROTOKOL ANTI-INTIP AKTIF
+                        </span>
+                        <h3 class="font-orbitron font-black text-lg text-white mt-1.5" data-i18n="pauseTitle">
+                            SISTEM DIJEDA SEMENTARA
+                        </h3>
+                        <p class="text-xs text-slate-300 mt-1 mb-4 leading-relaxed" data-i18n="pauseDesc">
+                            Pemasa dihentikan pada ketepatan milisaat. Paparan matriks, petunjuk baris/lajur & lencana radar dikaburkan secara automatik untuk menghalang analisis semasa jeda.
+                        </p>
+
+                        <!-- Session Snapshot Info -->
+                        <div class="grid grid-cols-3 gap-2 bg-slate-950/90 border border-slate-800 rounded-xl p-2.5 mb-4 font-mono text-xs">
+                            <div>
+                                <span class="text-[10px] text-slate-400 block">SEKTOR</span>
+                                <span id="pauseStatSector" class="font-bold text-cyan-300">#01</span>
+                            </div>
+                            <div>
+                                <span class="text-[10px] text-slate-400 block">SKOR</span>
+                                <span id="pauseStatScore" class="font-bold text-white">0</span>
+                            </div>
+                            <div>
+                                <span class="text-[10px] text-slate-400 block">MASA</span>
+                                <span id="pauseStatTime" class="font-bold text-amber-300">0.0s</span>
+                            </div>
+                        </div>
+
+                        <!-- Pause Action Buttons -->
+                        <div class="space-y-2">
+                            <button onclick="Game.togglePause(false)" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-cyan-400 hover:from-amber-300 hover:to-cyan-300 text-slate-950 font-orbitron font-extrabold text-xs uppercase tracking-wider shadow-[0_0_15px_rgba(255,184,0,0.4)] transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-play"></i>
+                                <span data-i18n="btnResumeNow">SAMBUNG SEMULA (P)</span>
+                            </button>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="Game.restartCurrentSector()" class="py-2 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-600 text-cyan-300 font-orbitron font-bold text-[11px] uppercase transition flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-rotate-left"></i>
+                                    <span data-i18n="btnRetrySector">Ulang Sektor</span>
+                                </button>
+                                <button onclick="Game.saveAndOpenMenu()" class="py-2 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-600 text-emerald-300 font-orbitron font-bold text-[11px] uppercase transition flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-floppy-disk"></i>
+                                    <span data-i18n="btnSaveMenu">Simpan & Menu</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Top Arena Info Bar -->
                 <div class="w-full flex items-center justify-between px-2 py-1 rounded-lg bg-slate-950/70 border border-slate-800/80 text-xs">
@@ -531,14 +604,92 @@
                         <span class="font-mono font-bold text-[10px] bg-cyan-950 px-1.5 py-0.5 rounded border border-cyan-500/40">-1 AP</span>
                     </button>
 
-                    <button onclick="Game.resetCampaign()" class="w-full py-1.5 px-3 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-600/60 text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition">
-                        <i class="fa-solid fa-rotate-right text-cyan-400"></i>
-                        <span data-i18n="btnReset">Sektor Baharu / Reset</span>
-                    </button>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <button onclick="Game.saveAndOpenMenu()" class="py-1.5 px-2.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition" title="Buka Menu Simpanan Sesi">
+                            <i class="fa-solid fa-floppy-disk"></i>
+                            <span data-i18n="btnSessionMenu">Menu Sesi</span>
+                        </button>
+                        <button onclick="Game.resetCampaign(true)" class="py-1.5 px-2.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-600/60 text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition" title="Mulakan Semula dari Sektor 1">
+                            <i class="fa-solid fa-rotate-right text-cyan-400"></i>
+                            <span data-i18n="btnReset">Reset Baru</span>
+                        </button>
+                    </div>
                 </div>
             </aside>
 
         </main>
+    </div>
+
+    <!-- ================= WELCOME / AUTO-SAVE RESUME MODAL ================= -->
+    <div id="sessionModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-lg hidden items-center justify-center p-4">
+        <div class="cyber-panel rounded-2xl max-w-lg w-full p-6 border-2 border-cyan-400/70 shadow-[0_0_50px_rgba(0,240,255,0.3)]">
+            <div class="flex items-center gap-3 border-b border-slate-800 pb-3.5 mb-4">
+                <div class="w-11 h-11 rounded-xl bg-cyan-500/20 border border-cyan-400 flex items-center justify-center shadow-[0_0_15px_rgba(0,240,255,0.4)]">
+                    <i class="fa-solid fa-brain text-cyan-300 text-xl"></i>
+                </div>
+                <div>
+                    <span class="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 font-mono text-[10px] font-bold uppercase">
+                        AUTO-SAVE NEURAL AKTIF
+                    </span>
+                    <h2 class="font-orbitron font-black text-lg sm:text-xl text-white mt-0.5">
+                        SESI TERSIMPAN DIKESAN
+                    </h2>
+                </div>
+            </div>
+
+            <p class="text-xs text-slate-300 mb-3 leading-relaxed">
+                Sistem mengesan rekod operasi aktif dalam memori tempatan (<code class="text-cyan-300">localStorage</code>). Anda boleh menyambung semula tepat pada keadaan terakhir atau memulakan operasi baharu.
+            </p>
+
+            <!-- Saved State Summary Card -->
+            <div class="bg-slate-950/90 border border-cyan-500/30 rounded-xl p-3.5 mb-4 space-y-2 font-mono text-xs">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-1.5">
+                    <span class="text-slate-400">STATUS SESI TERAKHIR:</span>
+                    <span id="resumePhaseBadge" class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-bold">FASA DEDUKSI</span>
+                </div>
+                <div class="grid grid-cols-4 gap-2 text-center pt-1">
+                    <div class="bg-slate-900/90 p-2 rounded border border-slate-800">
+                        <span class="text-[9px] text-slate-400 block">SEKTOR</span>
+                        <span id="resumeSectorVal" class="font-orbitron font-bold text-sm text-cyan-400">#01</span>
+                    </div>
+                    <div class="bg-slate-900/90 p-2 rounded border border-slate-800">
+                        <span class="text-[9px] text-slate-400 block">SKOR</span>
+                        <span id="resumeScoreVal" class="font-bold text-sm text-white">0</span>
+                    </div>
+                    <div class="bg-slate-900/90 p-2 rounded border border-slate-800">
+                        <span class="text-[9px] text-slate-400 block">TENAGA AP</span>
+                        <span id="resumeApVal" class="font-bold text-sm text-amber-300">7/7</span>
+                    </div>
+                    <div class="bg-slate-900/90 p-2 rounded border border-slate-800">
+                        <span class="text-[9px] text-slate-400 block">DATA TERAS</span>
+                        <span id="resumeCoresVal" class="font-bold text-sm text-emerald-300">0/5</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center text-[10px] text-slate-400 pt-1">
+                    <span>Perisai Neural: <strong id="resumeShieldVal" class="text-emerald-300">100%</strong></span>
+                    <span>Masa Operasi: <strong id="resumeTimeVal" class="text-cyan-300">0.0s</strong></span>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="space-y-2.5">
+                <button id="btnResumeSavedSession" onclick="Game.resumeFromSavedState()" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-orbitron font-black text-xs sm:text-sm tracking-wider uppercase shadow-[0_0_20px_rgba(0,240,255,0.45)] transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-play"></i>
+                    <span id="btnResumeLabel">SAMBUNG SESI (Sektor 1 • Skor: 0)</span>
+                </button>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="Game.startFreshFromModal()" class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-orbitron font-bold text-xs uppercase transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-bolt text-amber-400"></i>
+                        <span>MULA SESI BAHARU</span>
+                    </button>
+                    <button onclick="Game.deleteSavedSession()" class="py-2.5 px-3 rounded-xl bg-rose-950/60 hover:bg-rose-900/70 border border-rose-500/50 text-rose-300 font-orbitron font-bold text-xs uppercase transition flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-trash-can"></i>
+                        <span>PADAM SIMPANAN</span>
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- ================= SECTOR RESULT MODAL ================= -->
@@ -627,6 +778,8 @@
                     lblScore: "SKOR:",
                     lblBest: "REKOD:",
                     lblStreak: "KOMBO:",
+                    lblSaved: "TERSIMPAN",
+                    btnPause: "Jeda [P]",
                     btnManual: "Cara Main",
                     btnFullscreen: "Skrin Penuh",
                     lblAP: "TENAGA TAKTIKAL (AP)",
@@ -652,7 +805,14 @@
                     dimSpeed: "PANTAS:",
                     lblSystemLog: "LOG TELEMETRI NEURAL",
                     btnHint: "Imbas Semula (Hint)",
-                    btnReset: "Sektor Baharu / Reset",
+                    btnSessionMenu: "Menu Sesi",
+                    btnReset: "Reset Baru",
+                    pauseBadge: "PROTOKOL ANTI-INTIP AKTIF",
+                    pauseTitle: "SISTEM DIJEDA SEMENTARA",
+                    pauseDesc: "Pemasa dihentikan pada ketepatan milisaat. Paparan matriks, petunjuk baris/lajur & lencana radar dikaburkan secara automatik untuk menghalang analisis semasa jeda.",
+                    btnResumeNow: "SAMBUNG SEMULA (P)",
+                    btnRetrySector: "Ulang Sektor",
+                    btnSaveMenu: "Simpan & Menu",
                     manualTitle: "MANUAL TAKTIKAL: NEURO-TACTICS"
                 },
                 en: {
@@ -660,6 +820,8 @@
                     lblScore: "SCORE:",
                     lblBest: "BEST:",
                     lblStreak: "STREAK:",
+                    lblSaved: "AUTO-SAVED",
+                    btnPause: "Pause [P]",
                     btnManual: "How to Play",
                     btnFullscreen: "Fullscreen",
                     lblAP: "TACTICAL ENERGY (AP)",
@@ -685,7 +847,14 @@
                     dimSpeed: "SPEED:",
                     lblSystemLog: "NEURAL TELEMETRY LOG",
                     btnHint: "Memory Re-Flash (Hint)",
-                    btnReset: "New Sector / Reset",
+                    btnSessionMenu: "Session Menu",
+                    btnReset: "Fresh Reset",
+                    pauseBadge: "ANTI-PEEK PROTOCOL ACTIVE",
+                    pauseTitle: "SYSTEM PAUSED",
+                    pauseDesc: "All timers are frozen with millisecond precision. The matrix board, row/column clues & radar badges are blurred to prevent inspection while paused.",
+                    btnResumeNow: "RESUME GAME (P)",
+                    btnRetrySector: "Retry Sector",
+                    btnSaveMenu: "Save & Menu",
                     manualTitle: "TACTICAL MANUAL: NEURO-TACTICS"
                 }
             },
@@ -823,9 +992,14 @@
 
         /**
          * ============================================================================
-         * 4. CORE GAME STATE & LOGIC ENGINE
+         * 4. CORE GAME STATE, SMART ANTI-CHEAT PAUSE & AUTO-SAVE ENGINE
          * ============================================================================
          */
+        const STORAGE_KEYS = {
+            SESSION: 'neuro_tactics_save_v2',
+            PROFILE: 'neuro_tactics_profile_v2'
+        };
+
         const Game = {
             sector: 1,
             score: 0,
@@ -842,6 +1016,14 @@
             hoverCoord: null,
             radarScans: [],    // Stores {r, c, cores, traps} for 2x2 intersection readouts
             scrambledRow: -1,
+
+            // Smart Pause & Precision Timer State
+            isPaused: false,
+            memorizeRemainingMs: 3500,
+            memorizeTotalMs: 3500,
+            lastFrameTime: 0,
+            memorizeFrame: null,
+            reflashTimeout: null,
 
             totalCores: 5,
             extractedCores: 0,
@@ -862,10 +1044,231 @@
             },
 
             init() {
-                this.highScore = parseInt(localStorage.getItem('neuroTactics_zeroScroll_best') || '0', 10);
+                this.loadProfile();
                 Particles.init();
                 this.bindKeys();
+
+                // Check if an active saved game session exists in localStorage
+                const savedRaw = localStorage.getItem(STORAGE_KEYS.SESSION);
+                if (savedRaw) {
+                    let saved;
+                    try {
+                        saved = JSON.parse(savedRaw);
+                    } catch (e) {
+                        console.error('Simpanan sesi tidak dapat dibaca.', e);
+                    }
+                    if (saved && saved.grid && saved.grid.length > 0) {
+                        this.applySavedObject(saved);
+                        UI.updateHUD();
+                        if (saved.phase === 'ENDED' && saved.result && saved.result.victory) {
+                            UI.renderMatrix(true);
+                            UI.showModalReport(true, '', saved.result.bonuses);
+                            return;
+                        }
+                        if (saved.phase !== 'ENDED') {
+                            this.isPaused = true;
+                            UI.setMatrixBlur(true);
+                            UI.renderMatrix(false);
+                            UI.populateSessionModal(saved);
+                            UI.toggleModal('sessionModal', true);
+                            return;
+                        }
+                    }
+                }
+
                 this.startSector();
+            },
+
+            loadProfile() {
+                const legacyBest = parseInt(localStorage.getItem('neuroTactics_zeroScroll_best') || '0', 10);
+                try {
+                    const prof = JSON.parse(localStorage.getItem(STORAGE_KEYS.PROFILE) || '{}');
+                    this.highScore = Math.max(legacyBest, prof.highScore || 0);
+                } catch (e) {
+                    this.highScore = legacyBest;
+                }
+            },
+
+            saveProfile() {
+                try {
+                    localStorage.setItem('neuroTactics_zeroScroll_best', String(this.highScore));
+                    localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify({
+                        highScore: this.highScore,
+                        bestStats: this.stats,
+                        updatedAt: Date.now()
+                    }));
+                } catch (e) {
+                    console.error('Rekod permainan tidak dapat disimpan.', e);
+                }
+            },
+
+            saveState(pulseUI = true, result = null) {
+                if (this.phase === 'ENDED' && !result) return;
+                try {
+                    const payload = {
+                        version: 2,
+                        timestamp: Date.now(),
+                        sector: this.sector,
+                        score: this.score,
+                        highScore: this.highScore,
+                        streak: this.streak,
+                        shield: this.shield,
+                        ap: this.ap,
+                        maxAp: this.maxAp,
+                        gridSize: this.gridSize,
+                        grid: this.grid,
+                        phase: this.phase,
+                        tool: this.tool,
+                        overclockWager: this.overclockWager,
+                        radarScans: this.radarScans,
+                        scrambledRow: this.scrambledRow,
+                        memorizeRemainingMs: this.memorizeRemainingMs,
+                        memorizeTotalMs: this.memorizeTotalMs,
+                        totalCores: this.totalCores,
+                        extractedCores: this.extractedCores,
+                        totalTraps: this.totalTraps,
+                        mistakesThisSector: this.mistakesThisSector,
+                        sectorElapsedSec: +(this.sectorElapsedSec.toFixed(1)),
+                        stats: this.stats,
+                        result
+                    };
+                    localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify(payload));
+                    this.saveProfile();
+                    if (pulseUI) UI.pulseAutoSaveBadge();
+                } catch (e) {
+                    console.error('Sesi permainan tidak dapat disimpan.', e);
+                }
+            },
+
+            clearSavedState() {
+                try {
+                    localStorage.removeItem(STORAGE_KEYS.SESSION);
+                } catch (e) {
+                    console.error('Simpanan sesi tidak dapat dipadam.', e);
+                }
+            },
+
+            applySavedObject(s) {
+                this.sector = s.sector || 1;
+                this.score = s.score || 0;
+                this.highScore = Math.max(this.highScore, s.highScore || 0);
+                this.streak = s.streak || 1.0;
+                this.shield = s.shield ?? 100;
+                this.ap = s.ap ?? 7;
+                this.maxAp = s.maxAp ?? 7;
+                this.gridSize = s.gridSize || 5;
+                this.grid = s.grid || [];
+                this.phase = s.phase || 'PLAYING';
+                this.tool = s.tool || 'EXTRACT';
+                this.overclockWager = !!s.overclockWager;
+                this.radarScans = s.radarScans || [];
+                this.scrambledRow = s.scrambledRow ?? -1;
+                this.memorizeRemainingMs = s.memorizeRemainingMs ?? 2500;
+                this.memorizeTotalMs = s.memorizeTotalMs ?? 3500;
+                this.totalCores = s.totalCores || 5;
+                this.extractedCores = s.extractedCores || 0;
+                this.totalTraps = s.totalTraps || 4;
+                this.mistakesThisSector = s.mistakesThisSector || 0;
+                this.sectorElapsedSec = s.sectorElapsedSec || 0;
+                if (s.stats) this.stats = { ...this.stats, ...s.stats };
+
+                const cfg = this.getSectorParameters(this.sector);
+                document.documentElement.style.setProperty('--grid-dim', String(this.gridSize));
+                document.getElementById('sectorRuleBadge').textContent = cfg.label;
+                UI.syncOverclockButton();
+                UI.updateToolButtons();
+            },
+
+            resumeFromSavedState() {
+                SoundFX.scan();
+                UI.toggleModal('sessionModal', false);
+                UI.setMatrixBlur(false);
+                this.isPaused = false;
+                UI.togglePauseOverlay(false);
+
+                // If saved during Phase 1 (Memory Scan), give a fair scan window (>= 2.2s)
+                if (this.phase === 'MEMORIZE') {
+                    const fairMs = Math.max(2200, this.memorizeRemainingMs || 3000);
+                    UI.log(`Sesi disambung semula pada Sektor #0${this.sector} (Fasa Imbasan Memori).`, 'cyan');
+                    this.runMemorizePhase(fairMs / 1000, this.memorizeTotalMs / 1000);
+                } else {
+                    UI.log(`Sesi disambung semula pada Sektor #0${this.sector} (Skor: ${this.score.toLocaleString()}).`, 'emerald');
+                    this.resumePlayingLoop();
+                }
+            },
+
+            startFreshFromModal() {
+                SoundFX.click();
+                this.clearSavedState();
+                UI.toggleModal('sessionModal', false);
+                UI.setMatrixBlur(false);
+                this.isPaused = false;
+                this.resetCampaign(false);
+            },
+
+            deleteSavedSession() {
+                SoundFX.trapHit();
+                this.clearSavedState();
+                UI.log('Data simpanan sesi aktif telah dipadamkan.', 'rose');
+                UI.toggleModal('sessionModal', false);
+                UI.setMatrixBlur(false);
+                this.isPaused = false;
+                this.resetCampaign(false);
+            },
+
+            saveAndOpenMenu() {
+                if (this.phase === 'ENDED') return;
+                SoundFX.click();
+                if (!this.isPaused) this.togglePause(true);
+                this.saveState(true);
+                const raw = localStorage.getItem(STORAGE_KEYS.SESSION);
+                if (raw) {
+                    UI.populateSessionModal(JSON.parse(raw));
+                    UI.togglePauseOverlay(false);
+                    UI.toggleModal('sessionModal', true);
+                }
+            },
+
+            restartCurrentSector() {
+                SoundFX.click();
+                this.isPaused = false;
+                UI.togglePauseOverlay(false);
+                UI.setMatrixBlur(false);
+                UI.log(`Sektor #0${this.sector} dimulakan semula oleh pemain.`, 'amber');
+                this.startSector();
+            },
+
+            togglePause(forceState = null) {
+                if (this.phase === 'ENDED') return;
+                // Do not toggle pause if welcome/manual modal is open
+                if (!document.getElementById('sessionModal').classList.contains('hidden')) return;
+
+                const nextState = forceState !== null ? forceState : !this.isPaused;
+                if (nextState === this.isPaused) return;
+
+                this.isPaused = nextState;
+                SoundFX.click();
+
+                if (this.isPaused) {
+                    // Immediately blur matrix & show anti-cheat shield
+                    UI.setMatrixBlur(true);
+                    UI.togglePauseOverlay(true);
+                    UI.setBanner('[DIJEDA] Protokol Anti-Intip aktif — matriks dikaburkan sementara.', 'amber');
+                    UI.log('Permainan dijeda. Protokol Anti-Intip mengaburkan matriks.', 'amber');
+                    this.saveState(true);
+                } else {
+                    UI.setMatrixBlur(false);
+                    UI.togglePauseOverlay(false);
+                    this.lastFrameTime = performance.now();
+                    if (this.phase === 'MEMORIZE') {
+                        UI.renderMatrix(true);
+                        UI.setBanner('[FASA 1] Imbasan memori diteruskan!', 'cyan');
+                    } else {
+                        UI.renderMatrix(false);
+                        UI.setBanner('[FASA 2] Operasi deduksi diteruskan!', 'emerald');
+                    }
+                    UI.log('Permainan disambung semula.', 'cyan');
+                }
             },
 
             getSectorParameters(sec) {
@@ -888,6 +1291,8 @@
 
             startSector() {
                 clearInterval(this.timerInterval);
+                cancelAnimationFrame(this.memorizeFrame);
+                clearTimeout(this.reflashTimeout);
                 const cfg = this.getSectorParameters(this.sector);
                 this.gridSize = cfg.dim;
                 this.totalCores = cfg.cores;
@@ -906,6 +1311,9 @@
                 // Apply Overclock Wager (-1 Max AP)
                 this.maxAp = this.overclockWager ? Math.max(4, cfg.baseAp - 1) : cfg.baseAp;
                 this.ap = this.maxAp;
+                this.isPaused = false;
+                UI.setMatrixBlur(false);
+                UI.togglePauseOverlay(false);
 
                 // Build Grid
                 this.grid = [];
@@ -968,11 +1376,16 @@
                 UI.updateToolButtons();
                 UI.updateHUD();
                 UI.log(`Sektor #0${this.sector} (${this.gridSize}x${this.gridSize}) dimulakan. Fasa 1 Imbasan Memori (${cfg.flashSec}s).`, 'cyan');
-                this.runMemorizePhase(cfg.flashSec);
+                this.runMemorizePhase(cfg.flashSec, cfg.flashSec);
             },
 
-            runMemorizePhase(seconds) {
+            runMemorizePhase(remainingSeconds, totalSeconds = remainingSeconds) {
+                cancelAnimationFrame(this.memorizeFrame);
                 this.phase = 'MEMORIZE';
+                this.memorizeTotalMs = totalSeconds * 1000;
+                this.memorizeRemainingMs = remainingSeconds * 1000;
+                this.lastFrameTime = performance.now();
+
                 document.getElementById('radarSweepOverlay').classList.remove('hidden');
                 document.getElementById('phaseTitle').innerHTML = `<span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span> FASA 1: MEMORI`;
                 document.getElementById('arenaInstruction').textContent = 'Hafal kedudukan Data Teras (Biru), Firewall (Merah) & Umpan (Kuning)!';
@@ -980,67 +1393,80 @@
 
                 UI.renderMatrix(true);
                 SoundFX.scan();
+                this.saveState(false);
 
-                const totalMs = seconds * 1000;
-                const start = performance.now();
                 const step = (now) => {
                     if (this.phase !== 'MEMORIZE') return;
-                    const elapsed = now - start;
-                    const rem = Math.max(0, totalMs - elapsed);
-                    document.getElementById('hudTimer').textContent = `${(rem / 1000).toFixed(1)}s`;
-                    document.getElementById('hudTimerBar').style.width = `${(rem / totalMs) * 100}%`;
+                    if (!this.isPaused) {
+                        const dt = Math.min(100, Math.max(0, now - this.lastFrameTime));
+                        this.memorizeRemainingMs = Math.max(0, this.memorizeRemainingMs - dt);
+                        document.getElementById('hudTimer').textContent = `${(this.memorizeRemainingMs / 1000).toFixed(1)}s`;
+                        document.getElementById('hudTimerBar').style.width = `${(this.memorizeRemainingMs / this.memorizeTotalMs) * 100}%`;
+                    }
+                    this.lastFrameTime = now;
 
-                    if (rem > 0) requestAnimationFrame(step);
-                    else this.beginDeductionPhase();
+                    if (this.memorizeRemainingMs > 0) {
+                        this.memorizeFrame = requestAnimationFrame(step);
+                    } else {
+                        this.memorizeFrame = null;
+                        this.beginDeductionPhase();
+                    }
                 };
-                requestAnimationFrame(step);
+                this.memorizeFrame = requestAnimationFrame(step);
             },
 
             beginDeductionPhase() {
+                this.phase = 'PLAYING';
+                this.resumePlayingLoop();
+                this.saveState(true);
+            },
+
+            resumePlayingLoop() {
                 this.phase = 'PLAYING';
                 document.getElementById('radarSweepOverlay').classList.add('hidden');
                 document.getElementById('phaseTitle').innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> FASA 2: DEDUKSI`;
                 document.getElementById('arenaInstruction').textContent = 'Gunakan petunjuk Baris/Lajur & Sensor Jiran untuk ekstrak semua Data Teras!';
                 UI.setBanner('[FASA 2] Nod dikunci! Ekstrak Data Teras (+1 AP balik) & elak Firewall.', 'emerald');
 
+                UI.updateHUD();
                 UI.renderMatrix(false);
 
-                // Count-up tactical timer (60s reference bar)
+                // Count-up tactical timer (60s reference bar), respects Smart Pause
                 clearInterval(this.timerInterval);
+                let tickCounter = 0;
                 this.timerInterval = setInterval(() => {
-                    if (this.phase !== 'PLAYING') return;
+                    if (this.phase !== 'PLAYING' || this.isPaused) return;
                     this.sectorElapsedSec += 0.1;
+                    tickCounter++;
                     document.getElementById('hudTimer').textContent = `${this.sectorElapsedSec.toFixed(1)}s`;
                     const pct = Math.max(0, 100 - (this.sectorElapsedSec / 60) * 100);
                     document.getElementById('hudTimerBar').style.width = `${pct}%`;
                     this.recalcCognitiveStats();
                     UI.drawRadarChart();
+
+                    // Periodic silent auto-save every 2 seconds
+                    if (tickCounter % 20 === 0) this.saveState(false);
                 }, 100);
             },
 
             setTool(t) {
-                if (this.phase !== 'PLAYING') return;
+                if (this.phase !== 'PLAYING' || this.isPaused) return;
                 this.tool = t;
                 this.hoverCoord = null;
                 SoundFX.click();
                 UI.updateToolButtons();
                 UI.renderMatrix(false);
+                this.saveState(false);
             },
 
             toggleOverclockWager() {
+                if (this.isPaused) return;
                 this.overclockWager = !this.overclockWager;
                 SoundFX.click();
-                const btn = document.getElementById('btnToggleOverclock');
-                const pill = document.getElementById('overclockActivePill');
+                UI.syncOverclockButton();
                 if (this.overclockWager) {
-                    btn.textContent = 'ON (2X)';
-                    btn.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500 text-slate-950 border border-amber-300 shadow-[0_0_10px_rgba(255,184,0,0.5)]';
-                    pill.classList.remove('hidden');
                     UI.log('Pertaruhan Overclock DIAKTIFKAN: 2X Skor jika 0 kesilapan & <25s (-1 AP Maks).', 'amber');
                 } else {
-                    btn.textContent = 'OFF';
-                    btn.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-slate-300 border border-slate-600';
-                    pill.classList.add('hidden');
                     UI.log('Pertaruhan Overclock dimatikan.', 'slate');
                 }
                 // If still in early sector setup, adjust AP immediately
@@ -1050,10 +1476,11 @@
                     this.ap = Math.min(this.ap, this.maxAp);
                     UI.updateHUD();
                 }
+                this.saveState(true);
             },
 
             onTileHover(r, c) {
-                if (this.phase !== 'PLAYING' || this.tool !== 'RADAR') return;
+                if (this.phase !== 'PLAYING' || this.isPaused || this.tool !== 'RADAR') return;
                 const clampedR = Math.min(r, this.gridSize - 2);
                 const clampedC = Math.min(c, this.gridSize - 2);
                 if (!this.hoverCoord || this.hoverCoord.r !== clampedR || this.hoverCoord.c !== clampedC) {
@@ -1063,7 +1490,7 @@
             },
 
             onTileClick(r, c, ev) {
-                if (this.phase !== 'PLAYING') return;
+                if (this.phase !== 'PLAYING' || this.isPaused) return;
                 const cell = this.grid[r][c];
 
                 // 1. BENDERA PINTAS (0 AP)
@@ -1073,6 +1500,7 @@
                     SoundFX.click();
                     UI.log(`Bendera Pintas ${cell.flagged ? 'dipasang' : 'ditanggalkan'} pada [B${r + 1}, L${c + 1}].`, 'amber');
                     UI.renderMatrix(false);
+                    this.saveState(true);
                     return;
                 }
 
@@ -1109,6 +1537,7 @@
                     UI.updateToolButtons();
                     UI.updateHUD();
                     UI.renderMatrix(false);
+                    this.saveState(true);
                     this.checkDefeatConditions();
                     return;
                 }
@@ -1136,7 +1565,8 @@
                         this.stats.unassistedCoreHits++;
                         this.stats.safeExtractions++;
 
-                        const pts = Math.round(250 * this.streak);
+                        const overclockMult = this.overclockWager ? 2 : 1;
+                        const pts = Math.round(250 * this.streak * overclockMult);
                         this.score += pts;
                         this.streak = Math.min(3.0, +(this.streak + 0.25).toFixed(2));
 
@@ -1149,7 +1579,7 @@
                             this.recalcCognitiveStats();
                             UI.updateHUD();
                             UI.renderMatrix(false);
-                            setTimeout(() => this.finishSector(true), 400);
+                            this.finishSector(true);
                             return;
                         }
                     } else if (cell.type === 'EMPTY') {
@@ -1189,7 +1619,7 @@
                             this.recalcCognitiveStats();
                             UI.updateHUD();
                             UI.renderMatrix(true);
-                            setTimeout(() => this.finishSector(false, 'PERISAI MUSNAH'), 450);
+                            this.finishSector(false, 'PERISAI MUSNAH');
                             return;
                         }
                     }
@@ -1197,13 +1627,14 @@
                     this.recalcCognitiveStats();
                     UI.updateHUD();
                     UI.renderMatrix(false);
+                    this.saveState(true);
                     this.checkDefeatConditions();
                 }
             },
 
             // Quick Hint: 1-second re-flash of nodes for -1 AP
             triggerMemoryReflash() {
-                if (this.phase !== 'PLAYING') return;
+                if (this.phase !== 'PLAYING' || this.isPaused) return;
                 if (this.ap < 1) {
                     SoundFX.decoyHit();
                     UI.setBanner('[AMARAN] Perlu sekurang-kurangnya 1 AP untuk Imbas Semula!', 'rose');
@@ -1214,17 +1645,20 @@
                 UI.log('Imbas Semula Memori (1.0s) diaktifkan (-1 AP).', 'cyan');
                 UI.updateHUD();
                 UI.renderMatrix(true);
-                setTimeout(() => {
-                    if (this.phase === 'PLAYING') {
+                this.saveState(true);
+                this.checkDefeatConditions();
+                if (this.phase === 'ENDED') return;
+                clearTimeout(this.reflashTimeout);
+                this.reflashTimeout = setTimeout(() => {
+                    if (this.phase === 'PLAYING' && !this.isPaused) {
                         UI.renderMatrix(false);
-                        this.checkDefeatConditions();
                     }
                 }, 1000);
             },
 
             checkDefeatConditions() {
                 if (this.extractedCores < this.totalCores && this.ap <= 0) {
-                    setTimeout(() => this.finishSector(false, 'KEHABISAN TENAGA AP'), 400);
+                    this.finishSector(false, 'KEHABISAN TENAGA AP');
                 }
             },
 
@@ -1240,6 +1674,7 @@
             finishSector(victory, failReason = '') {
                 this.phase = 'ENDED';
                 clearInterval(this.timerInterval);
+                clearTimeout(this.reflashTimeout);
                 UI.renderMatrix(true);
 
                 // Count accurate flags on Traps/Decoys
@@ -1273,12 +1708,19 @@
 
                 if (this.score > this.highScore) {
                     this.highScore = this.score;
-                    localStorage.setItem('neuroTactics_zeroScroll_best', String(this.highScore));
+                }
+                this.saveProfile();
+
+                const bonuses = { apBonus, flagBonus, speedBonus, overclockTriggered };
+                if (victory) {
+                    this.saveState(true, { victory: true, bonuses });
+                } else {
+                    this.clearSavedState();
                 }
 
                 this.recalcCognitiveStats();
                 UI.updateHUD();
-                UI.showModalReport(victory, failReason, { apBonus, flagBonus, speedBonus, overclockTriggered });
+                UI.showModalReport(victory, failReason, bonuses);
             },
 
             proceedAfterModal() {
@@ -1289,13 +1731,18 @@
                     this.shield = Math.min(100, this.shield + 20);
                     this.startSector();
                 } else {
-                    this.resetCampaign();
+                    this.resetCampaign(true);
                 }
             },
 
-            resetCampaign() {
+            resetCampaign(clearStorage = true) {
                 SoundFX.click();
+                if (clearStorage) this.clearSavedState();
                 UI.toggleModal('resultModal', false);
+                UI.toggleModal('sessionModal', false);
+                this.isPaused = false;
+                UI.setMatrixBlur(false);
+                UI.togglePauseOverlay(false);
                 this.sector = 1;
                 this.score = 0;
                 this.streak = 1.0;
@@ -1306,10 +1753,38 @@
 
             bindKeys() {
                 window.addEventListener('keydown', (e) => {
-                    if (this.phase !== 'PLAYING') return;
+                    // Smart Pause shortcuts: P or Escape
+                    if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+                        if (!document.getElementById('manualModal').classList.contains('hidden')) {
+                            UI.toggleModal('manualModal', false);
+                            return;
+                        }
+                        if (this.phase === 'MEMORIZE' || this.phase === 'PLAYING') {
+                            e.preventDefault();
+                            this.togglePause();
+                        }
+                        return;
+                    }
+
+                    if (this.phase !== 'PLAYING' || this.isPaused) return;
                     if (e.key === '1') this.setTool('EXTRACT');
                     if (e.key === '2') this.setTool('RADAR');
                     if (e.key === '3') this.setTool('FLAG');
+                    if (e.key === '4') this.toggleOverclockWager();
+                });
+
+                // Anti-Cheat Auto-Pause when player switches tabs or minimizes browser
+                document.addEventListener('visibilitychange', () => {
+                    if (document.hidden && (this.phase === 'MEMORIZE' || this.phase === 'PLAYING') && !this.isPaused) {
+                        this.togglePause(true);
+                    }
+                });
+
+                // Ensure latest state is flushed to localStorage before tab close/reload
+                window.addEventListener('beforeunload', () => {
+                    if (this.phase === 'MEMORIZE' || this.phase === 'PLAYING') {
+                        this.saveState(false);
+                    }
                 });
             }
         };
@@ -1320,6 +1795,88 @@
          * ============================================================================
          */
         const UI = {
+            savePulseTimeout: null,
+
+            pulseAutoSaveBadge() {
+                const badge = document.getElementById('autoSaveBadge');
+                const dot = document.getElementById('autoSaveDot');
+                if (!badge || !dot) return;
+                badge.classList.add('border-emerald-400', 'bg-emerald-500/25', 'shadow-[0_0_12px_rgba(0,255,157,0.4)]');
+                dot.classList.add('animate-ping');
+                clearTimeout(this.savePulseTimeout);
+                this.savePulseTimeout = setTimeout(() => {
+                    badge.classList.remove('border-emerald-400', 'bg-emerald-500/25', 'shadow-[0_0_12px_rgba(0,255,157,0.4)]');
+                    dot.classList.remove('animate-ping');
+                }, 650);
+            },
+
+            setMatrixBlur(blurred) {
+                const board = document.getElementById('matrixBoard');
+                if (!board) return;
+                if (blurred) board.classList.add('anti-cheat-blur');
+                else board.classList.remove('anti-cheat-blur');
+            },
+
+            togglePauseOverlay(show) {
+                const overlay = document.getElementById('pauseOverlay');
+                const icon = document.getElementById('pauseIcon');
+                const btn = document.getElementById('btnPauseHeader');
+                if (!overlay) return;
+
+                if (show) {
+                    document.getElementById('pauseStatSector').textContent = `#0${Game.sector}`;
+                    document.getElementById('pauseStatScore').textContent = Game.score.toLocaleString();
+                    const timeStr = Game.phase === 'MEMORIZE'
+                        ? `${(Game.memorizeRemainingMs / 1000).toFixed(1)}s`
+                        : `${Game.sectorElapsedSec.toFixed(1)}s`;
+                    document.getElementById('pauseStatTime').textContent = timeStr;
+
+                    overlay.classList.remove('hidden');
+                    overlay.classList.add('flex');
+                    if (icon) icon.className = 'fa-solid fa-play';
+                    if (btn) btn.classList.add('bg-amber-500/30', 'border-amber-300');
+                } else {
+                    overlay.classList.add('hidden');
+                    overlay.classList.remove('flex');
+                    if (icon) icon.className = 'fa-solid fa-pause';
+                    if (btn) btn.classList.remove('bg-amber-500/30', 'border-amber-300');
+                }
+            },
+
+            populateSessionModal(saved) {
+                const sec = saved.sector || 1;
+                const sc = (saved.score || 0).toLocaleString();
+                const timeVal = saved.phase === 'MEMORIZE'
+                    ? `${((saved.memorizeRemainingMs || 3000) / 1000).toFixed(1)}s`
+                    : `${(saved.sectorElapsedSec || 0).toFixed(1)}s`;
+
+                document.getElementById('resumePhaseBadge').textContent =
+                    saved.phase === 'MEMORIZE' ? 'FASA 1: IMBASAN MEMORI' : 'FASA 2: DEDUKSI TAKTIKAL';
+                document.getElementById('resumeSectorVal').textContent = `#0${sec}`;
+                document.getElementById('resumeScoreVal').textContent = sc;
+                document.getElementById('resumeApVal').textContent = `${saved.ap ?? 7}/${saved.maxAp ?? 7}`;
+                document.getElementById('resumeCoresVal').textContent = `${saved.extractedCores ?? 0}/${saved.totalCores ?? 5}`;
+                document.getElementById('resumeShieldVal').textContent = `${saved.shield ?? 100}%`;
+                document.getElementById('resumeTimeVal').textContent = timeVal;
+                document.getElementById('btnResumeLabel').textContent =
+                    `SAMBUNG SESI (Sektor ${sec} • Skor: ${sc} • Masa: ${timeVal})`;
+            },
+
+            syncOverclockButton() {
+                const btn = document.getElementById('btnToggleOverclock');
+                const pill = document.getElementById('overclockActivePill');
+                if (!btn || !pill) return;
+                if (Game.overclockWager) {
+                    btn.textContent = 'ON (2X)';
+                    btn.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500 text-slate-950 border border-amber-300 shadow-[0_0_10px_rgba(255,184,0,0.5)]';
+                    pill.classList.remove('hidden');
+                } else {
+                    btn.textContent = 'OFF';
+                    btn.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-slate-300 border border-slate-600';
+                    pill.classList.add('hidden');
+                }
+            },
+
             updateHUD() {
                 document.getElementById('hudSector').textContent = String(Game.sector).padStart(2, '0');
                 document.getElementById('hudGridBadge').textContent = `${Game.gridSize}x${Game.gridSize}`;
