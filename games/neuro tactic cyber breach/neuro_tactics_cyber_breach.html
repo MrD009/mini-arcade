@@ -408,7 +408,7 @@
 
         @media (max-width: 900px) {
             :root {
-                --cell-size: min(52px, calc((100vw - 40px - var(--grid-dim) * 3px) / (var(--grid-dim) + 1)), calc((100dvh - 312px - var(--grid-dim) * 3px) / (var(--grid-dim) + 1)));
+                --cell-size: min(52px, max(32px, calc((100vw - 40px - var(--grid-dim) * 3px) / (var(--grid-dim) + 1))), max(32px, calc((100dvh - 312px - var(--grid-dim) * 3px) / (var(--grid-dim) + 1))));
             }
 
             html, body {
@@ -496,7 +496,7 @@
             #arenaInfo { padding: 2px 5px; }
             #arenaInstruction { display: none; }
             #arenaInfo > div:last-child { display: none; }
-            #matrixWrapper { flex: 1; min-height: 0; }
+            #matrixWrapper { flex: 1; min-height: 0; overflow: auto; }
             #matrixBoard { gap: 3px; }
             #arenaBanner { padding: 2px 4px; }
             #arenaBanner > div:last-child { display: none; }
@@ -547,7 +547,7 @@
 
         @media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
             :root {
-                --cell-size: min(52px, calc((50vw - 25px - var(--grid-dim) * 3px) / (var(--grid-dim) + 1)), calc((100dvh - 150px - var(--grid-dim) * 3px) / (var(--grid-dim) + 1)));
+                --cell-size: min(52px, max(32px, calc((50vw - 25px - var(--grid-dim) * 3px) / (var(--grid-dim) + 1))), max(32px, calc((100dvh - 150px - var(--grid-dim) * 3px) / (var(--grid-dim) + 1))));
             }
             #appHeader { flex-wrap: nowrap; }
             #headerTelemetry { flex: 1 1 auto; }
@@ -969,7 +969,7 @@
 
                 <!-- Quick Action Buttons at Bottom of Right Panel -->
                 <div class="space-y-1.5 shrink-0">
-                    <button id="btnMemoryHint" onclick="Game.triggerMemoryReflash()" class="w-full py-2 px-3 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 text-xs font-semibold flex items-center justify-between transition">
+                    <button id="btnMemoryHint" onclick="UI.toggleMobileOptions(false); Game.triggerMemoryReflash()" class="w-full py-2 px-3 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 text-xs font-semibold flex items-center justify-between transition">
                         <span class="flex items-center gap-1.5">
                             <i class="fa-solid fa-eye"></i>
                             <span data-i18n="btnHint">Imbas Semula (Hint)</span>
@@ -982,7 +982,7 @@
                             <i class="fa-solid fa-floppy-disk"></i>
                             <span data-i18n="btnSessionMenu">Menu Sesi</span>
                         </button>
-                        <button onclick="Game.resetCampaign(true)" class="py-1.5 px-2.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-600/60 text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition" title="Mulakan Semula dari Sektor 1">
+                        <button onclick="Game.confirmCampaignReset()" class="py-1.5 px-2.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-600/60 text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition" title="Mulakan Semula dari Sektor 1">
                             <i class="fa-solid fa-rotate-right text-cyan-400"></i>
                             <span data-i18n="btnReset">Reset Baru</span>
                         </button>
@@ -1126,28 +1126,24 @@
 
             <div class="space-y-2.5 text-xs text-slate-300 leading-relaxed">
                 <div class="p-2.5 rounded-lg bg-cyan-950/30 border border-cyan-500/30">
-                    <div class="font-orbitron font-bold text-cyan-300 mb-0.5">1. FASA 1: IMBASAN MEMORI VISUAL (3.5 SAAT)</div>
-                    Pada awal setiap pusingan, kedudukan <strong class="text-cyan-300">Data Teras (Biru)</strong>, <strong class="text-rose-400">Firewall Bahaya (Merah)</strong>, dan <strong class="text-amber-300">Nod Umpan (Kuning)</strong> akan dipancarkan seketika. Hafal koordinat Data Teras! Pada sektor tinggi, sesetengah nod disembunyikan semasa imbasan untuk menguji logik anda.
+                    <div class="font-orbitron font-bold text-cyan-300 mb-0.5" data-i18n="manualPhase1Title">1. FASA 1: IMBASAN MEMORI VISUAL (3.5 SAAT)</div>
+                    <span data-i18n="manualPhase1Body">Pada awal setiap pusingan, kedudukan Data Teras (Biru), Firewall Bahaya (Merah), dan Nod Umpan (Kuning) akan dipancarkan seketika. Hafal koordinat Data Teras! Pada sektor tinggi, sesetengah nod disembunyikan semasa imbasan untuk menguji logik anda.</span>
                 </div>
 
                 <div class="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-500/30">
-                    <div class="font-orbitron font-bold text-emerald-300 mb-0.5">2. FASA 2: DEDUKSI MATRIKS & SENSOR JIRAN</div>
-                    • Setiap kepala <strong>Baris & Lajur</strong> menunjukkan jumlah tepat <span class="text-cyan-300">Data Teras</span> dan <span class="text-rose-400">Firewall</span> pada baris/lajur tersebut.<br>
-                    • Setiap petak yang dibuka memaparkan <strong>Nombor Sensor</strong> (0–8) iaitu jumlah <strong>Firewall (Merah)</strong> di 8 petak bersebelahan.<br>
-                    • Mengekstrak <strong>Data Teras</strong> memulangkan <strong>+1 AP</strong>! Mengekstrak <strong>Nod Umpan</strong> menyedut -1 AP dan mengaburkan 1 petunjuk baris/lajur.
+                    <div class="font-orbitron font-bold text-emerald-300 mb-0.5" data-i18n="manualPhase2Title">2. FASA 2: DEDUKSI MATRIKS & SENSOR JIRAN</div>
+                    <span data-i18n="manualPhase2Body">Setiap petunjuk baris dan lajur menunjukkan jumlah tepat Teras dan Firewall. Petak yang dibuka menunjukkan jumlah Firewall dalam lapan petak bersebelahan (0–8). Mengekstrak Teras memulangkan 1 AP; Nod Umpan menyedut 1 AP dan mengaburkan satu petunjuk baris.</span>
                 </div>
 
                 <div class="p-2.5 rounded-lg bg-purple-950/30 border border-purple-500/30">
-                    <div class="font-orbitron font-bold text-purple-300 mb-0.5">3. RADAR 2x2 & PERTARUHAN OVERCLOCK</div>
-                    • Gunakan <strong>Radar 2x2 (2 AP)</strong> untuk mengimbas mana-mana blok 2x2 dan melihat lencana jumlah Teras & Firewall pada persimpangan tersebut. Pada telefon, pilih Radar dan sentuh petak kiri atas kawasan yang ingin diimbas.<br>
-                    • Aktifkan <strong>Pertaruhan Overclock</strong> untuk menggandakan skor (2X) jika anda menyelesaikan sektor tanpa kesilapan dalam masa bawah 25 saat!
-                    Pada telefon, buka butang <strong>…</strong> dan pilih tab untuk Overclock, petunjuk, statistik, log atau menu sesi.
+                    <div class="font-orbitron font-bold text-purple-300 mb-0.5" data-i18n="manualToolsTitle">3. RADAR 2x2 & PERTARUHAN OVERCLOCK</div>
+                    <span data-i18n="manualToolsBody">Radar 2x2 (2 AP) mengimbas blok 2x2 dan menunjukkan jumlah Teras dan Firewall. Overclock mengurangkan AP maksimum sebanyak 1 dan menggandakan skor Teras jika sektor diselesaikan tanpa kesilapan dalam 25 saat. Pada telefon, buka butang … untuk mengakses pilihan; permainan dijeda sehingga menu ditutup.</span>
                 </div>
             </div>
 
             <div class="mt-4 flex justify-end">
                 <button onclick="UI.toggleModal('manualModal', false)" class="py-2 px-5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-orbitron font-bold text-xs uppercase">
-                    FAHAM & TERUSKAN
+                    <span data-i18n="manualContinue">FAHAM & TERUSKAN</span>
                 </button>
             </div>
         </div>
@@ -1183,7 +1179,7 @@
                     modeFlag: "BENDERA PINTAS",
                     modeFlagSub: "Tanda petak Bahaya / Umpan",
                     lblOverclock: "PERTARUHAN OVERCLOCK",
-                    overclockDesc: "Aktifkan untuk 2X SKOR jika menang dengan 0 kesilapan & <25s, tetapi kos -1 AP Maks!",
+                    overclockDesc: "Aktifkan untuk 2X SKOR TERAS jika menang dengan 0 kesilapan & <25s, tetapi kos -1 AP Maks!",
                     lblLegend: "PETUNJUK NOD MATRIKS:",
                     legCore: "Teras",
                     legTrap: "Firewall",
@@ -1212,7 +1208,21 @@
                     btnResumeNow: "SAMBUNG SEMULA (P)",
                     btnRetrySector: "Ulang Sektor",
                     btnSaveMenu: "Simpan & Menu",
-                    manualTitle: "MANUAL TAKTIKAL: NEURO-TACTICS"
+                    manualTitle: "MANUAL TAKTIKAL: NEURO-TACTICS",
+                    phaseMemory: "FASA 1: MEMORI",
+                    phaseDeduction: "FASA 2: DEDUKSI",
+                    memoryInstruction: "Hafal kedudukan Data Teras (Biru), Firewall (Merah) & Umpan (Kuning)!",
+                    deductionInstruction: "Gunakan petunjuk Baris/Lajur & Sensor Jiran untuk ekstrak semua Data Teras!",
+                    manualPhase1Title: "1. FASA 1: IMBASAN MEMORI VISUAL (3.5 SAAT)",
+                    manualPhase1Body: "Pada awal setiap pusingan, kedudukan Data Teras (Biru), Firewall Bahaya (Merah), dan Nod Umpan (Kuning) akan dipancarkan seketika. Hafal koordinat Data Teras! Pada sektor tinggi, sesetengah nod disembunyikan semasa imbasan untuk menguji logik anda.",
+                    manualPhase2Title: "2. FASA 2: DEDUKSI MATRIKS & SENSOR JIRAN",
+                    manualPhase2Body: "Setiap petunjuk baris dan lajur menunjukkan jumlah tepat Teras dan Firewall. Petak yang dibuka menunjukkan jumlah Firewall dalam lapan petak bersebelahan (0–8). Mengekstrak Teras memulangkan 1 AP; Nod Umpan menyedut 1 AP dan mengaburkan satu petunjuk baris.",
+                    manualToolsTitle: "3. RADAR 2x2 & PERTARUHAN OVERCLOCK",
+                    manualToolsBody: "Radar 2x2 (2 AP) mengimbas blok 2x2 dan menunjukkan jumlah Teras dan Firewall. Overclock mengurangkan AP maksimum sebanyak 1 dan menggandakan skor Teras jika sektor diselesaikan tanpa kesilapan dalam masa kurang daripada 25 saat. Pada telefon, buka butang … untuk mengakses pilihan; permainan dijeda sehingga menu ditutup.",
+                    manualContinue: "FAHAM & TERUSKAN",
+                    resumeMemory: "FASA 1: IMBASAN MEMORI",
+                    resumeDeduction: "FASA 2: DEDUKSI TAKTIKAL",
+                    confirmReset: "Mulakan semula kempen dan padam kemajuan yang disimpan?"
                 },
                 en: {
                     lblSector: "SECTOR:",
@@ -1234,7 +1244,7 @@
                     modeFlag: "BYPASS FLAG",
                     modeFlagSub: "Mark suspected Trap / Decoy",
                     lblOverclock: "OVERCLOCK WAGER",
-                    overclockDesc: "Toggle for 2X SCORE if cleared with 0 mistakes & <25s, at the cost of -1 Max AP!",
+                    overclockDesc: "Toggle for 2X CORE SCORE if cleared with 0 mistakes & <25s, at the cost of -1 Max AP!",
                     lblLegend: "MATRIX NODE LEGEND:",
                     legCore: "Core",
                     legTrap: "Firewall",
@@ -1263,18 +1273,68 @@
                     btnResumeNow: "RESUME GAME (P)",
                     btnRetrySector: "Retry Sector",
                     btnSaveMenu: "Save & Menu",
-                    manualTitle: "TACTICAL MANUAL: NEURO-TACTICS"
+                    manualTitle: "TACTICAL MANUAL: NEURO-TACTICS",
+                    phaseMemory: "PHASE 1: MEMORY",
+                    phaseDeduction: "PHASE 2: DEDUCTION",
+                    memoryInstruction: "Memorize the Data Cores (blue), Firewalls (red), and Decoys (yellow)!",
+                    deductionInstruction: "Use the row/column clues and neighbor sensors to extract every Data Core!",
+                    manualPhase1Title: "1. PHASE 1: VISUAL MEMORY SCAN (3.5 SECONDS)",
+                    manualPhase1Body: "At the start of each round, the positions of Data Cores (blue), Firewalls (red), and Decoy Nodes (yellow) are briefly revealed. Memorize the Data Core coordinates! Higher sectors hide some nodes during the scan to test your logic.",
+                    manualPhase2Title: "2. PHASE 2: MATRIX DEDUCTION & NEIGHBOR SENSORS",
+                    manualPhase2Body: "Each row and column clue shows the exact number of Cores and Firewalls. Revealed tiles show how many Firewalls are in the eight neighboring tiles (0–8). Extracting a Core refunds 1 AP; a Decoy drains 1 AP and scrambles one row clue.",
+                    manualToolsTitle: "3. 2x2 RADAR & OVERCLOCK WAGER",
+                    manualToolsBody: "The 2x2 Radar (2 AP) scans a 2x2 block and shows its Core and Firewall counts. Overclock reduces maximum AP by 1 and doubles Core score if you clear the sector with no mistakes in under 25 seconds. On mobile, open the … button for options; the game pauses until the menu closes.",
+                    manualContinue: "GOT IT — CONTINUE",
+                    resumeMemory: "PHASE 1: MEMORY SCAN",
+                    resumeDeduction: "PHASE 2: TACTICAL DEDUCTION",
+                    confirmReset: "Restart the campaign and erase saved progress?"
                 }
             },
             toggle() {
                 this.lang = this.lang === 'ms' ? 'en' : 'ms';
                 document.getElementById('langBadge').textContent = this.lang === 'ms' ? 'BM' : 'EN';
+                document.documentElement.lang = this.lang === 'ms' ? 'ms' : 'en';
                 document.querySelectorAll('[data-i18n]').forEach(el => {
                     const k = el.getAttribute('data-i18n');
                     if (this.dict[this.lang][k]) el.textContent = this.dict[this.lang][k];
                 });
+                this.updatePhaseCopy();
+                UI.renderMatrix(Game.phase === 'MEMORIZE');
                 SoundFX.click();
                 UI.drawRadarChart();
+            },
+            updatePhaseCopy() {
+                if (!['MEMORIZE', 'PLAYING'].includes(Game.phase)) return;
+                const isMemory = Game.phase === 'MEMORIZE';
+                const title = document.getElementById('phaseTitle');
+                title.innerHTML = `<span class="w-2 h-2 rounded-full ${isMemory ? 'bg-cyan-400 animate-ping' : 'bg-emerald-400'}"></span> ${this.dict[this.lang][isMemory ? 'phaseMemory' : 'phaseDeduction']}`;
+                document.getElementById('arenaInstruction').textContent = this.dict[this.lang][isMemory ? 'memoryInstruction' : 'deductionInstruction'];
+            },
+            tileAriaLabel(cell, r, c, isFlashPhase) {
+                const en = this.lang === 'en';
+                const coordinate = en ? `Row ${r + 1}, column ${c + 1}` : `Baris ${r + 1}, lajur ${c + 1}`;
+                if (Game.isPaused) return `${coordinate}: ${en ? 'paused' : 'dijeda'}`;
+                const visible = (isFlashPhase && cell.flashVisible) || cell.revealed || Game.phase === 'ENDED';
+                let status;
+                if (cell.flagged && !cell.revealed) {
+                    status = en ? 'flagged' : 'ditanda bendera';
+                } else if (!visible) {
+                    status = isFlashPhase && !cell.flashVisible
+                        ? (en ? 'obscured during memory scan' : 'dikaburkan semasa imbasan memori')
+                        : (en ? 'unrevealed' : 'belum dibuka');
+                } else if (cell.type === 'CORE') {
+                    status = en ? 'Data Core' : 'Data Teras';
+                } else if (cell.type === 'TRAP') {
+                    status = en ? 'Firewall' : 'Firewall';
+                } else if (cell.type === 'DECOY') {
+                    status = en ? 'Decoy' : 'Umpan';
+                } else {
+                    status = en ? 'Safe tile' : 'Petak selamat';
+                }
+                if (cell.revealed && visible) {
+                    status += en ? `, ${cell.adjTraps} adjacent Firewalls` : `, ${cell.adjTraps} Firewall bersebelahan`;
+                }
+                return `${coordinate}: ${status}`;
             }
         };
 
@@ -1421,6 +1481,8 @@
             phase: 'MEMORIZE', // 'MEMORIZE', 'PLAYING', 'ENDED'
             tool: 'EXTRACT',   // 'EXTRACT', 'RADAR', 'FLAG'
             overclockWager: false,
+            sectorActionStarted: false,
+            sectorCoreScore: 0,
             hoverCoord: null,
             radarScans: [],    // Stores {r, c, cores, traps} for 2x2 intersection readouts
             scrambledRow: -1,
@@ -1528,6 +1590,8 @@
                         phase: this.phase,
                         tool: this.tool,
                         overclockWager: this.overclockWager,
+                        sectorActionStarted: this.sectorActionStarted,
+                        sectorCoreScore: this.sectorCoreScore,
                         radarScans: this.radarScans,
                         scrambledRow: this.scrambledRow,
                         memorizeRemainingMs: this.memorizeRemainingMs,
@@ -1578,9 +1642,34 @@
                 this.totalTraps = s.totalTraps || 4;
                 this.mistakesThisSector = s.mistakesThisSector || 0;
                 this.sectorElapsedSec = s.sectorElapsedSec || 0;
+                this.sectorActionStarted = s.sectorActionStarted ?? (
+                    this.extractedCores > 0
+                    || this.mistakesThisSector > 0
+                    || this.radarScans.length > 0
+                    || this.ap < this.maxAp
+                    || this.grid.some(row => row.some(cell => cell.revealed || cell.flagged))
+                );
+                const cfg = this.getSectorParameters(this.sector);
+                if (Number.isFinite(s.sectorCoreScore)) {
+                    this.sectorCoreScore = s.sectorCoreScore;
+                } else {
+                    let legacyCoreScore = 0;
+                    let coreStreak = 1;
+                    for (let i = 0; i < this.extractedCores; i++) {
+                        legacyCoreScore += Math.round(250 * coreStreak);
+                        coreStreak = Math.min(3, +(coreStreak + 0.25).toFixed(2));
+                    }
+                    this.sectorCoreScore = this.overclockWager && this.maxAp < cfg.baseAp ? 0 : legacyCoreScore;
+                }
                 if (s.stats) this.stats = { ...this.stats, ...s.stats };
 
-                const cfg = this.getSectorParameters(this.sector);
+                if (!this.sectorActionStarted) {
+                    this.maxAp = this.overclockWager ? Math.max(4, cfg.baseAp - 1) : cfg.baseAp;
+                    this.ap = this.maxAp;
+                } else if (this.overclockWager) {
+                    this.maxAp = Math.max(4, cfg.baseAp - 1);
+                    this.ap = Math.min(this.ap, this.maxAp);
+                }
                 document.documentElement.style.setProperty('--grid-dim', String(this.gridSize));
                 document.getElementById('sectorRuleBadge').textContent = cfg.label;
                 UI.syncOverclockButton();
@@ -1660,6 +1749,7 @@
                 if (this.isPaused) {
                     // Immediately blur matrix & show anti-cheat shield
                     UI.setMatrixBlur(true);
+                    UI.renderMatrix(this.phase === 'MEMORIZE');
                     UI.togglePauseOverlay(true);
                     UI.setBanner('[DIJEDA] Protokol Anti-Intip aktif — matriks dikaburkan sementara.', 'amber');
                     UI.log('Permainan dijeda. Protokol Anti-Intip mengaburkan matriks.', 'amber');
@@ -1707,6 +1797,8 @@
                 this.totalTraps = cfg.traps;
                 this.extractedCores = 0;
                 this.mistakesThisSector = 0;
+                this.sectorActionStarted = false;
+                this.sectorCoreScore = 0;
                 this.sectorElapsedSec = 0;
                 this.radarScans = [];
                 this.scrambledRow = -1;
@@ -1795,8 +1887,7 @@
                 this.lastFrameTime = performance.now();
 
                 document.getElementById('radarSweepOverlay').classList.remove('hidden');
-                document.getElementById('phaseTitle').innerHTML = `<span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span> FASA 1: MEMORI`;
-                document.getElementById('arenaInstruction').textContent = 'Hafal kedudukan Data Teras (Biru), Firewall (Merah) & Umpan (Kuning)!';
+                I18N.updatePhaseCopy();
                 UI.setBanner('[FASA 1] Imbasan memori visual aktif — perhatikan koordinat nod!', 'cyan');
 
                 UI.renderMatrix(true);
@@ -1832,8 +1923,7 @@
             resumePlayingLoop() {
                 this.phase = 'PLAYING';
                 document.getElementById('radarSweepOverlay').classList.add('hidden');
-                document.getElementById('phaseTitle').innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> FASA 2: DEDUKSI`;
-                document.getElementById('arenaInstruction').textContent = 'Gunakan petunjuk Baris/Lajur & Sensor Jiran untuk ekstrak semua Data Teras!';
+                I18N.updatePhaseCopy();
                 UI.setBanner('[FASA 2] Nod dikunci! Ekstrak Data Teras (+1 AP balik) & elak Firewall.', 'emerald');
 
                 UI.updateHUD();
@@ -1868,7 +1958,14 @@
             },
 
             toggleOverclockWager() {
-                if (this.isPaused) return;
+                if (this.isPaused && !UI.mobileOptionsPausedGame) return;
+                if (this.sectorActionStarted) {
+                    SoundFX.decoyHit();
+                    UI.setBanner(I18N.lang === 'en'
+                        ? 'Overclock is locked after your first sector action.'
+                        : 'Overclock dikunci selepas tindakan pertama sektor.', 'amber');
+                    return;
+                }
                 this.overclockWager = !this.overclockWager;
                 SoundFX.click();
                 UI.syncOverclockButton();
@@ -1881,7 +1978,7 @@
                 if (this.extractedCores === 0 && this.mistakesThisSector === 0) {
                     const cfg = this.getSectorParameters(this.sector);
                     this.maxAp = this.overclockWager ? Math.max(4, cfg.baseAp - 1) : cfg.baseAp;
-                    this.ap = Math.min(this.ap, this.maxAp);
+                    this.ap = this.maxAp;
                     UI.updateHUD();
                 }
                 this.saveState(true);
@@ -1904,6 +2001,7 @@
                 // 1. BENDERA PINTAS (0 AP)
                 if (this.tool === 'FLAG') {
                     if (cell.revealed) return;
+                    this.sectorActionStarted = true;
                     cell.flagged = !cell.flagged;
                     SoundFX.click();
                     UI.log(`Bendera Pintas ${cell.flagged ? 'dipasang' : 'ditanggalkan'} pada [B${r + 1}, L${c + 1}].`, 'amber');
@@ -1922,6 +2020,7 @@
                     const sr = Math.min(r, this.gridSize - 2);
                     const sc = Math.min(c, this.gridSize - 2);
 
+                    this.sectorActionStarted = true;
                     this.ap -= 2;
                     let coresCount = 0, trapsCount = 0;
                     for (let dr = 0; dr <= 1; dr++) {
@@ -1959,6 +2058,7 @@
                         return;
                     }
 
+                    this.sectorActionStarted = true;
                     this.ap -= 1;
                     cell.revealed = true;
 
@@ -1973,8 +2073,8 @@
                         this.stats.unassistedCoreHits++;
                         this.stats.safeExtractions++;
 
-                        const overclockMult = this.overclockWager ? 2 : 1;
-                        const pts = Math.round(250 * this.streak * overclockMult);
+                        const pts = Math.round(250 * this.streak);
+                        this.sectorCoreScore += pts;
                         this.score += pts;
                         this.streak = Math.min(3.0, +(this.streak + 0.25).toFixed(2));
 
@@ -2049,6 +2149,7 @@
                     return;
                 }
                 this.ap -= 1;
+                this.sectorActionStarted = true;
                 SoundFX.scan();
                 UI.log('Imbas Semula Memori (1.0s) diaktifkan (-1 AP).', 'cyan');
                 UI.updateHUD();
@@ -2100,8 +2201,9 @@
                 let roundSubtotal = apBonus + flagBonus + speedBonus;
 
                 let overclockTriggered = false;
-                if (victory && this.overclockWager && this.mistakesThisSector === 0 && this.sectorElapsedSec <= 25) {
+                if (victory && this.overclockWager && this.mistakesThisSector === 0 && this.sectorElapsedSec < 25) {
                     overclockTriggered = true;
+                    this.score += this.sectorCoreScore;
                     roundSubtotal = roundSubtotal * 2 + 600;
                 }
 
@@ -2159,6 +2261,12 @@
                 this.startSector();
             },
 
+            confirmCampaignReset() {
+                if (!window.confirm(I18N.dict[I18N.lang].confirmReset)) return;
+                UI.toggleMobileOptions(false, false);
+                this.resetCampaign(true);
+            },
+
             bindKeys() {
                 window.addEventListener('keydown', (e) => {
                     // Smart Pause shortcuts: P or Escape
@@ -2187,6 +2295,9 @@
 
                 // Anti-Cheat Auto-Pause when player switches tabs or minimizes browser
                 document.addEventListener('visibilitychange', () => {
+                    if (document.hidden && UI.mobileOptionsPausedGame) {
+                        UI.mobileOptionsPausedGame = false;
+                    }
                     if (document.hidden && (this.phase === 'MEMORIZE' || this.phase === 'PLAYING') && !this.isPaused) {
                         this.togglePause(true);
                     }
@@ -2210,12 +2321,19 @@
             savePulseTimeout: null,
             mobileOptionPlaces: [],
             mobileLogIndex: 0,
+            mobileOptionsPausedGame: false,
+            manualPausedGame: false,
 
-            toggleMobileOptions(show) {
+            toggleMobileOptions(show, resumeGame = true) {
                 const modal = document.getElementById('mobileOptionsModal');
                 const content = document.getElementById('mobileOptionsContent');
                 if (show) {
                     if (!modal.classList.contains('hidden')) return;
+                    this.mobileOptionsPausedGame = false;
+                    if (!Game.isPaused && (Game.phase === 'MEMORIZE' || Game.phase === 'PLAYING')) {
+                        Game.togglePause(true);
+                        this.mobileOptionsPausedGame = Game.isPaused;
+                    }
                     this.mobileOptionPlaces = ['overclockPanel', 'nodeLegend', 'telemetryPanel'].map(id => {
                         const element = document.getElementById(id);
                         const marker = document.createComment(id);
@@ -2227,11 +2345,14 @@
                     this.setMobileOptionsPage('controls');
                     modal.classList.remove('hidden');
                 } else {
+                    const shouldResume = this.mobileOptionsPausedGame && resumeGame && !document.hidden;
+                    this.mobileOptionsPausedGame = false;
                     this.mobileOptionPlaces.forEach(({ element, marker }) => {
                         marker.replaceWith(element);
                     });
                     this.mobileOptionPlaces = [];
                     modal.classList.add('hidden');
+                    if (shouldResume) Game.togglePause(false);
                 }
             },
 
@@ -2318,7 +2439,7 @@
                     : `${(saved.sectorElapsedSec || 0).toFixed(1)}s`;
 
                 document.getElementById('resumePhaseBadge').textContent =
-                    saved.phase === 'MEMORIZE' ? 'FASA 1: IMBASAN MEMORI' : 'FASA 2: DEDUKSI TAKTIKAL';
+                    saved.phase === 'MEMORIZE' ? I18N.dict[I18N.lang].resumeMemory : I18N.dict[I18N.lang].resumeDeduction;
                 document.getElementById('resumeSectorVal').textContent = `#0${sec}`;
                 document.getElementById('resumeScoreVal').textContent = sc;
                 document.getElementById('resumeApVal').textContent = `${saved.ap ?? 7}/${saved.maxAp ?? 7}`;
@@ -2489,6 +2610,7 @@
 
                         // Check if a 2x2 Radar Scan badge belongs on the bottom-right corner of (r, c)
                         const scanBadge = Game.radarScans.find(s => s.r === r && s.c === c);
+                        const tileLabel = I18N.tileAriaLabel(cell, r, c, isFlashPhase);
                         const badgeHTML = scanBadge ? `
                             <div class="absolute -bottom-2 -right-2 z-30 px-1 py-0.5 rounded bg-purple-950 border border-purple-400 shadow-[0_0_8px_rgba(184,41,255,0.8)] font-mono text-[9px] leading-none flex items-center gap-1 pointer-events-none">
                                 <span class="text-cyan-300 font-bold">${scanBadge.cores}C</span>
@@ -2499,6 +2621,7 @@
                         html += `
                             <button
                                 data-r="${r}" data-c="${c}"
+                                aria-label="${tileLabel}"
                                 onmouseenter="Game.onTileHover(${r}, ${c})"
                                 onclick="Game.onTileClick(${r}, ${c}, event)"
                                 oncontextmenu="event.preventDefault(); Game.setTool('FLAG'); Game.onTileClick(${r}, ${c}, event);"
@@ -2698,11 +2821,25 @@
             },
 
             toggleModal(id, show) {
-                if (show) this.toggleMobileOptions(false);
+                if (show) {
+                    this.toggleMobileOptions(false, false);
+                    if (id === 'manualModal') {
+                        this.manualPausedGame = false;
+                        if (!Game.isPaused && (Game.phase === 'MEMORIZE' || Game.phase === 'PLAYING')) {
+                            Game.togglePause(true);
+                            this.manualPausedGame = Game.isPaused;
+                        }
+                    }
+                }
                 const el = document.getElementById(id);
                 if (!el) return;
                 el.classList.toggle('hidden', !show);
                 el.classList.toggle('flex', show);
+                if (!show && id === 'manualModal') {
+                    const shouldResume = this.manualPausedGame && !document.hidden;
+                    this.manualPausedGame = false;
+                    if (shouldResume) Game.togglePause(false);
+                }
             },
 
             toggleFullscreen() {
@@ -2717,12 +2854,6 @@
             }
         };
 
-        document.getElementById('mobileOptionsContent').addEventListener('click', event => {
-            const button = event.target.closest('button');
-            if (button && (button.id === 'btnMemoryHint' || button.getAttribute('onclick') === 'Game.saveAndOpenMenu()' || button.getAttribute('onclick') === 'Game.resetCampaign(true)')) {
-                UI.toggleMobileOptions(false);
-            }
-        });
         window.matchMedia('(max-width: 900px)').addEventListener('change', () => UI.toggleMobileOptions(false));
         window.onload = () => Game.init();
     </script>
