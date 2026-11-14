@@ -2,8 +2,8 @@
 <html lang="ms" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NEURO-TACTICS: CYBER BREACH | Zero-Scroll Tactical Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEURO-TACTICS: CYBER BREACH | Tactical Edition</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Google Fonts -->
@@ -42,7 +42,7 @@
         :root {
             --grid-dim: 5;
             /* Dynamic cell sizing so header + clues + N rows + bottom bar ALWAYS fit inside 100vh (even 700px height laptops) */
-            --cell-size: clamp(34px, calc((100vh - 215px) / (var(--grid-dim) + 1)), 60px);
+            --cell-size: min(clamp(34px, calc((100vh - 215px) / (var(--grid-dim) + 1)), 60px), calc((100vw - 630px - var(--grid-dim) * 5px) / (var(--grid-dim) + 1)));
         }
 
         * {
@@ -68,7 +68,7 @@
             font-family: 'Rajdhani', sans-serif;
         }
 
-        /* Root App Grid: Strict 100vh x 100vw Zero-Scroll */
+        /* Desktop workspace */
         #app {
             height: 100vh;
             max-height: 100vh;
@@ -94,6 +94,10 @@
 
         /* Responsive fallback for narrow tablets */
         @media (max-width: 1024px) {
+            :root {
+                --cell-size: min(clamp(34px, calc((100vh - 215px) / (var(--grid-dim) + 1)), 60px), calc((100vw - 532px - var(--grid-dim) * 5px) / (var(--grid-dim) + 1)));
+            }
+
             #workspace {
                 grid-template-columns: 220px 1fr 230px;
                 gap: 8px;
@@ -211,17 +215,204 @@
         ::-webkit-scrollbar-track { background: rgba(5, 8, 17, 0.6); }
         ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
         ::-webkit-scrollbar-thumb:hover { background: #00f0ff; }
+
+        @media (max-width: 900px) {
+            :root {
+                --cell-size: min(52px, calc((100vw - 48px - var(--grid-dim) * 4px) / (var(--grid-dim) + 1)));
+            }
+
+            html, body {
+                width: 100%;
+                height: auto;
+                max-height: none;
+                overflow-x: hidden !important;
+                overflow-y: auto !important;
+            }
+
+            #app {
+                width: 100%;
+                height: auto;
+                min-height: 100vh;
+                max-height: none;
+                overflow: visible;
+                padding: 8px;
+                gap: 8px;
+            }
+
+            #appHeader {
+                height: auto;
+                min-height: 48px;
+                flex-wrap: wrap;
+                padding: 8px;
+            }
+
+            #appHeader > div:first-child {
+                flex: 1 1 100%;
+            }
+
+            #headerTelemetry {
+                display: flex;
+                flex: 1 1 100%;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                gap: 4px;
+                padding: 4px 6px;
+            }
+
+            #headerControls {
+                width: 100%;
+                justify-content: flex-end;
+            }
+
+            #headerControls button {
+                min-width: 44px;
+                min-height: 44px;
+            }
+
+            #workspace {
+                display: flex;
+                flex-direction: column;
+                height: auto;
+                overflow: visible;
+                gap: 8px;
+            }
+
+            #tacticalPanel, #tacticalContent {
+                display: contents;
+            }
+
+            #tacticalContent > * {
+                margin: 0;
+            }
+
+            #phasePanel { order: 0; }
+            #metersPanel { order: 1; }
+            #actionModes { order: 2; }
+            #arenaContainer { order: 3; }
+            #overclockPanel { order: 4; }
+            #nodeLegend { order: 5; }
+            #telemetryPanel { order: 6; }
+
+            #metersPanel {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 8px;
+            }
+
+            #metersPanel > div {
+                margin: 0;
+                min-width: 0;
+            }
+
+            #metersPanel > div > div:first-child {
+                flex-wrap: wrap;
+                gap: 2px;
+            }
+
+            #actionModes {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 4px;
+                margin: 0;
+            }
+
+            #actionModes > div:first-child {
+                grid-column: 1 / -1;
+            }
+
+            #actionModes > button {
+                min-width: 0;
+                min-height: 54px;
+                margin: 0;
+                padding: 5px;
+                flex-direction: column;
+                justify-content: center;
+                gap: 2px;
+            }
+
+            #actionModes > button > div {
+                gap: 4px;
+                min-width: 0;
+            }
+
+            #actionModes [data-i18n$="Sub"] {
+                display: none;
+            }
+
+            #actionModes > button > div > span {
+                display: none;
+            }
+
+            #actionModes [data-i18n^="mode"]:not([data-i18n$="Sub"]) {
+                font-family: 'Rajdhani', sans-serif;
+                font-size: 11px;
+                text-align: center;
+            }
+
+            #arenaContainer {
+                flex: none;
+                overflow: visible;
+                padding: 8px;
+                gap: 8px;
+                backdrop-filter: none;
+                -webkit-backdrop-filter: none;
+            }
+
+            #matrixWrapper {
+                flex: none;
+                overflow: visible;
+                margin: 0;
+            }
+
+            #matrixBoard { gap: 4px; }
+            #arenaInstruction, #liveBannerMsg {
+                white-space: normal;
+                overflow: visible;
+            }
+
+            #pauseOverlay {
+                position: fixed;
+                z-index: 60;
+                overflow-y: auto;
+                justify-content: safe center;
+            }
+
+            #pauseOverlay > div {
+                margin: auto;
+            }
+
+            #telemetryPanel {
+                overflow: visible;
+            }
+
+            #telemetryLog {
+                max-height: 140px;
+                min-height: 60px;
+            }
+
+            #telemetryPanel button, #btnToggleOverclock {
+                min-height: 44px;
+            }
+
+            #sessionModal, #resultModal, #manualModal {
+                overflow-y: auto;
+                align-items: safe center;
+            }
+
+            #sessionModal > div, #resultModal > div, #manualModal > div {
+                margin: auto;
+            }
+        }
     </style>
 </head>
 <body>
     <!-- Particle Effects Canvas -->
     <canvas id="particleCanvas" class="fixed inset-0 pointer-events-none z-50"></canvas>
 
-    <!-- STRICT 100VH x 100VW ROOT CONTAINER -->
     <div id="app">
 
         <!-- ================= 1. COMPACT TOP HEADER BAR (48px) ================= -->
-        <header class="cyber-panel rounded-xl px-3.5 h-[48px] flex items-center justify-between gap-2">
+        <header id="appHeader" class="cyber-panel rounded-xl px-3.5 h-[48px] flex items-center justify-between gap-2">
             <!-- Brand & Title -->
             <div class="flex items-center gap-2.5">
                 <div class="w-8 h-8 rounded-lg bg-cyan-500/15 border border-cyan-400/60 flex items-center justify-center shadow-[0_0_10px_rgba(0,240,255,0.3)]">
@@ -237,13 +428,13 @@
                         </span>
                     </div>
                     <p id="subTitleText" class="text-[10px] font-mono text-slate-400 tracking-widest uppercase">
-                        PROTOKOL SIBER // ZERO-SCROLL TACTICAL MATRIX
+                        PROTOKOL SIBER // TACTICAL MATRIX
                     </p>
                 </div>
             </div>
 
             <!-- Center Telemetry Readout (Sector, Score, High Score, Streak) -->
-            <div class="hidden md:flex items-center gap-3 bg-slate-950/80 border border-slate-800 px-3 py-1 rounded-lg">
+            <div id="headerTelemetry" class="hidden md:flex items-center gap-3 bg-slate-950/80 border border-slate-800 px-3 py-1 rounded-lg">
                 <div class="flex items-center gap-1.5 pr-2 border-r border-slate-800">
                     <span class="text-[10px] font-mono text-slate-400" data-i18n="lblSector">SEKTOR:</span>
                     <span id="hudSector" class="font-orbitron font-bold text-sm text-cyan-400">01</span>
@@ -264,7 +455,7 @@
             </div>
 
             <!-- Right Utility Controls (Auto-Save Badge, Pause, Manual, Language, Audio, Fullscreen) -->
-            <div class="flex items-center gap-1.5">
+            <div id="headerControls" class="flex items-center gap-1.5">
                 <!-- Auto-Save Indicator Badge -->
                 <div id="autoSaveBadge" class="hidden sm:flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 font-mono text-[10px] font-bold transition-all duration-300" title="Status Simpanan Automatik (localStorage)">
                     <span id="autoSaveDot" class="w-2 h-2 rounded-full bg-emerald-400"></span>
@@ -302,10 +493,10 @@
         <main id="workspace">
 
             <!-- ========== LEFT PANEL: TACTICAL CONTROLS & STATUS (260px) ========== -->
-            <aside class="cyber-panel rounded-xl p-3 flex flex-col justify-between min-h-0 overflow-hidden">
-                <div class="space-y-2.5">
+            <aside id="tacticalPanel" class="cyber-panel rounded-xl p-3 flex flex-col justify-between min-h-0 overflow-hidden">
+                <div id="tacticalContent" class="space-y-2.5">
                     <!-- Phase Banner & Timer Bar -->
-                    <div class="bg-slate-950/90 border border-slate-800 rounded-lg p-2.5">
+                    <div id="phasePanel" class="bg-slate-950/90 border border-slate-800 rounded-lg p-2.5">
                         <div class="flex items-center justify-between text-[11px] font-mono mb-1">
                             <span id="phaseTitle" class="text-cyan-300 font-bold uppercase flex items-center gap-1.5">
                                 <span id="phaseDot" class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
@@ -319,7 +510,7 @@
                     </div>
 
                     <!-- AP Energy Meter & Core Progress + Neural Shield -->
-                    <div class="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 space-y-2">
+                    <div id="metersPanel" class="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 space-y-2">
                         <!-- AP Meter -->
                         <div>
                             <div class="flex justify-between items-center text-[11px] mb-1">
@@ -362,7 +553,7 @@
                     </div>
 
                     <!-- 3 Action Mode Toggle Buttons -->
-                    <div class="space-y-1.5">
+                    <div id="actionModes" class="space-y-1.5">
                         <div class="text-[10px] font-orbitron uppercase tracking-wider text-slate-400 px-0.5 flex justify-between">
                             <span data-i18n="lblActionMode">MOD TINDAKAN TAKTIKAL</span>
                             <span class="font-mono text-slate-500">[1 / 2 / 3 / 4]</span>
@@ -412,7 +603,7 @@
                     </div>
 
                     <!-- Overclock Pertaruhan (Decision Maker Risk/Reward) -->
-                    <div class="bg-amber-950/20 border border-amber-500/40 rounded-lg p-2">
+                    <div id="overclockPanel" class="bg-amber-950/20 border border-amber-500/40 rounded-lg p-2">
                         <div class="flex items-center justify-between mb-1">
                             <span class="font-orbitron font-bold text-[11px] text-amber-300 flex items-center gap-1">
                                 <i class="fa-solid fa-fire-flame-curved"></i>
@@ -429,7 +620,7 @@
                 </div>
 
                 <!-- Compact Node Legend -->
-                <div class="border-t border-slate-800 pt-2">
+                <div id="nodeLegend" class="border-t border-slate-800 pt-2">
                     <div class="text-[10px] font-mono uppercase text-slate-400 mb-1.5" data-i18n="lblLegend">PETUNJUK NOD MATRIKS:</div>
                     <div class="grid grid-cols-3 gap-1 text-[10px]">
                         <div class="bg-slate-900/90 border border-cyan-500/30 rounded p-1.5 text-center">
@@ -525,7 +716,7 @@
                 </div>
 
                 <!-- Auto-Scaling Matrix Wrapper (Centered Vertically & Horizontally) -->
-                <div class="flex-1 w-full flex items-center justify-center min-h-0 min-w-0 overflow-hidden my-1">
+                <div id="matrixWrapper" class="flex-1 w-full flex items-center justify-center min-h-0 min-w-0 overflow-hidden my-1">
                     <div id="matrixBoard" class="matrix-board">
                         <!-- Dynamically rendered via JS -->
                     </div>
@@ -543,7 +734,7 @@
             </section>
 
             <!-- ========== RIGHT PANEL: COGNITIVE RADAR & TELEMETRY LOG (280px) ========== -->
-            <aside class="cyber-panel rounded-xl p-3 flex flex-col justify-between min-h-0 overflow-hidden gap-2.5">
+            <aside id="telemetryPanel" class="cyber-panel rounded-xl p-3 flex flex-col justify-between min-h-0 overflow-hidden gap-2.5">
                 <!-- 4-Dimensional HTML5 Canvas Cognitive Radar Chart -->
                 <div class="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 flex flex-col items-center shrink-0">
                     <div class="w-full flex items-center justify-between mb-1">
@@ -750,7 +941,7 @@
 
                 <div class="p-2.5 rounded-lg bg-purple-950/30 border border-purple-500/30">
                     <div class="font-orbitron font-bold text-purple-300 mb-0.5">3. RADAR 2x2 & PERTARUHAN OVERCLOCK</div>
-                    • Gunakan <strong>Radar 2x2 (2 AP)</strong> untuk mengimbas mana-mana blok 2x2 dan melihat lencana jumlah Teras & Firewall pada persimpangan tersebut.<br>
+                    • Gunakan <strong>Radar 2x2 (2 AP)</strong> untuk mengimbas mana-mana blok 2x2 dan melihat lencana jumlah Teras & Firewall pada persimpangan tersebut. Pada telefon, pilih Radar dan sentuh petak kiri atas kawasan yang ingin diimbas.<br>
                     • Aktifkan <strong>Pertaruhan Overclock</strong> untuk menggandakan skor (2X) jika anda menyelesaikan sektor tanpa kesilapan dalam masa bawah 25 saat!
                 </div>
             </div>
@@ -1392,6 +1583,9 @@
                 UI.setBanner('[FASA 1] Imbasan memori visual aktif — perhatikan koordinat nod!', 'cyan');
 
                 UI.renderMatrix(true);
+                if (window.matchMedia('(max-width: 900px)').matches) {
+                    document.getElementById('matrixBoard').scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                }
                 SoundFX.scan();
                 this.saveState(false);
 
