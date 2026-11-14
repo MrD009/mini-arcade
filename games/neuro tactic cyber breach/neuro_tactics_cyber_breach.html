@@ -403,6 +403,172 @@
                 margin: auto;
             }
         }
+
+        .mobile-only { display: none; }
+
+        @media (max-width: 900px) {
+            :root {
+                --cell-size: min(52px, calc((100vw - 40px - var(--grid-dim) * 3px) / (var(--grid-dim) + 1)), calc((100dvh - 312px - var(--grid-dim) * 3px) / (var(--grid-dim) + 1)));
+            }
+
+            html, body {
+                height: 100%;
+                max-height: 100%;
+                overflow: hidden !important;
+            }
+
+            #app {
+                height: 100dvh;
+                min-height: 0;
+                max-height: 100dvh;
+                overflow: hidden;
+                padding: 4px;
+                gap: 4px;
+            }
+
+            #appHeader {
+                flex: none;
+                min-height: 0;
+                padding: 4px;
+                gap: 2px;
+            }
+
+            #appHeader > div:first-child { display: none; }
+
+            #headerTelemetry {
+                flex-wrap: nowrap;
+                padding: 2px 4px;
+                gap: 2px;
+                overflow: hidden;
+            }
+
+            #headerTelemetry > div {
+                padding-right: 2px;
+                gap: 2px;
+                white-space: nowrap;
+            }
+
+            #headerTelemetry [data-i18n] { font-size: 8px; }
+            #headerTelemetry span:not([data-i18n]) { font-size: 10px; }
+            #headerControls { justify-content: space-between; gap: 2px; }
+            #headerControls button { min-width: 40px; min-height: 40px; }
+            #headerControls button span { display: none; }
+            #headerControls #langBadge { display: inline; }
+            #headerControls #mobileOverclockActive:not(.hidden) { display: inline; }
+            #autoSaveBadge { display: none; }
+            #mobileOptionsButton { display: flex; }
+
+            #workspace {
+                flex: 1;
+                min-height: 0;
+                height: auto;
+                overflow: hidden;
+                gap: 4px;
+            }
+
+            #phasePanel { padding: 4px 8px; }
+            #metersPanel { padding: 4px 6px; gap: 4px; }
+            #metersPanel > div > div:first-child { margin-bottom: 1px; }
+            #metersPanel [data-i18n] { font-size: 9px; }
+            #metersPanel span[id] { font-size: 10px; }
+            #hudAPPips { height: 4px; }
+
+            #actionModes {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 3px;
+            }
+
+            #actionModes > div:first-child { display: none; }
+            #actionModes > button { min-height: 42px; padding: 2px; }
+            #mobileHintButton { display: flex; }
+            #workspace #overclockPanel,
+            #workspace #nodeLegend,
+            #workspace #telemetryPanel { display: none; }
+
+            #arenaContainer {
+                flex: 1;
+                min-height: 0;
+                overflow: hidden;
+                padding: 4px;
+                gap: 3px;
+            }
+
+            #arenaInfo { padding: 2px 5px; }
+            #arenaInstruction { display: none; }
+            #arenaInfo > div:last-child { display: none; }
+            #matrixWrapper { flex: 1; min-height: 0; }
+            #matrixBoard { gap: 3px; }
+            #arenaBanner { padding: 2px 4px; }
+            #arenaBanner > div:last-child { display: none; }
+            #liveBannerMsg {
+                font-size: 10px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            #mobileOptionsModal {
+                position: fixed;
+                inset: 0;
+                z-index: 70;
+                align-items: center;
+                justify-content: center;
+                padding: 8px;
+                background: rgba(0, 0, 0, 0.88);
+            }
+
+            #mobileOptionsModal:not(.hidden) { display: flex; }
+            #mobileOptionsCard {
+                width: min(100%, 480px);
+                max-height: 100%;
+                overflow: hidden;
+                padding: 8px;
+            }
+            #mobileOptionsTabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-bottom: 6px; }
+            #mobileOptionsTabs button { min-height: 40px; padding: 2px; font-size: 10px; }
+            #mobileOptionsTabs button[aria-pressed="true"] { border-color: #22d3ee; color: #67e8f9; background: rgba(6, 182, 212, 0.2); }
+            #mobileOptionsContent #telemetryPanel { display: block; padding: 0; border: 0; background: transparent; }
+            #mobileOptionsContent #overclockPanel,
+            #mobileOptionsContent #nodeLegend,
+            #mobileOptionsContent #telemetryPanel > div { display: none; }
+            #mobileOptionsContent[data-page="controls"] #overclockPanel,
+            #mobileOptionsContent[data-page="controls"] #telemetryPanel > div:nth-child(3),
+            #mobileOptionsContent[data-page="legend"] #nodeLegend,
+            #mobileOptionsContent[data-page="stats"] #telemetryPanel > div:nth-child(1),
+            #mobileOptionsContent[data-page="log"] #telemetryPanel > div:nth-child(2) { display: block; }
+            #mobileOptionsContent[data-page="controls"] #overclockPanel { margin-bottom: 6px; }
+            #mobileOptionsContent #radarCanvas { height: min(155px, 30dvh); width: auto; }
+            #mobileOptionsContent #telemetryLog { display: none; }
+            #mobileLogViewer { display: flex; flex-direction: column; gap: 6px; }
+            #mobileLogEntry { min-height: 48px; font-size: 11px; }
+            #mobileLogNavigation { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+            #mobileLogNavigation button { min-height: 40px; padding: 4px 10px; }
+        }
+
+        @media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+            :root {
+                --cell-size: min(52px, calc((50vw - 25px - var(--grid-dim) * 3px) / (var(--grid-dim) + 1)), calc((100dvh - 150px - var(--grid-dim) * 3px) / (var(--grid-dim) + 1)));
+            }
+            #appHeader { flex-wrap: nowrap; }
+            #headerTelemetry { flex: 1 1 auto; }
+            #headerControls { width: auto; }
+            #workspace {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+                grid-template-rows: auto auto 1fr;
+                align-items: start;
+            }
+            #phasePanel { grid-column: 1; grid-row: 1; }
+            #metersPanel { grid-column: 1; grid-row: 2; }
+            #actionModes { grid-column: 1; grid-row: 3; }
+            #arenaContainer {
+                grid-column: 2;
+                grid-row: 1 / 4;
+                height: 100%;
+                align-self: stretch;
+            }
+            #mobileOptionsContent #radarCanvas { height: min(120px, 20dvh); }
+        }
     </style>
 </head>
 <body>
@@ -485,6 +651,10 @@
                 <button onclick="UI.toggleFullscreen()" class="h-8 px-2.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition" title="Skrin Penuh (Fullscreen)">
                     <i id="fullscreenIcon" class="fa-solid fa-expand"></i>
                     <span class="hidden xl:inline" data-i18n="btnFullscreen">Skrin Penuh</span>
+                </button>
+                <button id="mobileOptionsButton" type="button" class="mobile-only h-8 px-2 rounded-lg bg-slate-800 border border-slate-600 text-cyan-300 items-center justify-center" onclick="UI.toggleMobileOptions(true)" aria-label="Pilihan tambahan" title="Pilihan tambahan">
+                    <i class="fa-solid fa-ellipsis"></i>
+                    <span id="mobileOverclockActive" class="hidden ml-1 text-amber-300 text-[10px] font-bold">2X</span>
                 </button>
             </div>
         </header>
@@ -600,6 +770,10 @@
                             </div>
                             <span class="px-1.5 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40">0 AP</span>
                         </button>
+                        <button id="mobileHintButton" type="button" onclick="Game.triggerMemoryReflash()" class="mobile-only w-full rounded-lg border border-cyan-500/40 bg-cyan-500/15 text-cyan-300 text-xs font-semibold items-center justify-center flex-col">
+                            <span data-i18n="mobileHint">IMBAS</span>
+                            <span class="font-mono text-[10px]">-1 AP</span>
+                        </button>
                     </div>
 
                     <!-- Overclock Pertaruhan (Decision Maker Risk/Reward) -->
@@ -700,7 +874,7 @@
                 </div>
 
                 <!-- Top Arena Info Bar -->
-                <div class="w-full flex items-center justify-between px-2 py-1 rounded-lg bg-slate-950/70 border border-slate-800/80 text-xs">
+                <div id="arenaInfo" class="w-full flex items-center justify-between px-2 py-1 rounded-lg bg-slate-950/70 border border-slate-800/80 text-xs">
                     <div class="flex items-center gap-2">
                         <span class="px-2 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/40 font-mono text-[11px] text-cyan-300 font-bold" id="sectorRuleBadge">
                             IMBASAN PENUH
@@ -723,7 +897,7 @@
                 </div>
 
                 <!-- Bottom Live Tactical Toast & Sensor Guide -->
-                <div class="w-full flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-slate-950/90 border border-slate-800 text-xs">
+                <div id="arenaBanner" class="w-full flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-slate-950/90 border border-slate-800 text-xs">
                     <div id="liveBannerMsg" class="font-mono text-cyan-300 truncate">
                         [SISTEM] Sedia untuk memulakan protokol imbasan...
                     </div>
@@ -783,6 +957,14 @@
                     <div id="telemetryLog" class="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1 font-mono text-[11px]">
                         <!-- Populated dynamically -->
                     </div>
+                    <div id="mobileLogViewer" class="mobile-only">
+                        <div id="mobileLogEntry" class="font-mono text-slate-400"></div>
+                        <div id="mobileLogNavigation">
+                            <button id="mobileLogOlder" type="button" class="rounded bg-slate-800 border border-slate-600 text-xs" onclick="UI.moveMobileLog(1)" data-i18n="logOlder">Lebih lama</button>
+                            <span id="mobileLogPosition" class="font-mono text-xs text-slate-300"></span>
+                            <button id="mobileLogNewer" type="button" class="rounded bg-slate-800 border border-slate-600 text-xs" onclick="UI.moveMobileLog(-1)" data-i18n="logNewer">Lebih baharu</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Quick Action Buttons at Bottom of Right Panel -->
@@ -809,6 +991,22 @@
             </aside>
 
         </main>
+    </div>
+
+    <div id="mobileOptionsModal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="mobileOptionsTitle">
+        <div id="mobileOptionsCard" class="cyber-panel rounded-xl">
+            <div class="flex items-center justify-between mb-2">
+                <h2 id="mobileOptionsTitle" class="font-orbitron font-bold text-sm text-cyan-300" data-i18n="mobileOptions">PILIHAN TAMBAHAN</h2>
+                <button type="button" onclick="UI.toggleMobileOptions(false)" class="w-11 h-11 rounded-lg bg-slate-800 text-white" aria-label="Tutup pilihan">&times;</button>
+            </div>
+            <nav id="mobileOptionsTabs" aria-label="Pilihan tambahan">
+                <button type="button" class="rounded border border-slate-600 bg-slate-800" data-options-page="controls" onclick="UI.setMobileOptionsPage('controls')" data-i18n="optionsControls">Kawalan</button>
+                <button type="button" class="rounded border border-slate-600 bg-slate-800" data-options-page="legend" onclick="UI.setMobileOptionsPage('legend')" data-i18n="optionsLegend">Petunjuk</button>
+                <button type="button" class="rounded border border-slate-600 bg-slate-800" data-options-page="stats" onclick="UI.setMobileOptionsPage('stats')" data-i18n="optionsStats">Statistik</button>
+                <button type="button" class="rounded border border-slate-600 bg-slate-800" data-options-page="log" onclick="UI.setMobileOptionsPage('log')" data-i18n="optionsLog">Log</button>
+            </nav>
+            <div id="mobileOptionsContent" data-page="controls"></div>
+        </div>
     </div>
 
     <!-- ================= WELCOME / AUTO-SAVE RESUME MODAL ================= -->
@@ -943,6 +1141,7 @@
                     <div class="font-orbitron font-bold text-purple-300 mb-0.5">3. RADAR 2x2 & PERTARUHAN OVERCLOCK</div>
                     • Gunakan <strong>Radar 2x2 (2 AP)</strong> untuk mengimbas mana-mana blok 2x2 dan melihat lencana jumlah Teras & Firewall pada persimpangan tersebut. Pada telefon, pilih Radar dan sentuh petak kiri atas kawasan yang ingin diimbas.<br>
                     • Aktifkan <strong>Pertaruhan Overclock</strong> untuk menggandakan skor (2X) jika anda menyelesaikan sektor tanpa kesilapan dalam masa bawah 25 saat!
+                    Pada telefon, buka butang <strong>…</strong> dan pilih tab untuk Overclock, petunjuk, statistik, log atau menu sesi.
                 </div>
             </div>
 
@@ -996,6 +1195,15 @@
                     dimSpeed: "PANTAS:",
                     lblSystemLog: "LOG TELEMETRI NEURAL",
                     btnHint: "Imbas Semula (Hint)",
+                    mobileHint: "IMBAS",
+                    mobileOptions: "PILIHAN TAMBAHAN",
+                    optionsControls: "Kawalan",
+                    optionsLegend: "Petunjuk",
+                    optionsStats: "Statistik",
+                    optionsLog: "Log",
+                    logOlder: "Lebih lama",
+                    logNewer: "Lebih baharu",
+                    logEmpty: "Tiada log.",
                     btnSessionMenu: "Menu Sesi",
                     btnReset: "Reset Baru",
                     pauseBadge: "PROTOKOL ANTI-INTIP AKTIF",
@@ -1038,6 +1246,15 @@
                     dimSpeed: "SPEED:",
                     lblSystemLog: "NEURAL TELEMETRY LOG",
                     btnHint: "Memory Re-Flash (Hint)",
+                    mobileHint: "RE-FLASH",
+                    mobileOptions: "MORE OPTIONS",
+                    optionsControls: "Controls",
+                    optionsLegend: "Legend",
+                    optionsStats: "Stats",
+                    optionsLog: "Log",
+                    logOlder: "Older",
+                    logNewer: "Newer",
+                    logEmpty: "No log entries.",
                     btnSessionMenu: "Session Menu",
                     btnReset: "Fresh Reset",
                     pauseBadge: "ANTI-PEEK PROTOCOL ACTIVE",
@@ -1583,9 +1800,6 @@
                 UI.setBanner('[FASA 1] Imbasan memori visual aktif — perhatikan koordinat nod!', 'cyan');
 
                 UI.renderMatrix(true);
-                if (window.matchMedia('(max-width: 900px)').matches) {
-                    document.getElementById('matrixBoard').scrollIntoView({ block: 'nearest', inline: 'nearest' });
-                }
                 SoundFX.scan();
                 this.saveState(false);
 
@@ -1949,6 +2163,10 @@
                 window.addEventListener('keydown', (e) => {
                     // Smart Pause shortcuts: P or Escape
                     if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+                        if (!document.getElementById('mobileOptionsModal').classList.contains('hidden')) {
+                            UI.toggleMobileOptions(false);
+                            return;
+                        }
                         if (!document.getElementById('manualModal').classList.contains('hidden')) {
                             UI.toggleModal('manualModal', false);
                             return;
@@ -1990,6 +2208,61 @@
          */
         const UI = {
             savePulseTimeout: null,
+            mobileOptionPlaces: [],
+            mobileLogIndex: 0,
+
+            toggleMobileOptions(show) {
+                const modal = document.getElementById('mobileOptionsModal');
+                const content = document.getElementById('mobileOptionsContent');
+                if (show) {
+                    if (!modal.classList.contains('hidden')) return;
+                    this.mobileOptionPlaces = ['overclockPanel', 'nodeLegend', 'telemetryPanel'].map(id => {
+                        const element = document.getElementById(id);
+                        const marker = document.createComment(id);
+                        element.before(marker);
+                        content.appendChild(element);
+                        return { element, marker };
+                    });
+                    this.mobileLogIndex = 0;
+                    this.setMobileOptionsPage('controls');
+                    modal.classList.remove('hidden');
+                } else {
+                    this.mobileOptionPlaces.forEach(({ element, marker }) => {
+                        marker.replaceWith(element);
+                    });
+                    this.mobileOptionPlaces = [];
+                    modal.classList.add('hidden');
+                }
+            },
+
+            setMobileOptionsPage(page) {
+                document.getElementById('mobileOptionsContent').dataset.page = page;
+                document.querySelectorAll('#mobileOptionsTabs button').forEach(button => {
+                    button.setAttribute('aria-pressed', String(button.dataset.optionsPage === page));
+                });
+                if (page === 'log') this.renderMobileLog();
+            },
+
+            moveMobileLog(delta) {
+                const count = document.getElementById('telemetryLog').children.length;
+                this.mobileLogIndex = Math.max(0, Math.min(this.mobileLogIndex + delta, count - 1));
+                this.renderMobileLog();
+            },
+
+            renderMobileLog() {
+                const entries = document.getElementById('telemetryLog').children;
+                this.mobileLogIndex = Math.max(0, Math.min(this.mobileLogIndex, entries.length - 1));
+                const display = document.getElementById('mobileLogEntry');
+                display.replaceChildren();
+                if (entries.length) {
+                    display.appendChild(entries[this.mobileLogIndex].cloneNode(true));
+                } else {
+                    display.textContent = I18N.dict[I18N.lang].logEmpty;
+                }
+                document.getElementById('mobileLogPosition').textContent = entries.length ? `${this.mobileLogIndex + 1} / ${entries.length}` : '0 / 0';
+                document.getElementById('mobileLogOlder').disabled = this.mobileLogIndex >= entries.length - 1;
+                document.getElementById('mobileLogNewer').disabled = this.mobileLogIndex === 0;
+            },
 
             pulseAutoSaveBadge() {
                 const badge = document.getElementById('autoSaveBadge');
@@ -2059,7 +2332,9 @@
             syncOverclockButton() {
                 const btn = document.getElementById('btnToggleOverclock');
                 const pill = document.getElementById('overclockActivePill');
+                const mobilePill = document.getElementById('mobileOverclockActive');
                 if (!btn || !pill) return;
+                mobilePill.classList.toggle('hidden', !Game.overclockWager);
                 if (Game.overclockWager) {
                     btn.textContent = 'ON (2X)';
                     btn.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500 text-slate-950 border border-amber-300 shadow-[0_0_10px_rgba(255,184,0,0.5)]';
@@ -2339,10 +2614,15 @@
                 item.className = `pl-2 border-l-2 leading-tight ${colors[tone] || colors.cyan}`;
                 item.innerHTML = `<span class="text-[9px] text-slate-500">[${time}]</span> ${msg}`;
                 box.prepend(item);
+                if (!document.getElementById('mobileOptionsModal').classList.contains('hidden')) {
+                    this.mobileLogIndex = 0;
+                    this.renderMobileLog();
+                }
             },
 
             clearLog() {
                 document.getElementById('telemetryLog').innerHTML = '';
+                this.renderMobileLog();
             },
 
             setBanner(text, color = 'cyan') {
@@ -2418,6 +2698,7 @@
             },
 
             toggleModal(id, show) {
+                if (show) this.toggleMobileOptions(false);
                 const el = document.getElementById(id);
                 if (!el) return;
                 el.classList.toggle('hidden', !show);
@@ -2436,6 +2717,13 @@
             }
         };
 
+        document.getElementById('mobileOptionsContent').addEventListener('click', event => {
+            const button = event.target.closest('button');
+            if (button && (button.id === 'btnMemoryHint' || button.getAttribute('onclick') === 'Game.saveAndOpenMenu()' || button.getAttribute('onclick') === 'Game.resetCampaign(true)')) {
+                UI.toggleMobileOptions(false);
+            }
+        });
+        window.matchMedia('(max-width: 900px)').addEventListener('change', () => UI.toggleMobileOptions(false));
         window.onload = () => Game.init();
     </script>
 </body>
