@@ -1,0 +1,1691 @@
+<!DOCTYPE html>
+<html lang="ms" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEURO-TACTICS: CYBER BREACH | Zero-Scroll Tactical Edition</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        orbitron: ['Orbitron', 'sans-serif'],
+                        rajdhani: ['Rajdhani', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        cyber: {
+                            bg: '#040710',
+                            panel: '#0a1122',
+                            border: '#1e293b',
+                            cyan: '#00f0ff',
+                            red: '#ff2a5f',
+                            amber: '#ffb800',
+                            emerald: '#00ff9d',
+                            purple: '#b829ff'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        :root {
+            --grid-dim: 5;
+            /* Dynamic cell sizing so header + clues + N rows + bottom bar ALWAYS fit inside 100vh (even 700px height laptops) */
+            --cell-size: clamp(34px, calc((100vh - 215px) / (var(--grid-dim) + 1)), 60px);
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            max-height: 100vh;
+            overflow: hidden !important;
+            background-color: #040710;
+            background-image:
+                radial-gradient(circle at 50% 0%, rgba(0, 240, 255, 0.08) 0%, transparent 55%),
+                linear-gradient(rgba(15, 23, 42, 0.45) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(15, 23, 42, 0.45) 1px, transparent 1px);
+            background-size: 100% 100%, 24px 24px, 24px 24px;
+            color: #e2e8f0;
+            font-family: 'Rajdhani', sans-serif;
+        }
+
+        /* Root App Grid: Strict 100vh x 100vw Zero-Scroll */
+        #app {
+            height: 100vh;
+            max-height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: grid;
+            grid-template-rows: 48px 1fr;
+            gap: 10px;
+            padding: 10px 16px;
+        }
+
+        /* Main 3-Column Workspace */
+        #workspace {
+            min-height: 0;
+            height: 100%;
+            display: grid;
+            grid-template-columns: 260px 1fr 280px;
+            gap: 12px;
+            align-items: stretch;
+            overflow: hidden;
+        }
+
+        /* Responsive fallback for narrow tablets */
+        @media (max-width: 1024px) {
+            #workspace {
+                grid-template-columns: 220px 1fr 230px;
+                gap: 8px;
+            }
+        }
+
+        /* Cyber Glass Cards */
+        .cyber-panel {
+            background: rgba(10, 17, 34, 0.88);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 240, 255, 0.22);
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6), inset 0 0 12px rgba(0, 240, 255, 0.04);
+        }
+
+        /* Dynamic Matrix Grid Layout */
+        .matrix-board {
+            display: grid;
+            grid-template-columns: repeat(calc(var(--grid-dim) + 1), var(--cell-size));
+            grid-template-rows: repeat(calc(var(--grid-dim) + 1), var(--cell-size));
+            gap: 5px;
+            position: relative;
+        }
+
+        .tactical-tile {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            position: relative;
+            transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+        }
+
+        .tactical-tile:hover:not(:disabled) {
+            transform: scale(1.05);
+            z-index: 15;
+        }
+
+        .tactical-tile:active:not(:disabled) {
+            transform: scale(0.96);
+        }
+
+        .tile-cloaked {
+            background: linear-gradient(145deg, #0d1527, #17233b);
+            border: 1px solid rgba(56, 189, 248, 0.28);
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.06);
+        }
+        .tile-cloaked:hover {
+            border-color: #00f0ff;
+            box-shadow: 0 0 12px rgba(0, 240, 255, 0.35);
+        }
+
+        .tile-core {
+            background: radial-gradient(circle, rgba(0, 240, 255, 0.35) 0%, rgba(10, 18, 36, 0.96) 85%);
+            border: 2px solid #00f0ff;
+            box-shadow: 0 0 14px rgba(0, 240, 255, 0.55);
+        }
+
+        .tile-trap {
+            background: radial-gradient(circle, rgba(255, 42, 95, 0.42) 0%, rgba(15, 18, 34, 0.96) 85%);
+            border: 2px solid #ff2a5f;
+            box-shadow: 0 0 14px rgba(255, 42, 95, 0.55);
+        }
+
+        .tile-decoy {
+            background: radial-gradient(circle, rgba(255, 184, 0, 0.38) 0%, rgba(15, 18, 34, 0.96) 85%);
+            border: 2px solid #ffb800;
+            box-shadow: 0 0 12px rgba(255, 184, 0, 0.45);
+        }
+
+        .tile-safe {
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        .tile-radar-highlight {
+            outline: 2px dashed #b829ff !important;
+            background: rgba(184, 41, 255, 0.22) !important;
+        }
+
+        /* Radar Sweep Overlay during Phase 1 */
+        .radar-sweep {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, transparent 0%, rgba(0, 240, 255, 0.28) 50%, transparent 100%);
+            background-size: 100% 200%;
+            animation: sweepVertical 1.5s linear infinite;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        @keyframes sweepVertical {
+            0% { background-position: 0 -100%; }
+            100% { background-position: 0 100%; }
+        }
+
+        @keyframes shakeScreen {
+            0%, 100% { transform: translate(0, 0); }
+            20% { transform: translate(-7px, 5px); }
+            40% { transform: translate(7px, -5px); }
+            60% { transform: translate(-5px, -3px); }
+            80% { transform: translate(5px, 3px); }
+        }
+        .shake-hit {
+            animation: shakeScreen 0.38s ease-in-out;
+        }
+
+        /* Internal Log Scrollbar */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: rgba(5, 8, 17, 0.6); }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #00f0ff; }
+    </style>
+</head>
+<body>
+    <!-- Particle Effects Canvas -->
+    <canvas id="particleCanvas" class="fixed inset-0 pointer-events-none z-50"></canvas>
+
+    <!-- STRICT 100VH x 100VW ROOT CONTAINER -->
+    <div id="app">
+
+        <!-- ================= 1. COMPACT TOP HEADER BAR (48px) ================= -->
+        <header class="cyber-panel rounded-xl px-3.5 h-[48px] flex items-center justify-between gap-2">
+            <!-- Brand & Title -->
+            <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-cyan-500/15 border border-cyan-400/60 flex items-center justify-center shadow-[0_0_10px_rgba(0,240,255,0.3)]">
+                    <i class="fa-solid fa-brain text-cyan-400 text-sm animate-pulse"></i>
+                </div>
+                <div class="leading-none">
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-orbitron font-black text-sm sm:text-base tracking-wider text-white">
+                            NEURO<span class="text-cyan-400">-TACTICS</span>: <span class="text-slate-300 font-bold text-xs sm:text-sm">CYBER BREACH</span>
+                        </h1>
+                        <span id="overclockActivePill" class="hidden px-1.5 py-0.5 text-[9px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-400/50 rounded">
+                            2X OVERCLOCK
+                        </span>
+                    </div>
+                    <p id="subTitleText" class="text-[10px] font-mono text-slate-400 tracking-widest uppercase">
+                        PROTOKOL SIBER // ZERO-SCROLL TACTICAL MATRIX
+                    </p>
+                </div>
+            </div>
+
+            <!-- Center Telemetry Readout (Sector, Score, High Score, Streak) -->
+            <div class="hidden md:flex items-center gap-3 bg-slate-950/80 border border-slate-800 px-3 py-1 rounded-lg">
+                <div class="flex items-center gap-1.5 pr-2 border-r border-slate-800">
+                    <span class="text-[10px] font-mono text-slate-400" data-i18n="lblSector">SEKTOR:</span>
+                    <span id="hudSector" class="font-orbitron font-bold text-sm text-cyan-400">01</span>
+                    <span id="hudGridBadge" class="text-[10px] font-mono px-1 rounded bg-slate-800 text-slate-300">5x5</span>
+                </div>
+                <div class="flex items-center gap-1.5 pr-2 border-r border-slate-800">
+                    <span class="text-[10px] font-mono text-slate-400" data-i18n="lblScore">SKOR:</span>
+                    <span id="hudScore" class="font-mono font-extrabold text-sm text-white">0</span>
+                </div>
+                <div class="flex items-center gap-1.5 pr-2 border-r border-slate-800">
+                    <span class="text-[10px] font-mono text-slate-400" data-i18n="lblBest">REKOD:</span>
+                    <span id="hudHighScore" class="font-mono font-bold text-sm text-amber-400">0</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-[10px] font-mono text-slate-400" data-i18n="lblStreak">KOMBO:</span>
+                    <span id="hudStreak" class="font-mono font-bold text-sm text-emerald-400">x1.0</span>
+                </div>
+            </div>
+
+            <!-- Right Utility Controls (Manual, Language, Audio, Fullscreen) -->
+            <div class="flex items-center gap-1.5">
+                <button onclick="UI.toggleModal('manualModal', true)" class="h-8 px-2.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-600/60 text-cyan-300 text-xs font-semibold flex items-center gap-1.5 transition" title="Manual Operasi">
+                    <i class="fa-solid fa-circle-question"></i>
+                    <span class="hidden sm:inline" data-i18n="btnManual">Cara Main</span>
+                </button>
+
+                <button onclick="I18N.toggle()" class="h-8 px-2.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-mono text-xs font-bold transition flex items-center gap-1" title="Tukar Bahasa">
+                    <i class="fa-solid fa-globe text-[11px]"></i>
+                    <span id="langBadge">BM</span>
+                </button>
+
+                <button onclick="SoundFX.toggle()" class="w-8 h-8 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-600/60 text-slate-300 flex items-center justify-center transition" title="Bunyi">
+                    <i id="soundIcon" class="fa-solid fa-volume-high text-cyan-400 text-xs"></i>
+                </button>
+
+                <button onclick="UI.toggleFullscreen()" class="h-8 px-2.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition" title="Skrin Penuh (Fullscreen)">
+                    <i id="fullscreenIcon" class="fa-solid fa-expand"></i>
+                    <span class="hidden xl:inline" data-i18n="btnFullscreen">Skrin Penuh</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- ================= 2. MAIN WORKSPACE (3 COLUMNS, ZERO-SCROLL) ================= -->
+        <main id="workspace">
+
+            <!-- ========== LEFT PANEL: TACTICAL CONTROLS & STATUS (260px) ========== -->
+            <aside class="cyber-panel rounded-xl p-3 flex flex-col justify-between min-h-0 overflow-hidden">
+                <div class="space-y-2.5">
+                    <!-- Phase Banner & Timer Bar -->
+                    <div class="bg-slate-950/90 border border-slate-800 rounded-lg p-2.5">
+                        <div class="flex items-center justify-between text-[11px] font-mono mb-1">
+                            <span id="phaseTitle" class="text-cyan-300 font-bold uppercase flex items-center gap-1.5">
+                                <span id="phaseDot" class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                                FASA 1: MEMORI
+                            </span>
+                            <span id="hudTimer" class="text-white font-bold">03.5s</span>
+                        </div>
+                        <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                            <div id="hudTimerBar" class="h-full bg-gradient-to-r from-cyan-400 via-emerald-400 to-amber-400 transition-all duration-100" style="width: 100%"></div>
+                        </div>
+                    </div>
+
+                    <!-- AP Energy Meter & Core Progress + Neural Shield -->
+                    <div class="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 space-y-2">
+                        <!-- AP Meter -->
+                        <div>
+                            <div class="flex justify-between items-center text-[11px] mb-1">
+                                <span class="font-semibold text-amber-400 flex items-center gap-1">
+                                    <i class="fa-solid fa-bolt"></i>
+                                    <span data-i18n="lblAP">TENAGA TAKTIKAL (AP)</span>
+                                </span>
+                                <span id="hudAPText" class="font-mono font-bold text-amber-300">8 / 8 AP</span>
+                            </div>
+                            <div id="hudAPPips" class="flex gap-1 h-2"></div>
+                        </div>
+
+                        <!-- Data Cores Target -->
+                        <div>
+                            <div class="flex justify-between items-center text-[11px] mb-1">
+                                <span class="font-semibold text-cyan-300 flex items-center gap-1">
+                                    <i class="fa-solid fa-gem"></i>
+                                    <span data-i18n="lblCores">DATA TERAS</span>
+                                </span>
+                                <span id="hudCoresText" class="font-mono font-bold text-cyan-400">0 / 5</span>
+                            </div>
+                            <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                                <div id="hudCoresBar" class="h-full bg-cyan-400 transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Neural Shield Integrity -->
+                        <div>
+                            <div class="flex justify-between items-center text-[11px] mb-1">
+                                <span class="font-semibold text-emerald-400 flex items-center gap-1">
+                                    <i class="fa-solid fa-shield-halved"></i>
+                                    <span data-i18n="lblShield">PERISAI NEURAL</span>
+                                </span>
+                                <span id="hudShieldText" class="font-mono font-bold text-emerald-300">100%</span>
+                            </div>
+                            <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                                <div id="hudShieldBar" class="h-full bg-emerald-400 transition-all duration-300" style="width: 100%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3 Action Mode Toggle Buttons -->
+                    <div class="space-y-1.5">
+                        <div class="text-[10px] font-orbitron uppercase tracking-wider text-slate-400 px-0.5 flex justify-between">
+                            <span data-i18n="lblActionMode">MOD TINDAKAN TAKTIKAL</span>
+                            <span class="font-mono text-slate-500">[1 / 2 / 3]</span>
+                        </div>
+
+                        <!-- Mode 1: Ekstrak (1 AP) -->
+                        <button id="btnModeExtract" onclick="Game.setTool('EXTRACT')" class="w-full p-2 rounded-lg border text-left transition flex items-center justify-between bg-cyan-500/20 border-cyan-400 shadow-[0_0_12px_rgba(0,240,255,0.2)]">
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded bg-cyan-500/25 text-cyan-300 flex items-center justify-center text-xs">
+                                    <i class="fa-solid fa-crosshairs"></i>
+                                </span>
+                                <div>
+                                    <div class="font-orbitron font-bold text-xs text-white leading-tight" data-i18n="modeExtract">EKSTRAK NOD</div>
+                                    <div class="text-[10px] text-slate-300 leading-none" data-i18n="modeExtractSub">Kumpul Teras (+1 AP Balik)</div>
+                                </div>
+                            </div>
+                            <span class="px-1.5 py-0.5 text-[10px] font-mono font-bold rounded bg-cyan-950 text-cyan-300 border border-cyan-500/40">1 AP</span>
+                        </button>
+
+                        <!-- Mode 2: Radar 2x2 (2 AP) -->
+                        <button id="btnModeRadar" onclick="Game.setTool('RADAR')" class="w-full p-2 rounded-lg border text-left transition flex items-center justify-between bg-slate-900/90 border-slate-700/80 hover:border-purple-400/60">
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded bg-purple-500/20 text-purple-300 flex items-center justify-center text-xs">
+                                    <i class="fa-solid fa-satellite-dish"></i>
+                                </span>
+                                <div>
+                                    <div class="font-orbitron font-bold text-xs text-white leading-tight" data-i18n="modeRadar">RADAR 2x2</div>
+                                    <div class="text-[10px] text-slate-400 leading-none" data-i18n="modeRadarSub">Imbas jumlah Teras & Bahaya</div>
+                                </div>
+                            </div>
+                            <span class="px-1.5 py-0.5 text-[10px] font-mono font-bold rounded bg-purple-950 text-purple-300 border border-purple-500/40">2 AP</span>
+                        </button>
+
+                        <!-- Mode 3: Bendera Pintas (0 AP) -->
+                        <button id="btnModeFlag" onclick="Game.setTool('FLAG')" class="w-full p-2 rounded-lg border text-left transition flex items-center justify-between bg-slate-900/90 border-slate-700/80 hover:border-rose-400/60">
+                            <div class="flex items-center gap-2">
+                                <span class="w-6 h-6 rounded bg-rose-500/20 text-rose-400 flex items-center justify-center text-xs">
+                                    <i class="fa-solid fa-flag"></i>
+                                </span>
+                                <div>
+                                    <div class="font-orbitron font-bold text-xs text-white leading-tight" data-i18n="modeFlag">BENDERA PINTAS</div>
+                                    <div class="text-[10px] text-slate-400 leading-none" data-i18n="modeFlagSub">Tanda petak Bahaya / Umpan</div>
+                                </div>
+                            </div>
+                            <span class="px-1.5 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-950 text-emerald-300 border border-emerald-500/40">0 AP</span>
+                        </button>
+                    </div>
+
+                    <!-- Overclock Pertaruhan (Decision Maker Risk/Reward) -->
+                    <div class="bg-amber-950/20 border border-amber-500/40 rounded-lg p-2">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="font-orbitron font-bold text-[11px] text-amber-300 flex items-center gap-1">
+                                <i class="fa-solid fa-fire-flame-curved"></i>
+                                <span data-i18n="lblOverclock">PERTARUHAN OVERCLOCK</span>
+                            </span>
+                            <button id="btnToggleOverclock" onclick="Game.toggleOverclockWager()" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-slate-300 border border-slate-600 hover:border-amber-400 transition">
+                                OFF
+                            </button>
+                        </div>
+                        <p class="text-[10px] text-slate-300 leading-tight" data-i18n="overclockDesc">
+                            Aktifkan untuk <strong class="text-amber-300">2X SKOR</strong> jika menang dengan 0 kesilapan & &lt;25s, tetapi kos <strong class="text-rose-400">-1 AP Maks</strong>!
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Compact Node Legend -->
+                <div class="border-t border-slate-800 pt-2">
+                    <div class="text-[10px] font-mono uppercase text-slate-400 mb-1.5" data-i18n="lblLegend">PETUNJUK NOD MATRIKS:</div>
+                    <div class="grid grid-cols-3 gap-1 text-[10px]">
+                        <div class="bg-slate-900/90 border border-cyan-500/30 rounded p-1.5 text-center">
+                            <i class="fa-solid fa-gem text-cyan-400 block mb-0.5"></i>
+                            <span class="font-bold text-cyan-300 block leading-none" data-i18n="legCore">Teras</span>
+                            <span class="text-[9px] text-slate-400">+1 AP</span>
+                        </div>
+                        <div class="bg-slate-900/90 border border-rose-500/30 rounded p-1.5 text-center">
+                            <i class="fa-solid fa-skull-crossbones text-rose-400 block mb-0.5"></i>
+                            <span class="font-bold text-rose-400 block leading-none" data-i18n="legTrap">Firewall</span>
+                            <span class="text-[9px] text-slate-400">-Perisai</span>
+                        </div>
+                        <div class="bg-slate-900/90 border border-amber-500/30 rounded p-1.5 text-center">
+                            <i class="fa-solid fa-triangle-exclamation text-amber-300 block mb-0.5"></i>
+                            <span class="font-bold text-amber-300 block leading-none" data-i18n="legDecoy">Umpan</span>
+                            <span class="text-[9px] text-slate-400">-1 AP</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- ========== CENTER PANEL: AUTO-SCALING MATRIX ARENA (1fr) ========== -->
+            <section id="arenaContainer" class="cyber-panel rounded-xl p-3 flex flex-col items-center justify-between min-h-0 min-w-0 overflow-hidden relative">
+                <!-- Radar Sweep Effect (Active during Phase 1 Memorize) -->
+                <div id="radarSweepOverlay" class="radar-sweep hidden"></div>
+
+                <!-- Top Arena Info Bar -->
+                <div class="w-full flex items-center justify-between px-2 py-1 rounded-lg bg-slate-950/70 border border-slate-800/80 text-xs">
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/40 font-mono text-[11px] text-cyan-300 font-bold" id="sectorRuleBadge">
+                            IMBASAN PENUH
+                        </span>
+                        <span id="arenaInstruction" class="text-slate-300 text-xs truncate">
+                            Hafal kedudukan nod sebelum matriks dikunci!
+                        </span>
+                    </div>
+                    <div class="hidden sm:flex items-center gap-3 font-mono text-[11px] text-slate-400 shrink-0">
+                        <span><i class="fa-solid fa-gem text-cyan-400 mr-1"></i>= Teras Baris/Lajur</span>
+                        <span><i class="fa-solid fa-skull-crossbones text-rose-400 mr-1"></i>= Firewall Baris/Lajur</span>
+                    </div>
+                </div>
+
+                <!-- Auto-Scaling Matrix Wrapper (Centered Vertically & Horizontally) -->
+                <div class="flex-1 w-full flex items-center justify-center min-h-0 min-w-0 overflow-hidden my-1">
+                    <div id="matrixBoard" class="matrix-board">
+                        <!-- Dynamically rendered via JS -->
+                    </div>
+                </div>
+
+                <!-- Bottom Live Tactical Toast & Sensor Guide -->
+                <div class="w-full flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-slate-950/90 border border-slate-800 text-xs">
+                    <div id="liveBannerMsg" class="font-mono text-cyan-300 truncate">
+                        [SISTEM] Sedia untuk memulakan protokol imbasan...
+                    </div>
+                    <div class="text-[10px] font-mono text-slate-400 shrink-0">
+                        <span class="text-emerald-400 font-bold">NOMBOR PETAK</span> = Jumlah Firewall (Merah) di 8 petak jiran
+                    </div>
+                </div>
+            </section>
+
+            <!-- ========== RIGHT PANEL: COGNITIVE RADAR & TELEMETRY LOG (280px) ========== -->
+            <aside class="cyber-panel rounded-xl p-3 flex flex-col justify-between min-h-0 overflow-hidden gap-2.5">
+                <!-- 4-Dimensional HTML5 Canvas Cognitive Radar Chart -->
+                <div class="bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 flex flex-col items-center shrink-0">
+                    <div class="w-full flex items-center justify-between mb-1">
+                        <span class="font-orbitron text-[11px] uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-chart-Simple"></i>
+                            <span data-i18n="lblRadarTitle">RADAR KOGNITIF 4D</span>
+                        </span>
+                        <span id="cognitiveRankBadge" class="px-1.5 py-0.5 text-[10px] font-mono font-bold rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                            KELAS S
+                        </span>
+                    </div>
+
+                    <!-- HTML5 Canvas for 4-Axis Radar (Memori, Logik, Keputusan, Kepantasan) -->
+                    <canvas id="radarCanvas" width="220" height="155" class="max-w-full"></canvas>
+
+                    <!-- Compact 4-Metric Readout Grid -->
+                    <div class="w-full grid grid-cols-2 gap-1.5 mt-1 text-[10px] font-mono">
+                        <div class="bg-slate-900/90 px-2 py-1 rounded border border-slate-800 flex justify-between">
+                            <span class="text-cyan-300" data-i18n="dimMemory">MEMORI:</span>
+                            <span id="valMem" class="font-bold text-white">88%</span>
+                        </div>
+                        <div class="bg-slate-900/90 px-2 py-1 rounded border border-slate-800 flex justify-between">
+                            <span class="text-emerald-300" data-i18n="dimLogic">LOGIK:</span>
+                            <span id="valLog" class="font-bold text-white">90%</span>
+                        </div>
+                        <div class="bg-slate-900/90 px-2 py-1 rounded border border-slate-800 flex justify-between">
+                            <span class="text-amber-300" data-i18n="dimDecision">KEPUTUSAN:</span>
+                            <span id="valDec" class="font-bold text-white">85%</span>
+                        </div>
+                        <div class="bg-slate-900/90 px-2 py-1 rounded border border-slate-800 flex justify-between">
+                            <span class="text-purple-300" data-i18n="dimSpeed">PANTAS:</span>
+                            <span id="valSpd" class="font-bold text-white">92%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Internal Scrollable Tactical Telemetry Log (flex-1 min-h-0) -->
+                <div class="bg-slate-950/90 border border-slate-800 rounded-lg p-2.5 flex-1 min-h-0 flex flex-col overflow-hidden">
+                    <div class="flex items-center justify-between border-b border-slate-800/80 pb-1 mb-1.5 shrink-0">
+                        <span class="font-orbitron text-[10px] uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                            <i class="fa-solid fa-terminal text-cyan-400"></i>
+                            <span data-i18n="lblSystemLog">LOG TELEMETRI NEURAL</span>
+                        </span>
+                        <button onclick="UI.clearLog()" class="text-[10px] font-mono text-slate-500 hover:text-slate-300">CLEAR</button>
+                    </div>
+                    <div id="telemetryLog" class="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1 font-mono text-[11px]">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Quick Action Buttons at Bottom of Right Panel -->
+                <div class="space-y-1.5 shrink-0">
+                    <button id="btnMemoryHint" onclick="Game.triggerMemoryReflash()" class="w-full py-2 px-3 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 text-xs font-semibold flex items-center justify-between transition">
+                        <span class="flex items-center gap-1.5">
+                            <i class="fa-solid fa-eye"></i>
+                            <span data-i18n="btnHint">Imbas Semula (Hint)</span>
+                        </span>
+                        <span class="font-mono font-bold text-[10px] bg-cyan-950 px-1.5 py-0.5 rounded border border-cyan-500/40">-1 AP</span>
+                    </button>
+
+                    <button onclick="Game.resetCampaign()" class="w-full py-1.5 px-3 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-slate-600/60 text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition">
+                        <i class="fa-solid fa-rotate-right text-cyan-400"></i>
+                        <span data-i18n="btnReset">Sektor Baharu / Reset</span>
+                    </button>
+                </div>
+            </aside>
+
+        </main>
+    </div>
+
+    <!-- ================= SECTOR RESULT MODAL ================= -->
+    <div id="resultModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="cyber-panel rounded-2xl max-w-md w-full p-5 border-2 border-cyan-400/60 shadow-[0_0_40px_rgba(0,240,255,0.25)]">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+                <div>
+                    <span id="modalTag" class="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
+                        SEKTOR BERJAYA DITEMBUSI
+                    </span>
+                    <h2 id="modalTitle" class="font-orbitron font-black text-xl text-white mt-1">
+                        LAPORAN ANALISIS OTAK
+                    </h2>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-cyan-500/20 border-2 border-cyan-400 flex flex-col items-center justify-center">
+                    <span class="text-[9px] font-mono text-cyan-300">GRED</span>
+                    <span id="modalGrade" class="font-orbitron font-black text-xl text-white">S+</span>
+                </div>
+            </div>
+
+            <p id="modalDesc" class="text-xs text-slate-300 mb-3"></p>
+
+            <div id="modalBreakdown" class="bg-slate-950/90 border border-slate-800 rounded-xl p-3 mb-4 space-y-1 text-xs font-mono"></div>
+
+            <button id="btnModalAction" onclick="Game.proceedAfterModal()" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 font-orbitron font-extrabold text-xs tracking-wider uppercase shadow-[0_0_15px_rgba(0,240,255,0.4)] transition">
+                SEKTOR SETERUSNYA <i class="fa-solid fa-arrow-right ml-1"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- ================= HOW TO PLAY MANUAL MODAL ================= -->
+    <div id="manualModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="cyber-panel rounded-2xl max-w-xl w-full p-5 border border-cyan-400/50">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-3">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-graduation-cap text-cyan-400 text-lg"></i>
+                    <h2 class="font-orbitron font-bold text-base text-white" data-i18n="manualTitle">
+                        MANUAL TAKTIKAL: NEURO-TACTICS
+                    </h2>
+                </div>
+                <button onclick="UI.toggleModal('manualModal', false)" class="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-2.5 text-xs text-slate-300 leading-relaxed">
+                <div class="p-2.5 rounded-lg bg-cyan-950/30 border border-cyan-500/30">
+                    <div class="font-orbitron font-bold text-cyan-300 mb-0.5">1. FASA 1: IMBASAN MEMORI VISUAL (3.5 SAAT)</div>
+                    Pada awal setiap pusingan, kedudukan <strong class="text-cyan-300">Data Teras (Biru)</strong>, <strong class="text-rose-400">Firewall Bahaya (Merah)</strong>, dan <strong class="text-amber-300">Nod Umpan (Kuning)</strong> akan dipancarkan seketika. Hafal koordinat Data Teras! Pada sektor tinggi, sesetengah nod disembunyikan semasa imbasan untuk menguji logik anda.
+                </div>
+
+                <div class="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-500/30">
+                    <div class="font-orbitron font-bold text-emerald-300 mb-0.5">2. FASA 2: DEDUKSI MATRIKS & SENSOR JIRAN</div>
+                    • Setiap kepala <strong>Baris & Lajur</strong> menunjukkan jumlah tepat <span class="text-cyan-300">Data Teras</span> dan <span class="text-rose-400">Firewall</span> pada baris/lajur tersebut.<br>
+                    • Setiap petak yang dibuka memaparkan <strong>Nombor Sensor</strong> (0–8) iaitu jumlah <strong>Firewall (Merah)</strong> di 8 petak bersebelahan.<br>
+                    • Mengekstrak <strong>Data Teras</strong> memulangkan <strong>+1 AP</strong>! Mengekstrak <strong>Nod Umpan</strong> menyedut -1 AP dan mengaburkan 1 petunjuk baris/lajur.
+                </div>
+
+                <div class="p-2.5 rounded-lg bg-purple-950/30 border border-purple-500/30">
+                    <div class="font-orbitron font-bold text-purple-300 mb-0.5">3. RADAR 2x2 & PERTARUHAN OVERCLOCK</div>
+                    • Gunakan <strong>Radar 2x2 (2 AP)</strong> untuk mengimbas mana-mana blok 2x2 dan melihat lencana jumlah Teras & Firewall pada persimpangan tersebut.<br>
+                    • Aktifkan <strong>Pertaruhan Overclock</strong> untuk menggandakan skor (2X) jika anda menyelesaikan sektor tanpa kesilapan dalam masa bawah 25 saat!
+                </div>
+            </div>
+
+            <div class="mt-4 flex justify-end">
+                <button onclick="UI.toggleModal('manualModal', false)" class="py-2 px-5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-orbitron font-bold text-xs uppercase">
+                    FAHAM & TERUSKAN
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= APPLICATION LOGIC ================= -->
+    <script>
+        /**
+         * ============================================================================
+         * 1. BILINGUAL (BM / EN) LOCALIZATION
+         * ============================================================================
+         */
+        const I18N = {
+            lang: 'ms',
+            dict: {
+                ms: {
+                    lblSector: "SEKTOR:",
+                    lblScore: "SKOR:",
+                    lblBest: "REKOD:",
+                    lblStreak: "KOMBO:",
+                    btnManual: "Cara Main",
+                    btnFullscreen: "Skrin Penuh",
+                    lblAP: "TENAGA TAKTIKAL (AP)",
+                    lblCores: "DATA TERAS",
+                    lblShield: "PERISAI NEURAL",
+                    lblActionMode: "MOD TINDAKAN TAKTIKAL",
+                    modeExtract: "EKSTRAK NOD",
+                    modeExtractSub: "Kumpul Teras (+1 AP Balik)",
+                    modeRadar: "RADAR 2x2",
+                    modeRadarSub: "Imbas jumlah Teras & Bahaya",
+                    modeFlag: "BENDERA PINTAS",
+                    modeFlagSub: "Tanda petak Bahaya / Umpan",
+                    lblOverclock: "PERTARUHAN OVERCLOCK",
+                    overclockDesc: "Aktifkan untuk 2X SKOR jika menang dengan 0 kesilapan & <25s, tetapi kos -1 AP Maks!",
+                    lblLegend: "PETUNJUK NOD MATRIKS:",
+                    legCore: "Teras",
+                    legTrap: "Firewall",
+                    legDecoy: "Umpan",
+                    lblRadarTitle: "RADAR KOGNITIF 4D",
+                    dimMemory: "MEMORI:",
+                    dimLogic: "LOGIK:",
+                    dimDecision: "KEPUTUSAN:",
+                    dimSpeed: "PANTAS:",
+                    lblSystemLog: "LOG TELEMETRI NEURAL",
+                    btnHint: "Imbas Semula (Hint)",
+                    btnReset: "Sektor Baharu / Reset",
+                    manualTitle: "MANUAL TAKTIKAL: NEURO-TACTICS"
+                },
+                en: {
+                    lblSector: "SECTOR:",
+                    lblScore: "SCORE:",
+                    lblBest: "BEST:",
+                    lblStreak: "STREAK:",
+                    btnManual: "How to Play",
+                    btnFullscreen: "Fullscreen",
+                    lblAP: "TACTICAL ENERGY (AP)",
+                    lblCores: "DATA CORES",
+                    lblShield: "NEURAL SHIELD",
+                    lblActionMode: "TACTICAL ACTION MODE",
+                    modeExtract: "EXTRACT NODE",
+                    modeExtractSub: "Collect Core (+1 AP Refund)",
+                    modeRadar: "2x2 RADAR",
+                    modeRadarSub: "Count Cores & Firewalls in 2x2",
+                    modeFlag: "BYPASS FLAG",
+                    modeFlagSub: "Mark suspected Trap / Decoy",
+                    lblOverclock: "OVERCLOCK WAGER",
+                    overclockDesc: "Toggle for 2X SCORE if cleared with 0 mistakes & <25s, at the cost of -1 Max AP!",
+                    lblLegend: "MATRIX NODE LEGEND:",
+                    legCore: "Core",
+                    legTrap: "Firewall",
+                    legDecoy: "Decoy",
+                    lblRadarTitle: "4D COGNITIVE RADAR",
+                    dimMemory: "MEMORY:",
+                    dimLogic: "LOGIC:",
+                    dimDecision: "DECISION:",
+                    dimSpeed: "SPEED:",
+                    lblSystemLog: "NEURAL TELEMETRY LOG",
+                    btnHint: "Memory Re-Flash (Hint)",
+                    btnReset: "New Sector / Reset",
+                    manualTitle: "TACTICAL MANUAL: NEURO-TACTICS"
+                }
+            },
+            toggle() {
+                this.lang = this.lang === 'ms' ? 'en' : 'ms';
+                document.getElementById('langBadge').textContent = this.lang === 'ms' ? 'BM' : 'EN';
+                document.querySelectorAll('[data-i18n]').forEach(el => {
+                    const k = el.getAttribute('data-i18n');
+                    if (this.dict[this.lang][k]) el.textContent = this.dict[this.lang][k];
+                });
+                SoundFX.click();
+                UI.drawRadarChart();
+            }
+        };
+
+        /**
+         * ============================================================================
+         * 2. WEB AUDIO SYNTHESIZER (CRISP SCI-FI AUDIO)
+         * ============================================================================
+         */
+        const SoundFX = {
+            ctx: null,
+            muted: false,
+            init() {
+                if (!this.ctx) {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    if (AC) this.ctx = new AC();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+            },
+            toggle() {
+                this.muted = !this.muted;
+                document.getElementById('soundIcon').className = this.muted
+                    ? 'fa-solid fa-volume-xmark text-slate-500 text-xs'
+                    : 'fa-solid fa-volume-high text-cyan-400 text-xs';
+                if (!this.muted) this.click();
+            },
+            tone(freq, type = 'sine', dur = 0.1, vol = 0.1, slide = null) {
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
+                try {
+                    const o = this.ctx.createOscillator();
+                    const g = this.ctx.createGain();
+                    o.type = type;
+                    o.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    if (slide) o.frequency.exponentialRampToValueAtTime(slide, this.ctx.currentTime + dur);
+                    g.gain.setValueAtTime(vol, this.ctx.currentTime);
+                    g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
+                    o.connect(g);
+                    g.connect(this.ctx.destination);
+                    o.start();
+                    o.stop(this.ctx.currentTime + dur);
+                } catch (e) {}
+            },
+            click() { this.tone(760, 'sine', 0.05, 0.07, 1020); },
+            scan() {
+                this.tone(480, 'triangle', 0.18, 0.11, 920);
+                setTimeout(() => this.tone(960, 'sine', 0.14, 0.09, 1360), 80);
+            },
+            coreHit() {
+                this.tone(587.33, 'triangle', 0.1, 0.14);
+                setTimeout(() => this.tone(880, 'triangle', 0.12, 0.14), 70);
+                setTimeout(() => this.tone(1174.66, 'sine', 0.24, 0.16), 140);
+            },
+            trapHit() {
+                this.tone(150, 'sawtooth', 0.32, 0.2, 50);
+                setTimeout(() => this.tone(95, 'square', 0.25, 0.16, 40), 90);
+            },
+            decoyHit() { this.tone(410, 'sawtooth', 0.18, 0.13, 190); },
+            win() {
+                [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+                    setTimeout(() => this.tone(f, 'triangle', 0.2, 0.15), i * 85);
+                });
+            }
+        };
+
+        /**
+         * ============================================================================
+         * 3. PARTICLE ENGINE
+         * ============================================================================
+         */
+        const Particles = {
+            canvas: null,
+            ctx: null,
+            items: [],
+            init() {
+                this.canvas = document.getElementById('particleCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                const resize = () => {
+                    this.canvas.width = window.innerWidth;
+                    this.canvas.height = window.innerHeight;
+                };
+                resize();
+                window.addEventListener('resize', resize);
+                this.animate();
+            },
+            burst(x, y, color = '#00f0ff', count = 20) {
+                for (let i = 0; i < count; i++) {
+                    const a = Math.random() * Math.PI * 2;
+                    const s = 1.5 + Math.random() * 4.5;
+                    this.items.push({
+                        x, y,
+                        vx: Math.cos(a) * s,
+                        vy: Math.sin(a) * s,
+                        alpha: 1,
+                        size: 2 + Math.random() * 3,
+                        color
+                    });
+                }
+            },
+            animate() {
+                if (this.ctx) {
+                    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                    for (let i = this.items.length - 1; i >= 0; i--) {
+                        const p = this.items[i];
+                        p.x += p.vx;
+                        p.y += p.vy;
+                        p.alpha -= 0.03;
+                        if (p.alpha <= 0) this.items.splice(i, 1);
+                        else {
+                            this.ctx.save();
+                            this.ctx.globalAlpha = p.alpha;
+                            this.ctx.fillStyle = p.color;
+                            this.ctx.shadowColor = p.color;
+                            this.ctx.shadowBlur = 6;
+                            this.ctx.fillRect(p.x, p.y, p.size, p.size);
+                            this.ctx.restore();
+                        }
+                    }
+                }
+                requestAnimationFrame(() => this.animate());
+            }
+        };
+
+        /**
+         * ============================================================================
+         * 4. CORE GAME STATE & LOGIC ENGINE
+         * ============================================================================
+         */
+        const Game = {
+            sector: 1,
+            score: 0,
+            highScore: 0,
+            streak: 1.0,
+            shield: 100,
+            ap: 7,
+            maxAp: 7,
+            gridSize: 5,
+            grid: [],
+            phase: 'MEMORIZE', // 'MEMORIZE', 'PLAYING', 'ENDED'
+            tool: 'EXTRACT',   // 'EXTRACT', 'RADAR', 'FLAG'
+            overclockWager: false,
+            hoverCoord: null,
+            radarScans: [],    // Stores {r, c, cores, traps} for 2x2 intersection readouts
+            scrambledRow: -1,
+
+            totalCores: 5,
+            extractedCores: 0,
+            totalTraps: 4,
+            mistakesThisSector: 0,
+            sectorElapsedSec: 0,
+            timerInterval: null,
+
+            // 4D Cognitive Metrics
+            stats: {
+                memory: 88,
+                logic: 90,
+                decision: 86,
+                speed: 92,
+                unassistedCoreHits: 0,
+                safeExtractions: 0,
+                totalMistakes: 0
+            },
+
+            init() {
+                this.highScore = parseInt(localStorage.getItem('neuroTactics_zeroScroll_best') || '0', 10);
+                Particles.init();
+                this.bindKeys();
+                this.startSector();
+            },
+
+            getSectorParameters(sec) {
+                // Scales from 5x5 -> 6x6 -> 7x7 while ALWAYS fitting inside 100vh via CSS --grid-dim
+                if (sec === 1) return { dim: 5, cores: 5, traps: 4, decoys: 2, baseAp: 7, flashSec: 3.5, partialFlash: false, label: 'IMBASAN PENUH 5x5' };
+                if (sec === 2) return { dim: 5, cores: 6, traps: 5, decoys: 2, baseAp: 7, flashSec: 3.5, partialFlash: true,  label: 'SEPARA KABUR 5x5' };
+                if (sec === 3) return { dim: 6, cores: 7, traps: 6, decoys: 3, baseAp: 8, flashSec: 3.5, partialFlash: false, label: 'MATRIKS 6x6' };
+                if (sec === 4) return { dim: 6, cores: 8, traps: 7, decoys: 3, baseAp: 8, flashSec: 3.2, partialFlash: true,  label: 'KOD KRIPTIK 6x6' };
+                return {
+                    dim: 7,
+                    cores: Math.min(11, 8 + Math.floor((sec - 4) / 2)),
+                    traps: Math.min(11, 8 + Math.floor((sec - 4) / 2)),
+                    decoys: 4,
+                    baseAp: 9,
+                    flashSec: 3.2,
+                    partialFlash: true,
+                    label: 'SEKTOR APEX 7x7'
+                };
+            },
+
+            startSector() {
+                clearInterval(this.timerInterval);
+                const cfg = this.getSectorParameters(this.sector);
+                this.gridSize = cfg.dim;
+                this.totalCores = cfg.cores;
+                this.totalTraps = cfg.traps;
+                this.extractedCores = 0;
+                this.mistakesThisSector = 0;
+                this.sectorElapsedSec = 0;
+                this.radarScans = [];
+                this.scrambledRow = -1;
+                this.tool = 'EXTRACT';
+
+                // Update CSS variable --grid-dim for zero-scroll dynamic cell calculation
+                document.documentElement.style.setProperty('--grid-dim', String(this.gridSize));
+                document.getElementById('sectorRuleBadge').textContent = cfg.label;
+
+                // Apply Overclock Wager (-1 Max AP)
+                this.maxAp = this.overclockWager ? Math.max(4, cfg.baseAp - 1) : cfg.baseAp;
+                this.ap = this.maxAp;
+
+                // Build Grid
+                this.grid = [];
+                const coords = [];
+                for (let r = 0; r < this.gridSize; r++) {
+                    const row = [];
+                    for (let c = 0; c < this.gridSize; c++) {
+                        row.push({
+                            r, c,
+                            type: 'EMPTY', // 'CORE', 'TRAP', 'DECOY', 'EMPTY'
+                            revealed: false,
+                            flagged: false,
+                            flashVisible: true,
+                            adjTraps: 0
+                        });
+                        coords.push([r, c]);
+                    }
+                    this.grid.push(row);
+                }
+
+                // Shuffle coordinates
+                for (let i = coords.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [coords[i], coords[j]] = [coords[j], coords[i]];
+                }
+
+                let idx = 0;
+                for (let i = 0; i < cfg.cores; i++, idx++) {
+                    const [r, c] = coords[idx];
+                    this.grid[r][c].type = 'CORE';
+                    if (cfg.partialFlash && i % 3 === 2) this.grid[r][c].flashVisible = false;
+                }
+                for (let i = 0; i < cfg.traps; i++, idx++) {
+                    const [r, c] = coords[idx];
+                    this.grid[r][c].type = 'TRAP';
+                    if (cfg.partialFlash && i % 3 === 2) this.grid[r][c].flashVisible = false;
+                }
+                for (let i = 0; i < cfg.decoys; i++, idx++) {
+                    const [r, c] = coords[idx];
+                    this.grid[r][c].type = 'DECOY';
+                }
+
+                // Calculate 8-way adjacent Firewall Hazards count for every tile
+                for (let r = 0; r < this.gridSize; r++) {
+                    for (let c = 0; c < this.gridSize; c++) {
+                        let hazards = 0;
+                        for (let dr = -1; dr <= 1; dr++) {
+                            for (let dc = -1; dc <= 1; dc++) {
+                                if (dr === 0 && dc === 0) continue;
+                                const nr = r + dr, nc = c + dc;
+                                if (nr >= 0 && nr < this.gridSize && nc >= 0 && nc < this.gridSize) {
+                                    if (this.grid[nr][nc].type === 'TRAP') hazards++;
+                                }
+                            }
+                        }
+                        this.grid[r][c].adjTraps = hazards;
+                    }
+                }
+
+                UI.updateToolButtons();
+                UI.updateHUD();
+                UI.log(`Sektor #0${this.sector} (${this.gridSize}x${this.gridSize}) dimulakan. Fasa 1 Imbasan Memori (${cfg.flashSec}s).`, 'cyan');
+                this.runMemorizePhase(cfg.flashSec);
+            },
+
+            runMemorizePhase(seconds) {
+                this.phase = 'MEMORIZE';
+                document.getElementById('radarSweepOverlay').classList.remove('hidden');
+                document.getElementById('phaseTitle').innerHTML = `<span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span> FASA 1: MEMORI`;
+                document.getElementById('arenaInstruction').textContent = 'Hafal kedudukan Data Teras (Biru), Firewall (Merah) & Umpan (Kuning)!';
+                UI.setBanner('[FASA 1] Imbasan memori visual aktif — perhatikan koordinat nod!', 'cyan');
+
+                UI.renderMatrix(true);
+                SoundFX.scan();
+
+                const totalMs = seconds * 1000;
+                const start = performance.now();
+                const step = (now) => {
+                    if (this.phase !== 'MEMORIZE') return;
+                    const elapsed = now - start;
+                    const rem = Math.max(0, totalMs - elapsed);
+                    document.getElementById('hudTimer').textContent = `${(rem / 1000).toFixed(1)}s`;
+                    document.getElementById('hudTimerBar').style.width = `${(rem / totalMs) * 100}%`;
+
+                    if (rem > 0) requestAnimationFrame(step);
+                    else this.beginDeductionPhase();
+                };
+                requestAnimationFrame(step);
+            },
+
+            beginDeductionPhase() {
+                this.phase = 'PLAYING';
+                document.getElementById('radarSweepOverlay').classList.add('hidden');
+                document.getElementById('phaseTitle').innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> FASA 2: DEDUKSI`;
+                document.getElementById('arenaInstruction').textContent = 'Gunakan petunjuk Baris/Lajur & Sensor Jiran untuk ekstrak semua Data Teras!';
+                UI.setBanner('[FASA 2] Nod dikunci! Ekstrak Data Teras (+1 AP balik) & elak Firewall.', 'emerald');
+
+                UI.renderMatrix(false);
+
+                // Count-up tactical timer (60s reference bar)
+                clearInterval(this.timerInterval);
+                this.timerInterval = setInterval(() => {
+                    if (this.phase !== 'PLAYING') return;
+                    this.sectorElapsedSec += 0.1;
+                    document.getElementById('hudTimer').textContent = `${this.sectorElapsedSec.toFixed(1)}s`;
+                    const pct = Math.max(0, 100 - (this.sectorElapsedSec / 60) * 100);
+                    document.getElementById('hudTimerBar').style.width = `${pct}%`;
+                    this.recalcCognitiveStats();
+                    UI.drawRadarChart();
+                }, 100);
+            },
+
+            setTool(t) {
+                if (this.phase !== 'PLAYING') return;
+                this.tool = t;
+                this.hoverCoord = null;
+                SoundFX.click();
+                UI.updateToolButtons();
+                UI.renderMatrix(false);
+            },
+
+            toggleOverclockWager() {
+                this.overclockWager = !this.overclockWager;
+                SoundFX.click();
+                const btn = document.getElementById('btnToggleOverclock');
+                const pill = document.getElementById('overclockActivePill');
+                if (this.overclockWager) {
+                    btn.textContent = 'ON (2X)';
+                    btn.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500 text-slate-950 border border-amber-300 shadow-[0_0_10px_rgba(255,184,0,0.5)]';
+                    pill.classList.remove('hidden');
+                    UI.log('Pertaruhan Overclock DIAKTIFKAN: 2X Skor jika 0 kesilapan & <25s (-1 AP Maks).', 'amber');
+                } else {
+                    btn.textContent = 'OFF';
+                    btn.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-slate-300 border border-slate-600';
+                    pill.classList.add('hidden');
+                    UI.log('Pertaruhan Overclock dimatikan.', 'slate');
+                }
+                // If still in early sector setup, adjust AP immediately
+                if (this.extractedCores === 0 && this.mistakesThisSector === 0) {
+                    const cfg = this.getSectorParameters(this.sector);
+                    this.maxAp = this.overclockWager ? Math.max(4, cfg.baseAp - 1) : cfg.baseAp;
+                    this.ap = Math.min(this.ap, this.maxAp);
+                    UI.updateHUD();
+                }
+            },
+
+            onTileHover(r, c) {
+                if (this.phase !== 'PLAYING' || this.tool !== 'RADAR') return;
+                const clampedR = Math.min(r, this.gridSize - 2);
+                const clampedC = Math.min(c, this.gridSize - 2);
+                if (!this.hoverCoord || this.hoverCoord.r !== clampedR || this.hoverCoord.c !== clampedC) {
+                    this.hoverCoord = { r: clampedR, c: clampedC };
+                    UI.highlightRadarBlock(clampedR, clampedC);
+                }
+            },
+
+            onTileClick(r, c, ev) {
+                if (this.phase !== 'PLAYING') return;
+                const cell = this.grid[r][c];
+
+                // 1. BENDERA PINTAS (0 AP)
+                if (this.tool === 'FLAG') {
+                    if (cell.revealed) return;
+                    cell.flagged = !cell.flagged;
+                    SoundFX.click();
+                    UI.log(`Bendera Pintas ${cell.flagged ? 'dipasang' : 'ditanggalkan'} pada [B${r + 1}, L${c + 1}].`, 'amber');
+                    UI.renderMatrix(false);
+                    return;
+                }
+
+                // 2. RADAR 2x2 SCAN (2 AP)
+                if (this.tool === 'RADAR') {
+                    if (this.ap < 2) {
+                        SoundFX.decoyHit();
+                        UI.setBanner('[AMARAN] Tenaga AP tidak mencukupi untuk Radar 2x2 (Perlu 2 AP)!', 'rose');
+                        return;
+                    }
+                    const sr = Math.min(r, this.gridSize - 2);
+                    const sc = Math.min(c, this.gridSize - 2);
+
+                    this.ap -= 2;
+                    let coresCount = 0, trapsCount = 0;
+                    for (let dr = 0; dr <= 1; dr++) {
+                        for (let dc = 0; dc <= 1; dc++) {
+                            const t = this.grid[sr + dr][sc + dc].type;
+                            if (t === 'CORE') coresCount++;
+                            if (t === 'TRAP') trapsCount++;
+                        }
+                    }
+
+                    // Store floating 2x2 badge readout
+                    this.radarScans.push({ r: sr, c: sc, cores: coresCount, traps: trapsCount });
+                    SoundFX.scan();
+                    if (ev) Particles.burst(ev.clientX, ev.clientY, '#b829ff', 22);
+
+                    UI.log(`Radar 2x2 [B${sr + 1}-${sr + 2}, L${sc + 1}-${sc + 2}]: ${coresCount} Data Teras, ${trapsCount} Firewall.`, 'purple');
+                    UI.setBanner(`[RADAR 2x2] Zon mengandungi ${coresCount} Data Teras & ${trapsCount} Firewall!`, 'purple');
+
+                    this.tool = 'EXTRACT';
+                    this.hoverCoord = null;
+                    UI.updateToolButtons();
+                    UI.updateHUD();
+                    UI.renderMatrix(false);
+                    this.checkDefeatConditions();
+                    return;
+                }
+
+                // 3. EKSTRAK NOD (1 AP)
+                if (this.tool === 'EXTRACT') {
+                    if (cell.revealed || cell.flagged) return;
+                    if (this.ap < 1) {
+                        SoundFX.decoyHit();
+                        UI.setBanner('[AMARAN] Tenaga Taktikal (AP) telah habis!', 'rose');
+                        return;
+                    }
+
+                    this.ap -= 1;
+                    cell.revealed = true;
+
+                    const rect = ev ? ev.currentTarget.getBoundingClientRect() : { left: window.innerWidth / 2, top: window.innerHeight / 2, width: 0, height: 0 };
+                    const cx = rect.left + rect.width / 2;
+                    const cy = rect.top + rect.height / 2;
+
+                    if (cell.type === 'CORE') {
+                        // Refund +1 AP on Core Extraction!
+                        this.ap = Math.min(this.maxAp, this.ap + 1);
+                        this.extractedCores++;
+                        this.stats.unassistedCoreHits++;
+                        this.stats.safeExtractions++;
+
+                        const pts = Math.round(250 * this.streak);
+                        this.score += pts;
+                        this.streak = Math.min(3.0, +(this.streak + 0.25).toFixed(2));
+
+                        SoundFX.coreHit();
+                        Particles.burst(cx, cy, '#00f0ff', 26);
+                        UI.log(`DATA TERAS diekstrak di [B${r + 1}, L${c + 1}]! (+${pts} Mata, +1 AP Balik)`, 'cyan');
+                        UI.setBanner(`[BERJAYA] Data Teras diekstrak! Tenaga +1 AP dipulangkan. Sensor Jiran: ${cell.adjTraps} Firewall.`, 'cyan');
+
+                        if (this.extractedCores >= this.totalCores) {
+                            this.recalcCognitiveStats();
+                            UI.updateHUD();
+                            UI.renderMatrix(false);
+                            setTimeout(() => this.finishSector(true), 400);
+                            return;
+                        }
+                    } else if (cell.type === 'EMPTY') {
+                        this.stats.safeExtractions++;
+                        const pts = Math.round(45 * this.streak);
+                        this.score += pts;
+                        SoundFX.click();
+                        Particles.burst(cx, cy, '#00ff9d', 12);
+                        UI.log(`Petak selamat [B${r + 1}, L${c + 1}] dibuka. Sensor: ${cell.adjTraps} Firewall berdekatan.`, 'emerald');
+                        UI.setBanner(`[SELAMAT] Nod kosong. Sensor mengesan ${cell.adjTraps} Firewall di 8 petak sekeliling.`, 'emerald');
+                    } else if (cell.type === 'DECOY') {
+                        // Decoy drains 1 extra AP and scrambles this row's clue!
+                        this.mistakesThisSector++;
+                        this.stats.totalMistakes++;
+                        this.ap = Math.max(0, this.ap - 1);
+                        this.scrambledRow = r;
+                        this.streak = 1.0;
+
+                        SoundFX.decoyHit();
+                        Particles.burst(cx, cy, '#ffb800', 22);
+                        UI.log(`UMPAN SIBER di [B${r + 1}, L${c + 1}]! -1 AP disedut & petunjuk Baris ${r + 1} dikaburkan!`, 'amber');
+                        UI.setBanner(`[UMPAN!] Tenaga -1 AP disedut & petunjuk Baris ${r + 1} telah diganggu!`, 'amber');
+                    } else if (cell.type === 'TRAP') {
+                        // Firewall Hazard damages shield & costs streak
+                        this.mistakesThisSector++;
+                        this.stats.totalMistakes += 2;
+                        this.shield = Math.max(0, this.shield - 35);
+                        this.streak = 1.0;
+
+                        SoundFX.trapHit();
+                        Particles.burst(cx, cy, '#ff2a5f', 32);
+                        UI.shakeArena();
+                        UI.log(`LETUPAN FIREWALL di [B${r + 1}, L${c + 1}]! Perisai Neural -35%!`, 'rose');
+                        UI.setBanner(`[BAHAYA] Anda melanggar Firewall! Perisai Neural jatuh ke ${this.shield}%.`, 'rose');
+
+                        if (this.shield <= 0) {
+                            this.recalcCognitiveStats();
+                            UI.updateHUD();
+                            UI.renderMatrix(true);
+                            setTimeout(() => this.finishSector(false, 'PERISAI MUSNAH'), 450);
+                            return;
+                        }
+                    }
+
+                    this.recalcCognitiveStats();
+                    UI.updateHUD();
+                    UI.renderMatrix(false);
+                    this.checkDefeatConditions();
+                }
+            },
+
+            // Quick Hint: 1-second re-flash of nodes for -1 AP
+            triggerMemoryReflash() {
+                if (this.phase !== 'PLAYING') return;
+                if (this.ap < 1) {
+                    SoundFX.decoyHit();
+                    UI.setBanner('[AMARAN] Perlu sekurang-kurangnya 1 AP untuk Imbas Semula!', 'rose');
+                    return;
+                }
+                this.ap -= 1;
+                SoundFX.scan();
+                UI.log('Imbas Semula Memori (1.0s) diaktifkan (-1 AP).', 'cyan');
+                UI.updateHUD();
+                UI.renderMatrix(true);
+                setTimeout(() => {
+                    if (this.phase === 'PLAYING') {
+                        UI.renderMatrix(false);
+                        this.checkDefeatConditions();
+                    }
+                }, 1000);
+            },
+
+            checkDefeatConditions() {
+                if (this.extractedCores < this.totalCores && this.ap <= 0) {
+                    setTimeout(() => this.finishSector(false, 'KEHABISAN TENAGA AP'), 400);
+                }
+            },
+
+            recalcCognitiveStats() {
+                const s = this.stats;
+                const totalMoves = s.safeExtractions + s.totalMistakes;
+                s.logic = totalMoves > 0 ? Math.min(100, Math.max(35, Math.round((s.safeExtractions / totalMoves) * 95))) : 90;
+                s.memory = Math.min(100, Math.max(40, 82 + s.unassistedCoreHits * 3 - s.totalMistakes * 6));
+                s.decision = Math.min(100, Math.max(35, Math.round((this.ap / this.maxAp) * 45 + (this.shield / 100) * 55)));
+                s.speed = Math.min(100, Math.max(35, Math.round(100 - Math.max(0, this.sectorElapsedSec - 8) * 1.2)));
+            },
+
+            finishSector(victory, failReason = '') {
+                this.phase = 'ENDED';
+                clearInterval(this.timerInterval);
+                UI.renderMatrix(true);
+
+                // Count accurate flags on Traps/Decoys
+                let accurateFlags = 0;
+                for (let r = 0; r < this.gridSize; r++) {
+                    for (let c = 0; c < this.gridSize; c++) {
+                        const cell = this.grid[r][c];
+                        if (cell.flagged && (cell.type === 'TRAP' || cell.type === 'DECOY')) accurateFlags++;
+                    }
+                }
+
+                const apBonus = victory ? this.ap * 90 : 0;
+                const flagBonus = accurateFlags * 100;
+                const speedBonus = victory ? Math.max(0, Math.round((45 - this.sectorElapsedSec) * 15)) : 0;
+                let roundSubtotal = apBonus + flagBonus + speedBonus;
+
+                let overclockTriggered = false;
+                if (victory && this.overclockWager && this.mistakesThisSector === 0 && this.sectorElapsedSec <= 25) {
+                    overclockTriggered = true;
+                    roundSubtotal = roundSubtotal * 2 + 600;
+                }
+
+                if (victory) {
+                    this.score += roundSubtotal;
+                    SoundFX.win();
+                    UI.log(`SEKTOR #0${this.sector} DITEMBUSI! Bonus: +${roundSubtotal} Mata.`, 'emerald');
+                } else {
+                    SoundFX.trapHit();
+                    UI.log(`OPERASI GAGAL (${failReason}).`, 'rose');
+                }
+
+                if (this.score > this.highScore) {
+                    this.highScore = this.score;
+                    localStorage.setItem('neuroTactics_zeroScroll_best', String(this.highScore));
+                }
+
+                this.recalcCognitiveStats();
+                UI.updateHUD();
+                UI.showModalReport(victory, failReason, { apBonus, flagBonus, speedBonus, overclockTriggered });
+            },
+
+            proceedAfterModal() {
+                SoundFX.click();
+                UI.toggleModal('resultModal', false);
+                if (this.extractedCores >= this.totalCores && this.shield > 0) {
+                    this.sector++;
+                    this.shield = Math.min(100, this.shield + 20);
+                    this.startSector();
+                } else {
+                    this.resetCampaign();
+                }
+            },
+
+            resetCampaign() {
+                SoundFX.click();
+                UI.toggleModal('resultModal', false);
+                this.sector = 1;
+                this.score = 0;
+                this.streak = 1.0;
+                this.shield = 100;
+                this.stats = { memory: 88, logic: 90, decision: 86, speed: 92, unassistedCoreHits: 0, safeExtractions: 0, totalMistakes: 0 };
+                this.startSector();
+            },
+
+            bindKeys() {
+                window.addEventListener('keydown', (e) => {
+                    if (this.phase !== 'PLAYING') return;
+                    if (e.key === '1') this.setTool('EXTRACT');
+                    if (e.key === '2') this.setTool('RADAR');
+                    if (e.key === '3') this.setTool('FLAG');
+                });
+            }
+        };
+
+        /**
+         * ============================================================================
+         * 5. UI CONTROLLER, AUTO-SCALING MATRIX & 4D RADAR CANVAS
+         * ============================================================================
+         */
+        const UI = {
+            updateHUD() {
+                document.getElementById('hudSector').textContent = String(Game.sector).padStart(2, '0');
+                document.getElementById('hudGridBadge').textContent = `${Game.gridSize}x${Game.gridSize}`;
+                document.getElementById('hudScore').textContent = Game.score.toLocaleString();
+                document.getElementById('hudHighScore').textContent = Game.highScore.toLocaleString();
+                document.getElementById('hudStreak').textContent = `x${Game.streak.toFixed(2)}`;
+
+                // AP Pips
+                document.getElementById('hudAPText').textContent = `${Game.ap} / ${Game.maxAp} AP`;
+                const pips = document.getElementById('hudAPPips');
+                pips.innerHTML = '';
+                for (let i = 0; i < Game.maxAp; i++) {
+                    const d = document.createElement('div');
+                    d.className = `flex-1 rounded-sm transition-all ${
+                        i < Game.ap ? 'bg-amber-400 shadow-[0_0_6px_rgba(255,184,0,0.7)]' : 'bg-slate-800'
+                    }`;
+                    pips.appendChild(d);
+                }
+
+                // Cores Progress
+                document.getElementById('hudCoresText').textContent = `${Game.extractedCores} / ${Game.totalCores}`;
+                document.getElementById('hudCoresBar').style.width = `${(Game.extractedCores / Game.totalCores) * 100}%`;
+
+                // Neural Shield
+                document.getElementById('hudShieldText').textContent = `${Game.shield}%`;
+                document.getElementById('hudShieldBar').style.width = `${Game.shield}%`;
+
+                this.drawRadarChart();
+            },
+
+            updateToolButtons() {
+                const configs = [
+                    { tool: 'EXTRACT', id: 'btnModeExtract', active: 'bg-cyan-500/20 border-cyan-400 shadow-[0_0_12px_rgba(0,240,255,0.22)]' },
+                    { tool: 'RADAR',   id: 'btnModeRadar',   active: 'bg-purple-500/20 border-purple-400 shadow-[0_0_12px_rgba(184,41,255,0.22)]' },
+                    { tool: 'FLAG',    id: 'btnModeFlag',    active: 'bg-rose-500/20 border-rose-400 shadow-[0_0_12px_rgba(255,42,95,0.22)]' }
+                ];
+                configs.forEach(c => {
+                    const el = document.getElementById(c.id);
+                    if (Game.tool === c.tool) {
+                        el.className = `w-full p-2 rounded-lg border text-left transition flex items-center justify-between ${c.active}`;
+                    } else {
+                        el.className = `w-full p-2 rounded-lg border text-left transition flex items-center justify-between bg-slate-900/90 border-slate-700/80 hover:border-slate-500`;
+                    }
+                });
+            },
+
+            renderMatrix(isFlashPhase = false) {
+                const board = document.getElementById('matrixBoard');
+                const N = Game.gridSize;
+
+                // Compute exact Row & Column counts of Data Cores (Blue) and Firewalls (Red)
+                const rowClues = [];
+                const colClues = Array.from({ length: N }, () => ({ cores: 0, traps: 0 }));
+
+                for (let r = 0; r < N; r++) {
+                    let rc = 0, rt = 0;
+                    for (let c = 0; c < N; c++) {
+                        const t = Game.grid[r][c].type;
+                        if (t === 'CORE') { rc++; colClues[c].cores++; }
+                        if (t === 'TRAP') { rt++; colClues[c].traps++; }
+                    }
+                    rowClues.push({ cores: rc, traps: rt });
+                }
+
+                let html = '';
+
+                // Top-Left Corner Intersection Cell
+                html += `
+                    <div class="tactical-tile rounded-lg bg-slate-950/90 border border-slate-800 flex flex-col items-center justify-center text-[9px] font-mono text-slate-400">
+                        <i class="fa-solid fa-microchip text-cyan-400 text-xs mb-0.5"></i>
+                        <span>B/L</span>
+                    </div>
+                `;
+
+                // Top Column Clue Headers
+                for (let c = 0; c < N; c++) {
+                    html += `
+                        <div class="tactical-tile rounded-lg bg-slate-900/95 border border-slate-700/80 flex flex-col items-center justify-center font-mono leading-tight">
+                            <span class="text-[11px] font-bold text-cyan-300 flex items-center gap-0.5">
+                                <i class="fa-solid fa-gem text-[8px]"></i>${colClues[c].cores}
+                            </span>
+                            <span class="text-[11px] font-bold text-rose-400 flex items-center gap-0.5">
+                                <i class="fa-solid fa-skull-crossbones text-[8px]"></i>${colClues[c].traps}
+                            </span>
+                        </div>
+                    `;
+                }
+
+                // Rows: Left Row Clue Header + N Matrix Cells
+                for (let r = 0; r < N; r++) {
+                    const isScrambled = Game.scrambledRow === r && Game.phase === 'PLAYING';
+                    html += `
+                        <div class="tactical-tile rounded-lg bg-slate-900/95 border ${isScrambled ? 'border-amber-400 animate-pulse' : 'border-slate-700/80'} flex flex-col items-center justify-center font-mono leading-tight">
+                            <span class="text-[11px] font-bold text-cyan-300 flex items-center gap-0.5">
+                                <i class="fa-solid fa-gem text-[8px]"></i>${isScrambled ? '?' : rowClues[r].cores}
+                            </span>
+                            <span class="text-[11px] font-bold text-rose-400 flex items-center gap-0.5">
+                                <i class="fa-solid fa-skull-crossbones text-[8px]"></i>${isScrambled ? '?' : rowClues[r].traps}
+                            </span>
+                        </div>
+                    `;
+
+                    for (let c = 0; c < N; c++) {
+                        const cell = Game.grid[r][c];
+                        const showNode = (isFlashPhase && cell.flashVisible) || cell.revealed || Game.phase === 'ENDED';
+                        let cls = 'tile-cloaked';
+                        let content = '';
+
+                        if (showNode) {
+                            if (cell.type === 'CORE') {
+                                cls = 'tile-core';
+                                content = `
+                                    <i class="fa-solid fa-gem text-cyan-300 text-sm sm:text-base drop-shadow-[0_0_6px_rgba(0,240,255,0.8)]"></i>
+                                    ${cell.revealed ? `<span class="text-[9px] font-mono font-bold text-emerald-300 leading-none mt-0.5">${cell.adjTraps}</span>` : ''}
+                                `;
+                            } else if (cell.type === 'TRAP') {
+                                cls = 'tile-trap';
+                                content = `<i class="fa-solid fa-skull-crossbones text-rose-400 text-sm sm:text-base"></i>`;
+                            } else if (cell.type === 'DECOY') {
+                                cls = 'tile-decoy';
+                                content = `
+                                    <i class="fa-solid fa-triangle-exclamation text-amber-300 text-xs sm:text-sm"></i>
+                                    ${cell.revealed ? `<span class="text-[9px] font-mono font-bold text-amber-200 leading-none mt-0.5">${cell.adjTraps}</span>` : ''}
+                                `;
+                            } else {
+                                cls = 'tile-safe';
+                                if (cell.revealed) {
+                                    const numColor = cell.adjTraps === 0 ? 'text-slate-500' : cell.adjTraps === 1 ? 'text-emerald-400' : cell.adjTraps === 2 ? 'text-amber-300' : 'text-rose-400';
+                                    content = `<span class="font-mono font-extrabold text-sm sm:text-base ${numColor}">${cell.adjTraps}</span>`;
+                                }
+                            }
+                        } else if (cell.flagged) {
+                            cls = 'bg-rose-950/60 border-2 border-rose-500';
+                            content = `<i class="fa-solid fa-flag text-rose-400 text-xs sm:text-sm"></i>`;
+                        } else if (isFlashPhase && !cell.flashVisible) {
+                            cls = 'tile-cloaked border-dashed border-cyan-500/40';
+                            content = `<i class="fa-solid fa-question text-slate-500 text-xs"></i>`;
+                        } else {
+                            content = `<span class="w-1 h-1 rounded-full bg-slate-600"></span>`;
+                        }
+
+                        // Check if a 2x2 Radar Scan badge belongs on the bottom-right corner of (r, c)
+                        const scanBadge = Game.radarScans.find(s => s.r === r && s.c === c);
+                        const badgeHTML = scanBadge ? `
+                            <div class="absolute -bottom-2 -right-2 z-30 px-1 py-0.5 rounded bg-purple-950 border border-purple-400 shadow-[0_0_8px_rgba(184,41,255,0.8)] font-mono text-[9px] leading-none flex items-center gap-1 pointer-events-none">
+                                <span class="text-cyan-300 font-bold">${scanBadge.cores}C</span>
+                                <span class="text-rose-400 font-bold">${scanBadge.traps}F</span>
+                            </div>
+                        ` : '';
+
+                        html += `
+                            <button
+                                data-r="${r}" data-c="${c}"
+                                onmouseenter="Game.onTileHover(${r}, ${c})"
+                                onclick="Game.onTileClick(${r}, ${c}, event)"
+                                oncontextmenu="event.preventDefault(); Game.setTool('FLAG'); Game.onTileClick(${r}, ${c}, event);"
+                                class="tactical-tile rounded-lg flex flex-col items-center justify-center ${cls}"
+                            >
+                                ${content}
+                                ${badgeHTML}
+                            </button>
+                        `;
+                    }
+                }
+
+                board.innerHTML = html;
+            },
+
+            highlightRadarBlock(sr, sc) {
+                document.querySelectorAll('#matrixBoard button[data-r]').forEach(btn => {
+                    const r = parseInt(btn.getAttribute('data-r'), 10);
+                    const c = parseInt(btn.getAttribute('data-c'), 10);
+                    if (r >= sr && r <= sr + 1 && c >= sc && c <= sc + 1) {
+                        btn.classList.add('tile-radar-highlight');
+                    } else {
+                        btn.classList.remove('tile-radar-highlight');
+                    }
+                });
+            },
+
+            // Live 4-Dimensional HTML5 Canvas Radar Chart
+            drawRadarChart() {
+                const canvas = document.getElementById('radarCanvas');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const w = canvas.width, h = canvas.height;
+                const cx = w / 2, cy = h / 2;
+                const maxR = 54;
+
+                ctx.clearRect(0, 0, w, h);
+
+                // Reference diamond webs
+                [0.35, 0.68, 1.0].forEach(scale => {
+                    const r = maxR * scale;
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy - r);
+                    ctx.lineTo(cx + r, cy);
+                    ctx.lineTo(cx, cy + r);
+                    ctx.lineTo(cx - r, cy);
+                    ctx.closePath();
+                    ctx.strokeStyle = 'rgba(51, 65, 85, 0.65)';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                });
+
+                // Axes
+                ctx.beginPath();
+                ctx.moveTo(cx, cy - maxR); ctx.lineTo(cx, cy + maxR);
+                ctx.moveTo(cx - maxR, cy); ctx.lineTo(cx + maxR, cy);
+                ctx.strokeStyle = 'rgba(71, 85, 105, 0.7)';
+                ctx.stroke();
+
+                const { memory, logic, decision, speed } = Game.stats;
+                document.getElementById('valMem').textContent = `${memory}%`;
+                document.getElementById('valLog').textContent = `${logic}%`;
+                document.getElementById('valDec').textContent = `${decision}%`;
+                document.getElementById('valSpd').textContent = `${speed}%`;
+
+                const topY = cy - (memory / 100) * maxR;
+                const rightX = cx + (logic / 100) * maxR;
+                const bottomY = cy + (decision / 100) * maxR;
+                const leftX = cx - (speed / 100) * maxR;
+
+                // Data Polygon
+                ctx.beginPath();
+                ctx.moveTo(cx, topY);
+                ctx.lineTo(rightX, cy);
+                ctx.lineTo(cx, bottomY);
+                ctx.lineTo(leftX, cy);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(0, 240, 255, 0.25)';
+                ctx.fill();
+                ctx.strokeStyle = '#00f0ff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Axis Labels
+                ctx.font = 'bold 9px "JetBrains Mono"';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#00f0ff';
+                ctx.fillText('MEMORI', cx, cy - maxR - 6);
+                ctx.fillStyle = '#00ff9d';
+                ctx.fillText('LOGIK', cx + maxR + 22, cy + 3);
+                ctx.fillStyle = '#ffb800';
+                ctx.fillText('KEPUTUSAN', cx, cy + maxR + 12);
+                ctx.fillStyle = '#d8b4fe';
+                ctx.fillText('PANTAS', cx - maxR - 22, cy + 3);
+
+                const avg = Math.round((memory + logic + decision + speed) / 4);
+                document.getElementById('cognitiveRankBadge').textContent = avg >= 90 ? 'KELAS S+' : avg >= 80 ? 'KELAS A' : 'KELAS B';
+            },
+
+            log(msg, tone = 'cyan') {
+                const box = document.getElementById('telemetryLog');
+                if (!box) return;
+                const colors = {
+                    cyan: 'text-cyan-300 border-cyan-500/40',
+                    emerald: 'text-emerald-300 border-emerald-500/40',
+                    amber: 'text-amber-300 border-amber-500/40',
+                    rose: 'text-rose-300 border-rose-500/40',
+                    purple: 'text-purple-300 border-purple-500/40',
+                    slate: 'text-slate-400 border-slate-700'
+                };
+                const time = new Date().toLocaleTimeString('en-GB', { hour12: false });
+                const item = document.createElement('div');
+                item.className = `pl-2 border-l-2 leading-tight ${colors[tone] || colors.cyan}`;
+                item.innerHTML = `<span class="text-[9px] text-slate-500">[${time}]</span> ${msg}`;
+                box.prepend(item);
+            },
+
+            clearLog() {
+                document.getElementById('telemetryLog').innerHTML = '';
+            },
+
+            setBanner(text, color = 'cyan') {
+                const el = document.getElementById('liveBannerMsg');
+                const map = {
+                    cyan: 'text-cyan-300',
+                    emerald: 'text-emerald-300',
+                    amber: 'text-amber-300',
+                    rose: 'text-rose-400',
+                    purple: 'text-purple-300'
+                };
+                el.className = `font-mono text-xs truncate ${map[color] || 'text-cyan-300'}`;
+                el.textContent = text;
+            },
+
+            shakeArena() {
+                const el = document.getElementById('arenaContainer');
+                el.classList.remove('shake-hit');
+                void el.offsetWidth;
+                el.classList.add('shake-hit');
+            },
+
+            showModalReport(victory, failReason, bonuses) {
+                const tag = document.getElementById('modalTag');
+                const title = document.getElementById('modalTitle');
+                const desc = document.getElementById('modalDesc');
+                const grade = document.getElementById('modalGrade');
+                const btn = document.getElementById('btnModalAction');
+
+                const { memory, logic, decision, speed } = Game.stats;
+                const avg = Math.round((memory + logic + decision + speed) / 4);
+                grade.textContent = victory ? (avg >= 90 ? 'S+' : avg >= 80 ? 'A' : 'B') : 'F';
+
+                if (victory) {
+                    tag.className = 'text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-400/40';
+                    tag.textContent = 'SEKTOR BERJAYA DITEMBUSI';
+                    title.textContent = `SEKTOR #0${Game.sector} SELESAI`;
+                    desc.textContent = 'Semua Data Teras telah berjaya diekstrak! Profil kognitif 4D anda telah dikemas kini.';
+                    btn.innerHTML = `TERUSKAN KE SEKTOR #0${Game.sector + 1} <i class="fa-solid fa-arrow-right ml-1"></i>`;
+                } else {
+                    tag.className = 'text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-400/40';
+                    tag.textContent = `OPERASI GAGAL // ${failReason}`;
+                    title.textContent = 'SISTEM TERPUTUS';
+                    desc.textContent = 'Analisis matriks terhenti. Mulakan semula operasi untuk menguji semula ingatan dan deduksi anda.';
+                    btn.innerHTML = `<i class="fa-solid fa-rotate-right mr-1"></i> CUBA SEMULA OPERASI`;
+                }
+
+                document.getElementById('modalBreakdown').innerHTML = `
+                    <div class="flex justify-between text-slate-300">
+                        <span>Bonus Baki Tenaga AP:</span>
+                        <span class="text-cyan-400 font-bold">+${bonuses.apBonus}</span>
+                    </div>
+                    <div class="flex justify-between text-slate-300">
+                        <span>Bonus Bendera Pintas Tepat:</span>
+                        <span class="text-emerald-400 font-bold">+${bonuses.flagBonus}</span>
+                    </div>
+                    <div class="flex justify-between text-slate-300">
+                        <span>Bonus Kepantasan Masa (${Game.sectorElapsedSec.toFixed(1)}s):</span>
+                        <span class="text-purple-300 font-bold">+${bonuses.speedBonus}</span>
+                    </div>
+                    ${bonuses.overclockTriggered ? `
+                    <div class="flex justify-between text-amber-300 font-bold">
+                        <span>PERTARUHAN OVERCLOCK (2X):</span>
+                        <span>BERJAYA!</span>
+                    </div>` : ''}
+                    <div class="border-t border-slate-800 pt-1.5 mt-1.5 flex justify-between text-white font-bold">
+                        <span>JUMLAH SKOR SEMASA:</span>
+                        <span class="text-cyan-300">${Game.score.toLocaleString()}</span>
+                    </div>
+                `;
+
+                this.toggleModal('resultModal', true);
+            },
+
+            toggleModal(id, show) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.classList.toggle('hidden', !show);
+                el.classList.toggle('flex', show);
+            },
+
+            toggleFullscreen() {
+                SoundFX.click();
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(() => {});
+                    document.getElementById('fullscreenIcon').className = 'fa-solid fa-compress';
+                } else {
+                    document.exitFullscreen().catch(() => {});
+                    document.getElementById('fullscreenIcon').className = 'fa-solid fa-expand';
+                }
+            }
+        };
+
+        window.onload = () => Game.init();
+    </script>
+</body>
+</html>
